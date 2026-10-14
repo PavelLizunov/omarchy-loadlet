@@ -1,0 +1,40 @@
+{
+  "upstream": "b25a98c7ff2a688ab74d86d2be42249e2db2f9cf",
+  "unchanged": {
+    ".gitignore": "216c6ad0fdfc1cdf4106e0c47aaa1cd8169692e7",
+    "Sparkline.qml": "507545c51eca99d046d696d06d2023c1d78d63c5",
+    "preview-compact.png": "25255674c067798ecaf551c19f26d07f0d5f7151",
+    "preview-cpu-layouts.png": "0c016735483f415c8687827a8cc705198a003733",
+    "preview-expanded.png": "e9d17b47f48638e81ce3d63ab8c50774af1cf9ec",
+    "scripts/render-cpu-layouts.js": "691def78402c6a62aa46e2b012b976d9093eecc7",
+    "test/activity-details-test.sh": "d55c9b04ab77e3469138c8517f3472a7377cda5e",
+    "test/activity-native-test.sh": "adc444053a7df53326fa4b977e7d9ecece88fa35",
+    "test/activity-privilege-test.sh": "3ac4631042991a7bab4f8c143c6f3e28449c8779",
+    "test/activity-process-action-test.sh": "4c632b596fb97e051be2e62ecc193291778a3042",
+    "test/activity-test.sh": "b6d1abacb6de9ecae653eb18f0dab1954e1c4cef",
+    "test/base-test.sh": "1a1ee480b713bb801bfbecfcf2b5d24e10ed148e"
+  },
+  "modified": [
+    "ActivityController.qml",
+    "LICENSE",
+    "Makefile",
+    "Model.js",
+    "Panel.qml",
+    "ProcessActionController.qml",
+    "README.md",
+    "activity-sampler",
+    "activity-sampler.cpp",
+    "activity-stats",
+    "manifest.json",
+    "preview.png",
+    "process-signal",
+    "test/all.sh"
+  ],
+  "deleted": [
+    ".SRCINFO",
+    "PKGBUILD",
+    "activity-power-reader",
+    "stappmus-activity-monitor.sudoers"
+  ],
+  "policy": "Pinned public upstream blob identities;12unchanged owners,14modified owners and4historical deletions. Portable clean-history checks retain source/license attribution without private Git ancestry."
+}

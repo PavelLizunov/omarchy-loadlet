@@ -1,0 +1,280 @@
+# Loadlet guide
+
+[Overview](../README.md). Details below describe the current native plugin.
+
+## Icon indicator
+
+The default Split die has a left CPU eye and a right RAM eye. Both fill from
+bottom to top in six whole rows, rounded down. **Icon fill threshold** applies
+independently to CPU and RAM in both bar and header icons. The default is 50%:
+49% draws no filled rows; 50% draws three; 100% draws six. The actual percentage
+scale is not rescaled above the threshold. Settings offers 0-100% in 10-point
+steps (`iconLoadThreshold`); 0 disables suppression and restores the original
+first row at about 16.7%. Invalid threshold input falls back to 50%.
+Raw readings in the panel/tooltip, sampling, thermal markers and motion are
+unchanged. Empty tracks are not proof of zero or fresh data; read the tooltip
+or panel for exact values/freshness.
+The selected 3x6 eyes and small cutout cheeks stay inside the 16-unit canvas.
+Version2.7.7 adds small stepped edge chips and staggered shoulders to the default
+body, retaining all gauge/temperature meanings. Version2.7.8 widens that body
+from12to14 logical units within the same16-unit canvas, without stretching eyes
+or changing the bar slot or12-unit body height. Version 2.7.9 replaces the
+asymmetric chips with paired side notches and balanced shoulders/base. The quiet
+body and face mirror left/right; unequal gauge readings and heat remain distinct.
+It is stored as `iconShape: 10`; all ten older silhouettes and explicit saved
+selections retain their original indices. Settings can switch between them.
+Older characters retain their horizontal CPU mouth and vertical RAM eye. The
+SVG follows the host palette and keeps the normal icon slot.
+Version 2.6.1 declares the target pixel dimensions inside the SVG as well as in
+Qt's `sourceSize`, avoiding fixed-16px data-URL rasterization on Qt 6.12 and keeping
+HiDPI bar/header images sharp. The 16-unit vector geometry is unchanged.
+The same character appears in the panel header. Split die fill uses the theme
+accent hue below 85%, with a higher brightness ceiling from 65%; from 85% it uses
+the urgent hue. Version 2.7.3 raises saturation to at least 90% and selects the
+brightest bounded shade retaining 3:1 active-row/body contrast on checked opaque
+palettes. Unlike 2.7.1-2.7.2, it does not mix active colors with grey background.
+Near-neutral theme roles use blue/red hue fallbacks; no theme settings change.
+The panel cards and legacy icon shapes retain their original gauge palette.
+The tooltip shows current CPU, RAM and temperature with short click hints.
+Settings explains the selected shape's gauge mapping and six-row threshold.
+Legacy shapes keep their flatter CPU mouth, approximately
+6 logical units between endpoints with a 2.4-unit stroke, and fitted RAM eyes.
+
+Colored flames above the character appear at 80 degrees Celsius and clear below
+75 degrees Celsius. Settings can change the trigger; the clearing threshold stays
+5 degrees lower. Flames use the host urgent color. They signal a configurable
+temperature threshold, not a hardware-specific critical-temperature diagnosis.
+Missing sensors, stale values and reader failures clear the flames.
+The Split die uses stepped flames within the existing canvas; legacy shapes
+keep their curved flames. Fresh high temperature also colors the CPU-card detail.
+
+**Brief heat animation** is enabled by default and can be disabled in Settings.
+The character rotates by at most 6 degrees for 2 seconds. Four heat levels start
+at the configured threshold, then +5/+10/+15 degrees Celsius. At the default
+80 C threshold they begin at 80/85/90/95 C, with movement starting at most once
+every 15/10/5/3 seconds respectively. Flames grow above the character, then spread
+to the sides and bottom while keeping the gauge tracks clear. Cooling between levels has
+a 2 C deadband; full exit stays below threshold minus 5 C. Stale thermals, hiding
+the item or disabling motion stops it and resets rotation. This is a native Qt
+transform; it does not regenerate SVG per frame or change sensor cadence. One
+visibility-gated visual replay timer uses fresh cached thermals. Inert tests verify
+these bounds, not CPU or battery consumption. At the maximum level two seconds
+of movement may run every three seconds; its physical resource
+cost has not been measured.
+
+With **Background icon indicators** enabled (default), the same native reader
+requests aggregate CPU/RAM and a separate CPU thermal sample every 15 seconds
+while the panel is closed. Requests are serial. The thermal reader reuses its
+cached sensor path; initial discovery or sensor loss can enumerate hwmon sensors.
+With diagnostic history disabled, no process inventory, topology, GPU or disk
+requests run in this mode. Open-panel samples feed the icon without a second
+reader. Disabling both background icon indicators and diagnostic history stops
+closed-panel collection, while open-panel sampling continues normally.
+
+CPU requires two counter samples; the initial baseline is unavailable, not 0%.
+CPU is an average between samples, so short peaks are smoothed. Unavailable values
+leave unfilled tracks and are identified in the tooltip. Freshness/counter-gap
+limits are 35 seconds. Exact CPU, used/total RAM and fresh temperature are in the
+tooltip. These tiny gauges show approximate levels; background polling is not
+zero-overhead, timer cadence can slip during shell stalls, and battery impact
+has not been measured.
+
+## Diagnostic history and agent recommendations
+
+**Diagnostic history** is a separate opt-in setting, disabled by default. It
+keeps the existing reader active even when background icon indicators are off.
+It adds process enumeration every 30 seconds and a bounded diagnostic-context
+read every 60 seconds. Normal CPU/RAM and CPU temperature keep their 15-second
+closed-panel targets. Open-panel samples are reused; no second telemetry daemon
+or privileged helper is installed.
+
+History is private JSONL under
+`$XDG_STATE_HOME/omarchy/activity-lite/journal` (normally
+`~/.local/state/omarchy/activity-lite/journal`). It contains:
+
+- UTC epoch time, uptime, boot identity, CPU percentage and its averaging window;
+- RAM/swap values, CPU temperature, missing values, sample ages and collection errors;
+- up to 30 process candidates across high CPU, resident memory, memory growth and
+  observed D/Z states, identified by boot ID, PID and start ticks;
+- CPU/memory/IO PSI, selected vmstat counters, load average, CPU policy frequencies
+  and limits, scaling driver/governor/EPP, boost permission, platform profile and
+  AC/battery status when available.
+
+The writer buffers at most 128 KiB, flushing on subsequent samples after 60 seconds
+or buffer pressure, and on normal shutdown/SIGTERM. Chunks rotate hourly or at
+1 MiB. On writes it prunes oldest chunks to at most 7 days and 20 MiB. Shorter
+history is possible when the byte limit is reached. Storage failures remain local
+to history and appear in diagnostic status; metrics continue. Power loss, SIGKILL
+or the host's forced teardown can lose the buffered minute. No command lines,
+environment variables, window titles or document contents are captured.
+
+Settings provides **Export for an agent** for 1/2/6/24/168 hours, followed by
+**Copy analysis request**. The export directory contains `samples.jsonl`,
+summary.json and AGENT-PROMPT.md, generated inside that new export directory.
+Summaries include sample coverage/gaps,
+thermal episodes using an explicitly labeled 80 C analysis criterion, process
+candidates, PSI peaks and swap/vmstat rates. The raw records retain effective CPU
+policies so an agent can recommend appropriate workload, EPP/profile/boost or
+frequency-limit experiments with tradeoffs, before/after checks and rollback.
+
+For a local CLI export, run from the installed plugin folder:
+
+```sh
+python3 -I activity-report --hours 2
+```
+
+Explicit exports are outside automatic journal rotation. The default export
+parent accepts at most 10 entries; move or remove an old export before creating
+another. Input is bounded to 20 MiB, 50000 records and 32 KiB per line. An empty
+selected period is an error, not a fabricated report. The UI has a 10-second
+owned-process deadline. Exports never overwrite an existing destination.
+
+The plugin prepares evidence and a recommendation prompt; it does not run an AI,
+change CPU settings, or end processes. The prompt is guidance, not a permissions
+sandbox. When using an agent, keep its task read-only and approve any later
+system changes separately. Process names are untrusted data, not executable commands.
+
+CPU percentage of a process uses one logical core as 100% and can exceed 100%.
+RSS can count shared memory more than once; growth is not proof of a leak. A D
+state means uninterruptible waiting, not a proven hang; sleep is normal; a zombie
+requires investigation of its parent. Candidate lists are sampled, not an archive
+of all processes or finished jobs. GPU load, fans, electrical watts and direct
+throttling measurements are not recorded. The export cannot prove pointless
+work, exact energy use or the physical cause of heat by itself.
+
+## Controls
+
+- Left-click the bar icon to toggle the panel, honoring the saved detailed-view
+  preference. Right-click has no action. Expand inside the panel or press `e` for
+  the built-in process view; the existing details IPC route remains available.
+- `e`: expand/collapse details, `/`: search, `j`/`k`: select, `s`: settings.
+- Click a process to select it. Terminate sends SIGTERM to that exact PID and
+  sampled start time. Force terminate sends SIGKILL only after a separate confirmation.
+- No automatic escalation or promotion to a same-name parent process.
+- Selection follows PID and sampled start time across updates. When that identity
+  disappears from the visible list, action buttons disable until another selection.
+- Escape cancels confirmation first, then collapses details/closes the panel.
+- In Settings, Escape closes an open dropdown first, then returns to the metrics.
+- The language picker blocks process actions. `?` shows or hides keyboard hints.
+- Error messages distinguish unavailable data from an idle machine.
+
+The interface uses `I18n.js` catalogs for Russian, English, German and Simplified
+Chinese. Russian is the default; `system` follows the Qt locale. PID, CPU, VRAM,
+and byte units remain technical identifiers. Helper failures use localized UI
+messages rather than displaying untranslated stderr.
+
+## Panel geometry
+
+Compact mode shows up to four processes without scrolling. Its visible row count
+shrinks when the host clamps the panel height. On narrow panels, PID and memory
+percentage columns hide before the process name, CPU and absolute memory columns.
+Expanded mode keeps the process list and action buttons reachable by scrolling
+the summary cards internally when vertical space is limited.
+
+Preferred content sizes are 480×390 and 780×560 logical pixels, multiplied by the
+host spacing scale. The host adds popup padding and borders to the height; with
+default tokens the outer cards are 480×422 and 780×592. Actual theme overrides and
+screen bounds can change these dimensions. Settings uses the same frame as its
+parent page, with its header and bottom actions outside the settings viewport.
+
+## Sampling and limits
+
+The default Efficient profile samples resources every 3 seconds, processes every
+6 seconds and temperature every 15 seconds. GPU and volume details are only
+requested in expanded view (4 and 60 seconds respectively; scheduling rounds to
+the resource timer). One request is in flight at a time. History is bounded to
+20–240 points. A failed request times out after 5 seconds; restarts back off from
+2 to 30 seconds. Shutdown allows 1 second before killing the owned reader.
+
+Frames are bounded to 256 KiB before emission. Over-capacity input is rejected,
+not shown as a partial process inventory. The reader also bounds directory
+enumeration and input records. The panel clears unavailable data and retries.
+
+NVIDIA queries require `runtime_status=active`; NVML uses NO_ATTACH and is released
+after a sample. Unknown power state skips NVIDIA telemetry. AMD/Intel devices
+reported as suspended are not queried for dynamic sysfs readings. These gates
+are not a guarantee about driver races or measured battery savings.
+
+There is no public cross-plugin lock-state API in the installed host facade.
+Background icon collection is not independently lock-gated. Disable icon
+indication to stop closed-panel collection. An open panel behind a lock is not
+separately gated. Suspend/clock gaps invalidate counter baselines on resume.
+
+## Build and install
+
+Requires the system C++17 compiler, make, Python 3 and the Omarchy shell.
+Tests also use Node.js and the installed Qt Quick Test runner. NVIDIA metrics
+optionally use the driver's `libnvidia-ml.so.1`; there is no `nvidia-smi` polling.
+The process view is built in; no external Task Manager is required.
+
+Like other Omarchy shell plugins, this code runs unsandboxed with your user
+permissions inside the shared shell. It reads procfs/sysfs and mount statistics;
+the process helper signals only validated same-user processes. No root privileges,
+extra daemon, runtime network access or remote build is required.
+Build locally instead of relying on the inherited upstream binary:
+
+```sh
+git clone https://github.com/PavelLizunov/omarchy-loadlet.git
+cd omarchy-loadlet
+make -B activity-sampler
+omarchy plugin validate .
+make install-local
+omarchy-shell shell rescanPlugins
+omarchy plugin enable slovn.activity-lite left
+```
+
+`install-local` refuses to overwrite an existing installation. Build/source remain
+in this repository; the installed plugin contains only runtime files and licensing.
+The public repository contains the source snapshot and reproducible media.
+There are no automatic upstream updates. The stable plugin ID slovn.activity-lite
+and local journal/export paths are retained to preserve existing user data.
+
+For an existing local installation, rebuild and copy the runtime files only after
+the checks pass. Saving installed plugin files reloads code; if necessary use
+`omarchy-shell shell rescanPlugins`. Restarting the entire desktop shell is a
+fallback, not a requirement for changing settings.
+
+During a warm-cache update the installed manifest may point to
+a versioned runtime directory containing Panel.qml. That task-owned directory
+contains the same checked
+runtime files and helpers, not a link to the source checkout. Fresh URLs load the
+candidate without restarting the shared shell; root runtime files are retained.
+Check the installed `entryPoints.barWidget`, rather than assuming the root file
+is the active consumer. Settings and diagnostic data remain outside this tree.
+
+If the widget fails to load, check that `ActivityIconSvg.js`, `HeatPolicy.js`,
+`I18n.js`, `Model.js`, all QML files and the executable
+`activity-sampler`/`process-signal`/`activity-report` were installed together. Read the
+shell log for QML errors. The status endpoint below reports reader errors without
+starting another collection cycle.
+
+```sh
+omarchy plugin disable slovn.activity-lite
+omarchy plugin remove slovn.activity-lite
+```
+
+## Verification
+
+Run `make check`. The process tests create and signal only their own child
+processes. `test/ui-checks.py` loads the current QML with installed host widgets,
+inert process/IPC/file adapters, and the host's screen-fitting formulas; it never
+opens a desktop window or changes shell state. It checks selection identity,
+constrained geometry, font scaling, keyboard transitions, and localization.
+This stand-in window does not verify Wayland focus, monitor hotplug or compositor
+HiDPI rendering. `test/tst_lifecycle.qml` is a separate native-controller test;
+it is not executed by the inert UI harness.
+The inherited upstream tests are retained as historical
+coverage; tests asserting removed power/automatic-kill behaviour do not apply to
+this fork and are not its acceptance gate.
+
+Read-only live status:
+
+```sh
+omarchy-shell slovn.activity-lite.status status
+```
+
+The status endpoint reports open/sampling state, sample timestamp and process count;
+it never initiates additional sampling. GPU hardware behaviour, full accessibility,
+theme contrast and physical energy consumption need separate runtime measurements.
+
+MIT; original license and attribution retained.

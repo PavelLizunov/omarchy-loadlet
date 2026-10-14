@@ -1,0 +1,135 @@
+{
+  "schemaVersion": 1,
+  "id": "slovn.activity-lite",
+  "name": "Loadlet",
+  "version": "2.8.0",
+  "author": "slovn; based on Kristoffer Haugland's Activity Monitor",
+  "license": "MIT",
+  "description": "A calm, low-overhead glance at CPU, memory, GPU, storage, and processes — with a die that matches your chip",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "Panel.qml"
+  },
+  "barWidget": {
+    "displayName": "Loadlet",
+    "description": "A calm system glance with an expandable process view and a CPU die that matches your hardware.",
+    "category": "System",
+    "aliases": [
+      "loadlet",
+      "activity",
+      "system-monitor",
+      "btop"
+    ],
+    "allowMultiple": false,
+    "defaultSection": "right",
+    "defaults": {
+      "locale": "ru",
+      "samplingSpeed": "Efficient",
+      "historySamples": 60,
+      "temperatureUnit": "Celsius",
+      "showFrequencies": true,
+      "openExpanded": false,
+      "iconIndicator": true,
+      "iconShape": 10,
+      "iconLoadThreshold": 50,
+      "iconHeatThreshold": 80,
+      "iconMotion": true,
+      "diagnosticJournal": false
+    },
+    "schema": [
+      {
+        "key": "diagnosticJournal",
+        "type": "boolean",
+        "label": "Diagnostic history",
+        "defaultValue": false,
+        "description": "Local history: 7 days or 20 MiB; adds background process and policy sampling."
+      },
+      {
+        "key": "iconMotion",
+        "type": "boolean",
+        "label": "Brief heat animation",
+        "defaultValue": true,
+        "description": "A 2-second wiggle every 15/10/5/3 seconds according to fresh heat severity."
+      },
+      {
+        "key": "iconIndicator",
+        "type": "boolean",
+        "label": "Background icon indicators",
+        "defaultValue": true,
+        "description": "Read CPU, memory and CPU temperature every 15 seconds while the panel is closed."
+      },
+      {
+        "key": "iconShape",
+        "type": "integer",
+        "label": "Icon shape",
+        "defaultValue": 10,
+        "min": 0,
+        "max": 10,
+        "step": 1
+      },
+      {
+        "key": "iconLoadThreshold",
+        "type": "integer",
+        "label": "Icon fill threshold (%)",
+        "defaultValue": 50,
+        "min": 0,
+        "max": 100,
+        "step": 10,
+        "description": "Suppress CPU/RAM icon fill below this value; show actual load from the threshold without rescaling."
+      },
+      {
+        "key": "iconHeatThreshold",
+        "type": "integer",
+        "label": "Flames above (Celsius)",
+        "defaultValue": 80,
+        "min": 60,
+        "max": 110,
+        "step": 5
+      },
+      {
+        "key": "locale",
+        "type": "string",
+        "label": "Interface language",
+        "defaultValue": "ru"
+      },
+      {
+        "key": "samplingSpeed",
+        "type": "enum",
+        "label": "Update speed",
+        "options": ["Efficient", "Balanced", "Fast"],
+        "defaultValue": "Efficient",
+        "description": "Efficient uses fewer samples; Fast makes the graphs react sooner."
+      },
+      {
+        "key": "historySamples",
+        "type": "integer",
+        "label": "History samples",
+        "min": 20,
+        "max": 240,
+        "step": 10,
+        "defaultValue": 60
+      },
+      {
+        "key": "temperatureUnit",
+        "type": "enum",
+        "label": "Temperature unit",
+        "options": ["Celsius", "Fahrenheit"],
+        "defaultValue": "Celsius"
+      },
+      {
+        "key": "showFrequencies",
+        "type": "boolean",
+        "label": "Show hardware speeds",
+        "defaultValue": true
+      },
+      {
+        "key": "openExpanded",
+        "type": "boolean",
+        "label": "Open detailed view",
+        "defaultValue": false
+      }
+    ]
+  }
+}

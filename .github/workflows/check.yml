@@ -1,0 +1,53 @@
+name: Check
+
+on:
+  push:
+    branches: [main, 'checkpoint/**']
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  core:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+      - name: Build and check native contracts
+        run: make -B check-core
+      - name: Check complete public history for diagnostic metadata
+        run: PYTHONDONTWRITEBYTECODE=1 python3 test/publication-checks.py --public
+
+  native-ui:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - name: Install native host-compatible Qt
+        uses: jurplel/install-qt-action@d325aaf2a8baeeda41ad0b5d39f84a6af9bcf005
+        with:
+          version: '6.8.3'
+          host: linux
+          target: desktop
+          arch: linux_gcc_64
+          cache: true
+      - name: Load pinned host source, without executing its scripts
+        env:
+          HOST_REV: c668141e9c42b13c80c9ca4ea108e11708c5e8a5
+        run: |
+          git clone --no-checkout --filter=blob:none https://github.com/omacom/omarchy.git "$RUNNER_TEMP/activity-host"
+          git -C "$RUNNER_TEMP/activity-host" sparse-checkout set shell/Ui shell/Commons shell/plugins/bar
+          git -C "$RUNNER_TEMP/activity-host" checkout --detach "$HOST_REV"
+          test "$(git -C "$RUNNER_TEMP/activity-host" rev-parse HEAD)" = "$HOST_REV"
+      - name: Actual QML consumer, inert I/O
+        env:
+          ACTIVITY_TEST_HOST: ${{ runner.temp }}/activity-host/shell
+          QT_QPA_PLATFORM: offscreen
+          QT_QUICK_BACKEND: software
+        run: make check-ui

@@ -1,0 +1,196 @@
+{
+  "schema": 1,
+  "productName": "Loadlet",
+  "runtimeVersion": "2.8.0",
+  "date": "2026-10-14T10:53:36.416Z",
+  "sourceHashes": {
+    "Panel.qml": "fb216c20809a01fef0e0155c86fe4230ec872639424f95270af7b83fd64f930e",
+    "ActivityIcon.qml": "072bb6ee74b3f5d85fc7fd2b52b54ad65fc634584c3921600f77bb500460f609",
+    "ActivityIconSvg.js": "e183d251ef9eda24a6e0284db1d84f9812b13b3c1443b3a7fe57343473ad2eae",
+    "ActivityController.qml": "517deff91f032f99d1e8a11311bda9689e55733c41d73878b6e1ec1f9d816060",
+    "DiagnosticExport.qml": "f9d87bcfd76d30dda87462c24084694f8988869ef0519de64e466c29df443295",
+    "ProcessActionController.qml": "d769f76197ad587ace478adab99ad97eae647932b1c7cc1409e7f7edb6f1015d",
+    "Sparkline.qml": "af92bb46af457e7fa42f6379aeb04d0404036547c174d59ec5af042efa48b6fb",
+    "HeatPolicy.js": "5e2a3fb26eaa51a202127fb3439d231f1c5353979575b859fde147ae8bdb28b3",
+    "Model.js": "5cf4248a515a91b025e4b56e1b2ba8924498310ea86259d16dee2c17ac0f4f56",
+    "I18n.js": "6760f422ef395d4845182696b835e3b9b269ccee769746f49b6861cbbacbb540",
+    "Messages.js": "924a8bdff7a38ef9347d730ea37cf9faff55ef9b65e2a4cc31923e75029757b5",
+    "test/mock-data.js": "7b4cddbe213014d6cdbdb95a7042f28ba456b78aed4399df5ac69f8419350b9c",
+    "test/ui-checks.py": "8ad1147ac3cd941cba0f43cd853a394fdca4dd30683d4e4ad038cc67fa1e013e",
+    "test/render-icon-update.qml": "d21834a00dc5f1b4342eefa1be94c7b64b5d2e56fd8317c43ab582a18d0c45ce",
+    "test/render-video-icon.qml": "679b204a679239eecc2ab498a29802660c6d9f2b829fec7fd549d33b314fb7cf"
+  },
+  "assetHashes": {
+    "compact.png": "f5e70acff6e99ddeea7ef0a5eda89f345c47edd0d41fffd467c9c934dba0781e",
+    "expanded.png": "5986929eb7be2ecad6328847a9e21b30b3f7b0019ee4ceaa863a37b20f1d7bfb",
+    "settings.png": "8269550e817c1045ade1a85f4d1507a84947b93368c6286391be29133ea4e39e"
+  },
+  "images": {
+    "compact.png": {
+      "captureKind": "actual-native-QML/inert-demo",
+      "rawSize": [
+        520,
+        460
+      ],
+      "size": [
+        480,
+        422
+      ],
+      "dpr": 1,
+      "locale": "en_US",
+      "sha256": "f5e70acff6e99ddeea7ef0a5eda89f345c47edd0d41fffd467c9c934dba0781e",
+      "rawSha256": "1a59be182f2185b59b674c8259c7d1c059e201227336aa05a4ed9bdf3b2f8c0a",
+      "cropped": "Empty outer area only; no resize/redraw"
+    },
+    "expanded.png": {
+      "captureKind": "actual-native-QML/inert-demo",
+      "rawSize": [
+        820,
+        630
+      ],
+      "size": [
+        780,
+        592
+      ],
+      "dpr": 1,
+      "locale": "en_US",
+      "sha256": "5986929eb7be2ecad6328847a9e21b30b3f7b0019ee4ceaa863a37b20f1d7bfb",
+      "rawSha256": "5f25a8c8fdfd3b07741c67af9d0c670fe63d0ff2ef4f81bb09e0792ea1e4e6d4",
+      "cropped": "Empty outer area only; no resize/redraw"
+    },
+    "settings.png": {
+      "captureKind": "actual-native-QML/inert-demo",
+      "rawSize": [
+        520,
+        620
+      ],
+      "size": [
+        480,
+        422
+      ],
+      "dpr": 1,
+      "locale": "en_US",
+      "sha256": "8269550e817c1045ade1a85f4d1507a84947b93368c6286391be29133ea4e39e",
+      "rawSha256": "957aef6e4455d0a582f1260818b56162290798bf47b6d366887dcc6fed8604de",
+      "cropped": "Empty outer area only; no resize/redraw"
+    }
+  },
+  "hostRevision": "c668141e9c42b13c80c9ca4ea108e11708c5e8a5",
+  "renderer": {
+    "tool": "qml-preview0.3.0",
+    "qt": "6.12.0",
+    "backend": "software",
+    "platform": "offscreen",
+    "rendererSha256": "779c33b56b756bcf1cd8a02740574b31b5362c81a31d53b98485133a72079cac"
+  },
+  "palette": "Nord;foreground#d8dee9/background#2e3440/accent#81a1c1",
+  "fontBaseSize": 12,
+  "fixtureDependencyHashes": {
+    "imports/ActivityFixture/Io/FileView.qml": "0d7588336b9b04307b67336fb5f77223c7d7f57637846971598db6f496b22639",
+    "imports/ActivityFixture/Io/IpcHandler.qml": "72a0ad42fd7126d24b59af811a038b7f5becf98cea9d6456920852caba2f56d7",
+    "imports/ActivityFixture/Io/Process.qml": "766ac9d8f33f6cde6e1f3304ee114866c2247e9339d9132e724f85d43029b5f0",
+    "imports/ActivityFixture/Io/SplitParser.qml": "bd1f8b1d63ebdbc1563ccf4b59d95bd4262427d8d6453cfd6f73bb01315e1f50",
+    "imports/ActivityFixture/Io/StdioCollector.qml": "7cedbdbf7764faa89a93299560d8ecd22a24908ae3ce6d2720c8050a1d57916f",
+    "imports/ActivityFixture/Io/qmldir": "7c277a1bc2ab5a50baa1bbf3c9eb58a4502c1bf90cea2b8985435db9186fda2b",
+    "imports/ActivityFixture/IpcHandler.qml": "72a0ad42fd7126d24b59af811a038b7f5becf98cea9d6456920852caba2f56d7",
+    "imports/ActivityFixture/Quickshell.qml": "38c92e1219b60d29a1a86c8a676cf61f4a6f417cf3d99d812c86d8806acc204f",
+    "imports/ActivityFixture/qmldir": "2870710b079c52b346349adcacee6a59da30d610628c7fe260299877b4c0fee3",
+    "imports/ActivityHost/Commons/Border.qml": "7c290354a5da74b3e9f62405cb1fb3a968d9482949f5c8f5e8f2d763c6c6982a",
+    "imports/ActivityHost/Commons/BorderGeometry.js": "8b99fb8d32a2f4ccb72f09a1c6421771d7329555c59bff69d181f1218033c85d",
+    "imports/ActivityHost/Commons/Color.qml": "b39d02a4c1a1d167d3ab07e06dea80706db9b942d7ded0e6bed602c0a57a1e31",
+    "imports/ActivityHost/Commons/Style.qml": "96e1c93d1b2c5959c45ec5d1f4d48e1157d6c8960317806fad5d1266add91fc3",
+    "imports/ActivityHost/Commons/Util.qml": "2c8d24bc11e45980b972b0f93d2c6ef6611d04ff5cefc4d8f5337dc0a21bde8a",
+    "imports/ActivityHost/Commons/qmldir": "bb1cfb8f2f90519f17b58e22b6567ddc5f6325d3d8e2424d71771a8f5f6be909",
+    "imports/ActivityHost/Ui/ActivityTooltipBubble.qml": "bc7aad2b7e776198d9c2226f2568084f7894a9616f0d7aa241063ef8e786e0ec",
+    "imports/ActivityHost/Ui/BarIconButton.qml": "b1a65c63f7b0b9efe697e4fa0574a44fcf3b91517999b167ed96b0dd512b3b17",
+    "imports/ActivityHost/Ui/BarIndicator.qml": "d64e350dcae9d8d49b30921cf921dfdd7ec350a695e6d31c35bbf8635c4d93b2",
+    "imports/ActivityHost/Ui/BarWidget.qml": "e5868f692c2dc889051efb09114b7c531e8f99200877df3abc61fe5b566a95a5",
+    "imports/ActivityHost/Ui/BorderOverlay.qml": "e8f51157bc7c0686ddc85363a55e59090b5afb22781ab6e102ff29d051591a12",
+    "imports/ActivityHost/Ui/BorderSurface.qml": "ee9c0edc6b57eaab41bff1340d15fb6ac60ca10b86aba6aa7052b4a72ca28b19",
+    "imports/ActivityHost/Ui/Button.qml": "69689b794b7a963fcaa7ce3e0614d41cf7bab948af074940ec1dc603896855f3",
+    "imports/ActivityHost/Ui/ButtonGroup.qml": "bc1da9c22d8eddf13119e8d454e961c86fb08926c5d192a4b17d2370cfe7467d",
+    "imports/ActivityHost/Ui/ConfirmDialog.qml": "6768f69e9c236ed5e365795571b29e89777df59d706bc127901003737f593fd7",
+    "imports/ActivityHost/Ui/CursorSurface.qml": "24be56024e0b7d1835e1d2ebf52ba006f0b4533d216ccb92dd5898c5419842a2",
+    "imports/ActivityHost/Ui/Dropdown.qml": "3d1b3ef51915bfccbc50f7999ae2b96f7ead8d27a5df07d6cbf360d8e86f2873",
+    "imports/ActivityHost/Ui/KeyboardPanel.qml": "0788ecd48de15889be6c1ff25287631f30e7f7e50eb67cd51246e06eb1007877",
+    "imports/ActivityHost/Ui/MultiSelect.qml": "9225d39de251a1f6810a2e32d43444671d657672e13a75fc5e394823f833decf",
+    "imports/ActivityHost/Ui/NumberField.qml": "6d96099224a040466343cbae9205e0d673d81b7f4e8fe5fbe48e6e192e15ac8b",
+    "imports/ActivityHost/Ui/OpticalGlyph.qml": "e9b37abe0db270c32377f54783cd0d3a7cf434888e7f98098c3a0e730538d7ef",
+    "imports/ActivityHost/Ui/Panel.qml": "fd4684098544b644a38bdfb618027451bc58c0e9be4f5896a2727ef7ee96cb8a",
+    "imports/ActivityHost/Ui/PanelActionButton.qml": "f1d2999c2edec2d77ea6ecb7e15bc5ce39bd58854e7c4f6093451844a3ee47aa",
+    "imports/ActivityHost/Ui/PanelController.qml": "4c08895559a2a7634f6513cb08eda6e05f6ac0bf3d940085229d594b2f383108",
+    "imports/ActivityHost/Ui/PanelHero.qml": "1ea57298c74ff0d0855c58fd0e10f857e82f407825f102038e15023e8b125089",
+    "imports/ActivityHost/Ui/PanelKeyCatcher.qml": "76abaf157317ea260b81591a614460dfbc7173f545963be25558ed5a8cddedb4",
+    "imports/ActivityHost/Ui/PanelSectionHeader.qml": "b4457e85d23f9f6fafd0d8c6293ab48ff2e25925981ed170bde926996b430171",
+    "imports/ActivityHost/Ui/PanelSeparator.qml": "dce32b6b86dfb38d6319d36093fe6adeb850af99c7d3cb4e8cef1a9fba7209d5",
+    "imports/ActivityHost/Ui/PanelSlider.qml": "76f481874e27cc988d901e8aa2cebbaf7c1777c57d24ca616f9779ec428e9148",
+    "imports/ActivityHost/Ui/PanelToolTip.qml": "441cb6d59cd4dccb24fd037fe0a1a00ddf6aa5b6ed9a15bce60785393988c9eb",
+    "imports/ActivityHost/Ui/PluginBarApi.qml": "91964a42b92c58476a4f961df35148d4c94071344ef1a69eab1563d1496705a7",
+    "imports/ActivityHost/Ui/PointerMoveGate.qml": "6f494aadb3b7963c35167cf1b07505c237f27ef07e4fd386f7d041ec302af51a",
+    "imports/ActivityHost/Ui/PopupCard.qml": "4bf993830dab9139ff753d40d950e8991667b97d7e9a5d9a5a29d299a1b4e802",
+    "imports/ActivityHost/Ui/ScreenMoveRemap.qml": "ae09782672877502015e517c6f58565cf79b82e0aa1dc56ee5655989863ad8a7",
+    "imports/ActivityHost/Ui/SearchableDropdown.qml": "b1a50d58ce5a502ea9cc5fd3c8d1b0aa06712a32cf4012c3559fdde905d9fb41",
+    "imports/ActivityHost/Ui/SpeedTestOverlay.qml": "ac86e298c28cde345a55e8ff00a8dae9996bb202cf956f6df176baf23588de3b",
+    "imports/ActivityHost/Ui/TextField.qml": "719ff09b99fcd0f6fef1d3a9eec8e716995d4ba2a500b97c23c47d71e53eb841",
+    "imports/ActivityHost/Ui/Toggle.qml": "c83ad3b663f39c02c41890808a0e9805d4b9f4747866e02232ffa9449c64dd30",
+    "imports/ActivityHost/Ui/ToggleSwitch.qml": "442dc7722997ed0225665c1331421e32571a22d9cf666301027a7241479492a5",
+    "imports/ActivityHost/Ui/WidgetButton.qml": "76b6e348a576164bb0f3ded734339296f000c46378275fe94885ab63c721261a",
+    "imports/ActivityHost/Ui/qmldir": "1b82e38f4eb4259d1dde71238470c1c0e9d326e1d715c24976be9fb9ab0931a7",
+    "mock-data.js": "7b4cddbe213014d6cdbdb95a7042f28ba456b78aed4399df5ac69f8419350b9c",
+    "plugin/ActivityController.qml": "b424a2e2b8532d7e6859761eeddda36639cd4aca1dd87900f3a9606856711437",
+    "plugin/ActivityIcon.qml": "4be5713785b1868c797db89e9faf4e5ad248cfba88230d0dd6f735f571300a92",
+    "plugin/ActivityIconSvg.js": "e183d251ef9eda24a6e0284db1d84f9812b13b3c1443b3a7fe57343473ad2eae",
+    "plugin/DiagnosticExport.qml": "e457447195632ebae40fa8630b2f5086042b2e5fb5615a3b208028c8fa4c4ff7",
+    "plugin/HeatPolicy.js": "5e2a3fb26eaa51a202127fb3439d231f1c5353979575b859fde147ae8bdb28b3",
+    "plugin/I18n.js": "6760f422ef395d4845182696b835e3b9b269ccee769746f49b6861cbbacbb540",
+    "plugin/Messages.js": "924a8bdff7a38ef9347d730ea37cf9faff55ef9b65e2a4cc31923e75029757b5",
+    "plugin/Model.js": "5cf4248a515a91b025e4b56e1b2ba8924498310ea86259d16dee2c17ac0f4f56",
+    "plugin/Panel.qml": "aad9e07deae15b9e0aafb1a4210712d2799a582ae92a9c59b438ffea84b8b4d7",
+    "plugin/ProcessActionController.qml": "d2990358ffe9f2e7c75c61416d85634629e3fcdabcf66a50b05068259d3d8fd5",
+    "plugin/Sparkline.qml": "ad9a47bc3d5aa633982b2e0266ec95efdbfa2a0889af20a08b7fcdb491279cf8",
+    "render-icon-update.qml": "862b1a873824bbfcf87f2b6cb5fbd7de6b2f1c0cf6447741088940b97a19dc76",
+    "render-tooltip.qml": "c9373b7cdcd7cc03a27b675d74d165991e5ff25ae567ef29eb0db68e4162884a",
+    "render-video-icon.qml": "c2dec23efa17b670c4da49d2dc6b288a454961894edeeff59021a471ca9def1c",
+    "tst_panel.qml": "7688573bd1b3ee3304c32dace606715a00b3e1e6e294c8ea51e6743b417c4ff0"
+  },
+  "bodyGeometry": {
+    "width": 14,
+    "height": 12,
+    "canvas": [
+      16,
+      16
+    ],
+    "slot": [
+      27,
+      26
+    ],
+    "eyes": [
+      3,
+      6
+    ],
+    "shape": 10,
+    "symmetricQuietFace": true,
+    "sixRows": "floor",
+    "threshold": 50
+  },
+  "evidence": {
+    "render": "12final states, empty diagnostics",
+    "imageInspection": "12consumer states and published crops/assets read inline",
+    "locales": "en/ru/de/zh, Russianfont16",
+    "independentReview": "No independent review happened",
+    "userAcceptance": "Selected icon/name accepted; fresh branding/media acceptance not yet reported"
+  },
+  "limits": [
+    "inert demonstration data, not live desktop",
+    "camera motion is presentation, not physical interaction",
+    "arbitrary themes/accessibility/hardware/energy unverified"
+  ],
+  "reuseQualification": {
+    "changedOwner": "Messages.js",
+    "reason": "Compatibility catalog only; current Panel does not import it. Restored title keys and added executable catalog parse regression. All other listed source/fixture/asset bytes unchanged.",
+    "oldSha256": "4bcd002aa23ab5783b75766d7974681897b7ed123cb0b9402051147994e07a2f",
+    "newSha256": "924a8bdff7a38ef9347d730ea37cf9faff55ef9b65e2a4cc31923e75029757b5",
+    "nativeCheck": "One actual compact consumer rerender with corrected dependency: byte-identical PNG, empty diagnostics; inspected inline. Other current visual consumers do not import this catalog.",
+    "assetChange": false
+  }
+}

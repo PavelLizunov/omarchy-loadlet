@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'none'">
+<title>Loadlet: a native system glance</title>
+<style>
+html,body { margin:0; background:#2e3440; color:#d8dee9; font-family:"JetBrains Mono",monospace; overflow:hidden; }
+#stage { position:relative; width:1280px; height:720px; overflow:hidden; }
+.scene { position:absolute; inset:0; display:none; }
+.copy { position:absolute; left:64px; top:155px; width:480px; }
+h1 { font-size:54px; line-height:1.2; letter-spacing:-.04em; margin:0 0 24px; font-weight:700; }
+p { font-size:25px; line-height:1.45; margin:0 0 20px; }
+.accent { color:#81a1c1; }
+.label { font-size:20px; color:#abb5c5; }
+.product { position:absolute; object-fit:contain; transform-origin:50% 50%; }
+#icon .copy { top:110px; width:535px; }
+#icon h1 { font-size:50px; }
+#iconHero { left:680px; top:84px; width:480px; height:480px; image-rendering:pixelated; }
+#eyeLegend { position:absolute; left:700px; top:550px; width:450px; text-align:center; }
+#eyeLegend .label { margin-top:8px; }
+#compact .product { width:590px; height:519px; left:615px; top:79px; }
+#expanded .copy { top:75px; width:520px; }
+#expanded .product { width:690px; height:523px; left:535px; top:125px; }
+#settings .product { width:590px; height:519px; left:615px; top:79px; }
+#credit .copy { top:170px; width:765px; }
+#credit .copy p { font-size:22px; }
+#credit h1 { font-size:68px; }
+#credit .product { left:885px; top:160px; width:260px; height:260px; image-rendering:pixelated; }
+#proof { position:absolute; left:64px; bottom:30px; margin:0; font-size:18px; color:#abb5c5; }
+</style>
+<div id="stage">
+  <section class="scene" id="icon">
+    <div class="copy"><h1>Loadlet.<br><span class="accent">A small system glance.</span></h1><p>Native to Omarchy.</p><p class="label">CPU on the left. RAM on the right.<br>Six rows. Two independent readings.</p></div>
+    <img class="product" id="iconHero" src="assets/icon.png" alt="Actual split-die icon enlarged, demonstration load">
+    <div id="eyeLegend"><p>CPU 85% <span class="accent">RAM 55%</span></p><p class="label">Enlarged from actual QML</p></div>
+  </section>
+  <section class="scene" id="compact">
+    <div class="copy"><h1>Exact readings.<br><span class="accent">Compact view.</span></h1><p>CPU, memory and active processes.</p><p class="label">Sample values stay readable<br>even when the icon is quiet.</p></div>
+    <img class="product" src="assets/compact.png" alt="Actual compact panel with demonstration data">
+  </section>
+  <section class="scene" id="expanded">
+    <div class="copy"><h1>Expand<br><span class="accent">the view.</span></h1><p>GPU and storage.<br>Process search.</p><p class="label">The full sampled process list.</p></div>
+    <img class="product" src="assets/expanded.png" alt="Actual expanded panel with demonstration data">
+  </section>
+  <section class="scene" id="settings">
+    <div class="copy"><h1>Your icon.<br><span class="accent">Your threshold.</span></h1><p>50% by default.</p><p class="label">Below it: no fill.<br>At or above it: actual load.<br>No rescaling of the readings.</p></div>
+    <img class="product" src="assets/settings.png" alt="Actual icon preferences">
+  </section>
+  <section class="scene" id="credit">
+    <div class="copy"><h1>Loadlet</h1><p class="accent">A native Omarchy system glance.</p><p>github.com/PavelLizunov/omarchy-loadlet</p><p class="label">Based on Kristoffer Haugland's<br>Activity Monitor. MIT license.</p></div>
+    <img class="product" src="assets/icon.png" alt="Selected split-die icon">
+  </section>
+  <p id="proof">Native QML renders. Demo data. Presentation motion, not a live recording.</p>
+</div>
+<script type="module">
+import {S,DURATION} from './js/timeline.mjs';
+const elements=Object.fromEntries(Object.keys(S).map(key=>[key,document.getElementById(key)]));
+window.__render=(time,frame)=>{
+  const t=Math.max(0,Math.min(DURATION-.00001,time));
+  for(const [key,[start,end]] of Object.entries(S)) {
+    const active=t>=start&&t<end, scene=elements[key];
+    scene.style.display=active?'block':'none';
+    const progress=Math.max(0,Math.min(1,(t-start)/(end-start)));
+    const landing=1-Math.exp(-8*progress);
+    const copy=scene.querySelector('.copy'),product=scene.querySelector('.product');
+    copy.style.transform=`translate(${18*(1-landing)}px,0px)`;
+    product.style.transform=`translate(${-10*progress}px,${-4*progress}px) scale(${1+.018*progress})`;
+  }
+};
+Promise.all([...document.images].map(image=>image.decode())).then(async()=>{
+  await document.fonts.ready;window.__render(0,0);window.__ready=true;
+});
+</script>
+</html>

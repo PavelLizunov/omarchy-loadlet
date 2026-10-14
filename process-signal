@@ -1,0 +1,244 @@
+#!/usr/bin/python
+
+# omarchy:summary=Safely signal a process selected in Activity Monitor
+# omarchy:group=system
+# omarchy:args=<TERM|KILL> <PID> <START_TICKS>
+
+"""Signal a same-user process or app root while guarding against PID reuse."""
+
+from __future__ import annotations
+
+import argparse
+from dataclasses import dataclass
+import os
+import signal
+import sys
+from pathlib import Path
+
+
+PF_KTHREAD = 0x00200000
+DEAD_STATES = frozenset(("Z", "X", "x"))
+PROTECTED_NAMES = frozenset(
+    (
+        b"quickshell",
+        b"hyprland",
+        b"uwsm",
+        b"systemd",
+        b"systemd-executo",
+        b"systemd-executor",
+        b"(sd-pam)",
+        b"dbus-broker",
+        b"dbus-broker-lau",
+        b"omarchy-hyprlan",
+    )
+)
+PROC_ROOT = Path("/proc")
+
+
+def fail(message: str, status: int = 1) -> None:
+    print(message, file=sys.stderr)
+    raise SystemExit(status)
+
+
+class InspectionError(Exception):
+    """A procfs identity record could not be read or validated."""
+
+
+@dataclass(frozen=True)
+class ProcessStat:
+    pid: int
+    name: bytes
+    state: str
+    parent_pid: int
+    flags: int
+    start_ticks: int
+
+
+@dataclass(frozen=True)
+class ProcessStatus:
+    pid: int
+    state: str
+    user_ids: tuple[int, int, int, int]
+
+
+def read_process_stat(proc_root: Path, pid: int) -> ProcessStat:
+    try:
+        raw = (proc_root / str(pid) / "stat").read_bytes()
+    except FileNotFoundError:
+        raise InspectionError(f"Process {pid} no longer exists") from None
+    except OSError as error:
+        raise InspectionError(f"Could not inspect process {pid}: {error}") from error
+
+    command_start = raw.find(b"(")
+    command_end = raw.rfind(b") ")
+    if command_start < 1 or command_end <= command_start:
+        raise InspectionError(f"Process {pid} returned an invalid stat record")
+
+    try:
+        record_pid = int(raw[:command_start].strip())
+    except ValueError:
+        raise InspectionError(f"Process {pid} returned an invalid PID") from None
+    if record_pid != pid:
+        raise InspectionError(f"Process {pid} returned a mismatched stat record")
+
+    name = raw[command_start + 1 : command_end]
+
+    # The remaining fields begin with field 3 (state), making starttime
+    # (field 22) zero-based index 19. Splitting after the final ") " also
+    # preserves process names containing spaces or parentheses.
+    fields = raw[command_end + 2 :].split()
+    if len(fields) <= 19:
+        raise InspectionError(f"Process {pid} returned an incomplete stat record")
+
+    try:
+        state = fields[0].decode("ascii")
+        parent_pid = int(fields[1])
+        flags = int(fields[6])
+        start_ticks = int(fields[19])
+    except (UnicodeDecodeError, ValueError):
+        raise InspectionError(f"Process {pid} returned malformed stat fields") from None
+
+    if len(state) != 1 or not state.isalpha():
+        raise InspectionError(f"Process {pid} returned an invalid state")
+    if parent_pid < 0 or flags < 0:
+        raise InspectionError(f"Process {pid} returned invalid process metadata")
+    if start_ticks <= 0:
+        raise InspectionError(f"Process {pid} returned an invalid start time")
+
+    return ProcessStat(record_pid, name, state, parent_pid, flags, start_ticks)
+
+
+def read_process_status(proc_root: Path, pid: int) -> ProcessStatus:
+    try:
+        lines = (proc_root / str(pid) / "status").read_text(
+            encoding="utf-8", errors="replace"
+        ).splitlines()
+    except FileNotFoundError:
+        raise InspectionError(f"Process {pid} no longer exists") from None
+    except (OSError, UnicodeError) as error:
+        raise InspectionError(f"Could not inspect process {pid}: {error}") from error
+
+    values: dict[str, str] = {}
+    for line in lines:
+        key, separator, value = line.partition(":")
+        if separator and key in ("Pid", "State", "Uid"):
+            values[key] = value.strip()
+
+    if set(values) != {"Pid", "State", "Uid"}:
+        raise InspectionError(f"Process {pid} returned an incomplete status record")
+
+    try:
+        status_pid = int(values["Pid"])
+        user_ids_raw = values["Uid"].split()
+        if len(user_ids_raw) != 4:
+            raise ValueError
+        user_ids = tuple(int(value) for value in user_ids_raw)
+    except ValueError:
+        raise InspectionError(f"Process {pid} returned malformed ownership data") from None
+
+    state_fields = values["State"].split()
+    state = state_fields[0] if state_fields else ""
+    if status_pid != pid:
+        raise InspectionError(f"Process {pid} returned a mismatched status record")
+    if len(state) != 1 or not state.isalpha():
+        raise InspectionError(f"Process {pid} returned an invalid status state")
+    if any(user_id < 0 for user_id in user_ids):
+        raise InspectionError(f"Process {pid} returned invalid ownership data")
+
+    return ProcessStatus(status_pid, state, user_ids)  # type: ignore[arg-type]
+
+
+def protected_processes(proc_root: Path) -> set[int]:
+    """Return this helper and every currently observable ancestor."""
+    protected: set[int] = set()
+    current_pid = os.getpid()
+
+    # A process cannot have a legitimate ancestry chain this deep. The bound
+    # also makes malformed procfs data fail closed without looping forever.
+    for _ in range(256):
+        if current_pid <= 0 or current_pid in protected:
+            break
+        protected.add(current_pid)
+        try:
+            current_pid = read_process_stat(proc_root, current_pid).parent_pid
+        except InspectionError:
+            break
+
+    # getppid() remains useful if the parent exited between walking self/stat
+    # and reading its record.
+    parent_pid = os.getppid()
+    if parent_pid > 0:
+        protected.add(parent_pid)
+    return protected
+
+
+def reject_unsafe_target(
+    process_stat: ProcessStat, process_status: ProcessStatus, expected_start_ticks: int
+) -> None:
+    if process_stat.start_ticks != expected_start_ticks:
+        fail(f"Process {process_stat.pid} changed before it could be signaled")
+    if process_stat.flags & PF_KTHREAD:
+        fail("Refusing to signal a kernel thread", 77)
+    if process_stat.state in DEAD_STATES or process_status.state in DEAD_STATES:
+        fail("Refusing to signal a zombie or dead process", 77)
+    if process_stat.name.lower() in PROTECTED_NAMES:
+        fail("Refusing to signal a protected desktop-session process", 77)
+
+    current_uid = os.getuid()
+    if any(user_id != current_uid for user_id in process_status.user_ids):
+        fail("Refusing to signal a process owned by another user", 77)
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description=(
+            "Signal one same-user process if its PID and "
+            "start time still match."
+        )
+    )
+    parser.add_argument("signal_name", choices=("TERM", "KILL"))
+    parser.add_argument("pid", type=int)
+    parser.add_argument("start_ticks", type=int)
+    return parser.parse_args()
+
+
+def main() -> None:
+    args = parse_args()
+    if args.pid <= 1:
+        fail("Refusing to signal a protected system process", 77)
+    if args.start_ticks <= 0:
+        fail("Process start time must be positive", 64)
+    protected = protected_processes(PROC_ROOT)
+    if args.pid in protected:
+        fail("Refusing to signal Activity Monitor or its ancestor chain", 77)
+
+    try:
+        pid_fd = os.pidfd_open(args.pid)
+    except ProcessLookupError:
+        fail(f"Process {args.pid} no longer exists")
+    except OSError as error:
+        fail(f"Could not open process {args.pid}: {error}")
+
+    try:
+        try:
+            process_stat = read_process_stat(PROC_ROOT, args.pid)
+            process_status = read_process_status(PROC_ROOT, args.pid)
+        except InspectionError as error:
+            fail(str(error))
+
+        reject_unsafe_target(process_stat, process_status, args.start_ticks)
+        signal.pidfd_send_signal(pid_fd, getattr(signal, f"SIG{args.signal_name}"))
+    except ProcessLookupError:
+        fail(f"Process {args.pid} no longer exists")
+    except PermissionError:
+        fail(f"Permission denied while signaling process {args.pid}", 77)
+    except OSError as error:
+        fail(f"Could not signal process {args.pid}: {error}")
+    finally:
+        os.close(pid_fd)
+
+    print(f"signaled\t{args.pid}\t{args.signal_name}")
+
+
+if __name__ == "__main__":
+    main()
