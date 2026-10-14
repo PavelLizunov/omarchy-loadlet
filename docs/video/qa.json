@@ -103,7 +103,18 @@
     "desktopWidth": 640,
     "phoneWidth": 327,
     "overflow": false,
-    "animatedPixelsChanged": true
+    "animatedPixelsChanged": true,
+    "publicConsumer": {
+      "repo": "PavelLizunov/omarchy-loadlet",
+      "testedSourceCommit": "d62971eba6171157673e18cd758dac09742d85d8",
+      "anonymous": true,
+      "staticImagesLoaded": 3,
+      "desktopWidth": 640,
+      "phoneWidth": 309,
+      "animatedPixelsChanged": true,
+      "articleOverflow": false,
+      "method": "Stable nonzero settled viewport crops on actual GitHub README; inspected inline. Exact anonymous artifact downloads and local full decode checked separately."
+    }
   },
   "review": "12 original final native states and one byte-identical compact qualification; crops/assets, five full-size stills, beat/phone sheets, four cut strips, both worst MP4 frames and worst WebP frame read inline. GitHub-sanitized local README image layouts inspected separately. No independent review happened.",
   "limits": [

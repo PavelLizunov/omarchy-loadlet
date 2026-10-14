@@ -59,7 +59,12 @@ difference is format rounding. Native Chromium decoded all239frames and240timed
 samples; SSIM minimum0.993184/mean0.9967232375,nonebelow0.98,worst134 inspected.
 GitHub-sanitized HTML embedded the full film. Chromium loaded animated pixels at
 640px desktop/327px phone widths without overflow; both layouts were read inline.
-This prepublication sanitized-local check is not yet a public remote-page check.
+Actual anonymous GitHub page subsequently loaded all3current screenshot images
+and the inline film. Settled viewport crops compared animated pixels at640px
+desktop and309px phone widths without horizontal article overflow; images were
+read inline. Initial browser checks used unsettled page coordinates and produced
+invalid comparisons; those were rejected and corrected to nonzero stable viewport
+bounds before the final observation.
 See [QA](docs/video/qa.json),[visual identity](docs/images/manifest.json) and
 [film review](docs/video/REVIEW.md) for scoped observations.
 
@@ -74,7 +79,34 @@ catalog/provenance/doc edits receive a fresh exact-tree check before publication
 Single-thread English OCR covered16PNGpaths with0tested private-metadata matches.
 An initial oversubscribed OCR attempt timed out at20s; the bounded rerun passed.
 Public upstream legacy pixels were manually distinguished from current demo media.
-Reachable clean-root objects and exact remote/CI checks are recorded separately.
+Final checked initial snapshot:195files/8849908bytes,0excluded/ignored; all locally
+available203blobs/12trees/1commit and39embedded payloads,0tested content findings.
+Dedicated public metadata check passed194reachable blobs. This includes available
+staged superseded blobs locally, not copied private history. Fresh-root d62971eb
+has no parent; remote main/checkpoint and tree were verified exactly. Nine remote
+public README/manifest/screenshot/MP4/WebP paths downloaded anonymously with exact
+hashes. Original repository remained private and original branch/index/files exact.
+Local installer copied18exact files and refused a second overwrite without mutation.
+
+## Installed and loaded
+
+Loadlet2.8.0 was applied to the existing stable ID with all14runtime file hashes
+exact,6existingQtQuick6.11recovery-import adaptations and a fresh runtime URL.
+User settings/config remained byte-identical. The same shared shell child91623
+and wrapper91542 remained; no second Quickshell,manualrestart or manualrescan.
+An initial second preflight saw TTS busy and stopped before installation; speech
+was not interrupted. The later idle apply had3bounded temporary IPC failures,
+then3ready/no-error observations. Loaded productName=Loadlet,iconRevision=2.8.0,
+rightClickAction=none,selected symmetric shape10/threshold50 and ready16px/DPR2
+raster were observed. Shared automatic reload is a shared-shell event; surviving
+Discord connection/Telebar no-draft observations are not proof of every unrelated
+application's transient state.
+
+The new GitHub Actions workflow was active/enabled but the initial root push
+registered0runs/checks through bounded observation. Added explicit manual workflow
+dispatch without changing runtime/media, so the exact final commit can be tested.
+Exact-head CI outcome is checked separately; dispatch or local tests are not a
+remote-CI success claim.
 
 ## Acceptance boundaries
 
