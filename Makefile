@@ -10,7 +10,7 @@ SAMPLER_FLAGS = -std=c++17 -DNDEBUG -fno-exceptions -fno-rtti \
 SAMPLER_LDFLAGS = -Wl,--as-needed -Wl,-z,relro -Wl,-z,now \
 	-Wl,--build-id=none -s
 
-.PHONY: all clean install-local check check-core check-ui
+.PHONY: all clean install-local check check-package check-install check-core check-ui
 
 all: activity-sampler
 
@@ -21,8 +21,14 @@ activity-sampler: activity-sampler.cpp DiagnosticJournal.h
 clean:
 	rm -f -- activity-sampler
 
-check: check-core check-ui
+check: check-package check-core check-ui check-install
 	omarchy plugin validate .
+
+check-package:
+	PYTHONDONTWRITEBYTECODE=1 python3 test/package-checks.py
+
+check-install:
+	PYTHONDONTWRITEBYTECODE=1 python3 test/install-checks.py
 
 check-core: activity-sampler
 	PYTHONDONTWRITEBYTECODE=1 python3 test/fork-checks.py

@@ -1,5 +1,65 @@
 # Loadlet verification
 
+## Standard packaged installation repair
+
+The user rejected manual compilation after Marketplace publication. The repository
+already distributed a working x86_64 sampler, but the instructions and maintainer
+submission required rebuilding it. Prior install tests proved a developer route,
+not the intended ordinary user's no-toolchain path. This is an acceptance gap.
+
+Normal installation is now the native `omarchy plugin add` command with `--enable`.
+No compiler, make, first-run download or automatic build is required. The current
+239736-byte executable is unchanged. A fresh GCC16.2.1 build of the exact current
+C++ source/header/flags reproduced SHA256
+`48041c660e8fbc8eaced1b312ac9baf73e2303bdcb0957dcd3e5f4c8f6a4169d`.
+[Provenance](docs/binary-provenance.md) and its JSON bind the actual package bytes
+to source and requirements, without assuming all compilers produce the same file.
+
+A new package gate checks executable/source hashes, ELF64 x86_64 identity, mode,
+changed-byte rejection and a real framed sample before any rebuild. Native
+add/validate/catalog/enable/update scripts were exercised in a fresh temporary
+HOME with make/compiler commands denied. The installed executable remained exact;
+a real reader sample reached the actual Model parser. Existing-ID refusal and
+an ordinary fast-forward package update passed without compilation or journal
+writes. Only shell IPC was stubbed; this does not establish a fresh production
+Wayland lifecycle. Full `make check` passed, including39native UI tests.
+
+Runtime QML, catalogs, helpers, accepted icon and all current screenshots/film are
+byte-unchanged; no ritual recapture or reinstallation is needed for documentation
+and package checks. The existing loaded2.8.0 identity and file hashes are checked
+separately. No independent review happened. Runtime support is current Linux
+x86_64 Omarchy,not ARM or arbitrary distributions.
+
+Marketplace approval for the old snapshot explicitly required a rebuild and
+set Manual setup. Source publication cannot remove that separate registry flag.
+The corrected exact commit and packaged-binary evidence require maintainer review
+through the supported update request. Until that review and catalog publication,
+the live site's automatic command remains unavailable. No maintainer action or
+changed live catalog is inferred from local tests.
+
+## Historical installation documentation follow-up
+
+The live Marketplace catalog and its registry were inspected on 2026-10-16.
+The listing for `slovn.activity-lite` has an explicit `installation.mode: manual`
+override, `installAvailable: false`, and an empty `installCommand`; compatibility
+is passed. The site's detail renderer deliberately suppresses the command for
+that state. This is not a missing command field in the plugin manifest.
+
+README now places a copyable native add/local-build/enable sequence before the
+media. The guide distinguishes this user path from source development, and the
+package check protects the command, position and guide link. Full `make check`
+passed, including all 39 inert native UI cases and manifest validation.
+
+The exact README sequence was executed with a fresh isolated HOME: real installed
+CLI add/validate/catalog/enable scripts, a real public repository clone and local
+C++ build. The rebuilt sampler matched the source binary hash and a real resource
+sample succeeded. Existing-ID refusal preserved the binary and did not enable
+again; a deliberately failing compiler prevented enablement. Only shell IPC was
+stubbed. No production installation, settings, loaded identity or QML was changed;
+this is not a fresh live-shell lifecycle test. Review was direct, not independent.
+The Marketplace registry override remains unchanged; documentation/checkpoint
+publication does not claim a changed live catalog or default branch.
+
 ## Scope
 
 Loadlet2.8.0 is a reviewed clean source snapshot with a new public display name,

@@ -3,7 +3,28 @@
 A small native Omarchy system monitor with a load-indicating character. CPU,
 memory, temperature and sampled processes are one click away.
 
-[Install and build](docs/guide.md#build-and-install) · [Controls and limits](docs/guide.md)
+[Install](#install) · [Build from source](docs/guide.md#build-and-install) · [Controls and limits](docs/guide.md)
+
+## Install
+
+Requires Omarchy Quattro on Linux x86_64, Git and Python 3, normally supplied
+by Omarchy. No compiler, make, extra package or manual build is needed.
+
+```sh
+omarchy plugin add https://github.com/PavelLizunov/omarchy-loadlet.git --enable
+```
+
+Review the source, accept Omarchy's add prompt and choose the bar position.
+The ready-to-run sampler is included; its source and build provenance are
+[documented](docs/binary-provenance.md). The plugin runs with your user permissions
+inside the shared shell. No root access, second shell, first-run download or
+background compilation is used. An existing installation is not overwritten.
+
+Update an installation added this way with `omarchy plugin update slovn.activity-lite`.
+See [the guide](docs/guide.md#build-and-install) for updates and optional source builds.
+The Marketplace's current **Manual setup** flag is a separate listing setting;
+removing it requires a maintainer to review the packaged-binary evidence. Until
+that change appears, use the command above from the source link.
 
 ![Loadlet compact native metrics panel with demonstration data](docs/images/compact.png)
 
@@ -42,8 +63,9 @@ native transitions or a live recording.
 [Master MP4](docs/video/loadlet.mp4) · [Messenger MP4](docs/video/loadlet-web.mp4) ·
 [Video source and QA](docs/video/README.md)
 
-## Build and install
+## Optional source build
 
+This developer workflow is not required for normal installation.
 Requires Linux with the Omarchy shell, make, a system C++17 compiler and Python3.
 Tests also use Node.js and Qt Quick Test. NVIDIA metrics optionally use the
 installed driver's NVML; no telemetry daemon or runtime network is required.
@@ -77,7 +99,8 @@ Maintained at [PavelLizunov/omarchy-loadlet](https://github.com/PavelLizunov/oma
 Derived from Kristoffer Haugland's Activity Monitor; the original MIT license,
 attribution and pinned upstream bytes are retained. This repository starts with a reviewed
 public snapshot, without importing private diagnostic development history.
-Marketplace listing and maintainer approval are separate, not claimed here.
+Loadlet is listed in Marketplace. The revised no-build installation path and
+package evidence need separate maintainer review before its Manual setup flag changes.
 
 Russian is the default interface language; English, German and Simplified Chinese
 are supported. The Loadlet name is unchanged across locales.

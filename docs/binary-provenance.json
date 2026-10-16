@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "platform": "linux-x86_64",
+  "sourcePackageCommit": "3e8e8d4d5487ed296d21e74aa753d3a056ba2183",
+  "sha256": {
+    "activity-sampler": "48041c660e8fbc8eaced1b312ac9baf73e2303bdcb0957dcd3e5f4c8f6a4169d",
+    "activity-sampler.cpp": "1245c2e9b98097b382bc8e6390dcdab7c87879c1aad576459f69f0b9318eff03",
+    "DiagnosticJournal.h": "3b7643aef7c11853059100d380b833f4105503ec65a541fa014c02f7f4c0cd41",
+    "Makefile": "c7c1a8bbbb409f1dd20fb940640a33cbb1dd616312d1a258027ee4ee6a66505b"
+  },
+  "size": 239736,
+  "compiler": "GCC 16.2.1 20260810",
+  "buildCommand": "LC_ALL=C make -B activity-sampler",
+  "buildResult": "Byte-identical to the distributed executable; current source, header and Makefile",
+  "dynamicRequirements": {
+    "glibc": "2.34",
+    "libstdc++": "GLIBCXX_3.4.32",
+    "other": [
+      "libm",
+      "libgcc_s"
+    ],
+    "optional": "libnvidia-ml.so.1; not required without NVIDIA telemetry"
+  },
+  "runtimeBuild": false,
+  "runtimeDownload": false,
+  "limits": [
+    "Measured reproducibility with the recorded Linux toolchain, not every compiler",
+    "Real packaged consumer tested separately; source rebuild does not substitute for it",
+    "x86_64 only; no prebuilt ARM support",
+    "Maintainer listing approval is separate from source and binary evidence"
+  ]
+}

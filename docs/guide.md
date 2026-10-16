@@ -202,7 +202,24 @@ separately gated. Suspend/clock gaps invalidate counter baselines on resume.
 
 ## Build and install
 
-Requires the system C++17 compiler, make, Python 3 and the Omarchy shell.
+For a fresh user installation, use the [README install command](../README.md#install).
+The native `omarchy plugin add ... --enable` flow clones the ready-to-run package,
+validates it and enables the stable ID. No compiler, make, first-run network fetch
+or manual build is required. Runtime support is Linux x86_64 with Omarchy Quattro
+and Python 3. The distributed sampler requires glibc 2.34 and libstdc++ with
+GLIBCXX_3.4.32 or newer, supplied by the current supported Arch-based host.
+Other architectures are not provided as prebuilt packages.
+[Binary provenance](binary-provenance.md) records exact source and executable hashes.
+
+For an existing Git-managed install, run `omarchy plugin update slovn.activity-lite`.
+The native updater fast-forwards the package, including its ready-to-run sampler;
+local changes are refused rather than overwritten. It does not delete reports.
+For an older manually copied installation, use the reviewed copy-update procedure
+below instead of installing over it. Marketplace install availability is a separate
+maintainer-owned setting; the source README remains usable while review is pending.
+
+The separate source-checkout workflow below is optional development/verification.
+Only that workflow requires the system C++17 compiler, make, Python 3 and the shell.
 Tests also use Node.js and the installed Qt Quick Test runner. NVIDIA metrics
 optionally use the driver's `libnvidia-ml.so.1`; there is no `nvidia-smi` polling.
 The process view is built in; no external Task Manager is required.
@@ -211,7 +228,9 @@ Like other Omarchy shell plugins, this code runs unsandboxed with your user
 permissions inside the shared shell. It reads procfs/sysfs and mount statistics;
 the process helper signals only validated same-user processes. No root privileges,
 extra daemon, runtime network access or remote build is required.
-Build locally instead of relying on the inherited upstream binary:
+The packaged executable was rebuilt byte-identically from this fork's current
+source, rather than accepted merely because upstream shipped it. To rebuild it
+for development, run:
 
 ```sh
 git clone https://github.com/PavelLizunov/omarchy-loadlet.git
@@ -229,8 +248,8 @@ The public repository contains the source snapshot and reproducible media.
 There are no automatic upstream updates. The stable plugin ID slovn.activity-lite
 and local journal/export paths are retained to preserve existing user data.
 
-For an existing local installation, rebuild and copy the runtime files only after
-the checks pass. Saving installed plugin files reloads code; if necessary use
+For an existing manually copied installation, copy the checked runtime files
+only after the checks pass; a rebuild is optional on supported x86_64 hosts. Saving installed plugin files reloads code; if necessary use
 `omarchy-shell shell rescanPlugins`. Restarting the entire desktop shell is a
 fallback, not a requirement for changing settings.
 

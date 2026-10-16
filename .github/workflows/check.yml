@@ -20,6 +20,8 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: '22'
+      - name: Check the distributed package before rebuilding it
+        run: make check-package
       - name: Build and check native contracts
         run: make -B check-core
       - name: Check complete public history for diagnostic metadata
@@ -43,7 +45,7 @@ jobs:
           HOST_REV: c668141e9c42b13c80c9ca4ea108e11708c5e8a5
         run: |
           git clone --no-checkout --filter=blob:none https://github.com/omacom/omarchy.git "$RUNNER_TEMP/activity-host"
-          git -C "$RUNNER_TEMP/activity-host" sparse-checkout set shell/Ui shell/Commons shell/plugins/bar
+          git -C "$RUNNER_TEMP/activity-host" sparse-checkout set bin shell/Ui shell/Commons shell/plugins/bar
           git -C "$RUNNER_TEMP/activity-host" checkout --detach "$HOST_REV"
           test "$(git -C "$RUNNER_TEMP/activity-host" rev-parse HEAD)" = "$HOST_REV"
       - name: Actual QML consumer, inert I/O
@@ -52,3 +54,7 @@ jobs:
           QT_QPA_PLATFORM: offscreen
           QT_QUICK_BACKEND: software
         run: make check-ui
+      - name: Native packaged installation without a compiler
+        env:
+          ACTIVITY_OMARCHY_BIN: ${{ runner.temp }}/activity-host/bin
+        run: make check-install
