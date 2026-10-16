@@ -1,5 +1,28 @@
 # Loadlet verification
 
+## Installation documentation follow-up
+
+The live Marketplace catalog and its registry were inspected on 2026-10-16.
+The listing for `slovn.activity-lite` has an explicit `installation.mode: manual`
+override, `installAvailable: false`, and an empty `installCommand`; compatibility
+is passed. The site's detail renderer deliberately suppresses the command for
+that state. This is not a missing command field in the plugin manifest.
+
+README now places a copyable native add/local-build/enable sequence before the
+media. The guide distinguishes this user path from source development, and the
+package check protects the command, position and guide link. Full `make check`
+passed, including all 39 inert native UI cases and manifest validation.
+
+The exact README sequence was executed with a fresh isolated HOME: real installed
+CLI add/validate/catalog/enable scripts, a real public repository clone and local
+C++ build. The rebuilt sampler matched the source binary hash and a real resource
+sample succeeded. Existing-ID refusal preserved the binary and did not enable
+again; a deliberately failing compiler prevented enablement. Only shell IPC was
+stubbed. No production installation, settings, loaded identity or QML was changed;
+this is not a fresh live-shell lifecycle test. Review was direct, not independent.
+The Marketplace registry override remains unchanged; documentation/checkpoint
+publication does not claim a changed live catalog or default branch.
+
 ## Scope
 
 Loadlet2.8.0 is a reviewed clean source snapshot with a new public display name,

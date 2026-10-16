@@ -55,6 +55,12 @@ readme = (root / 'README.md').read_text()
 assert f'<img src="{inline["path"]}" width="640" alt="' in readme
 assert 'PavelLizunov/omarchy-loadlet' in readme
 assert 'activity-lite.webp' not in readme and 'Repository remains private' not in readme
+install = '''omarchy plugin add https://github.com/PavelLizunov/omarchy-loadlet.git --yes &&
+make -C "$HOME/.config/omarchy/plugins/slovn.activity-lite" -B activity-sampler &&
+omarchy plugin enable slovn.activity-lite'''
+assert install in readme and readme.index(install) < readme.index('![Loadlet compact')
+assert 'Manual setup' in readme and 'View source' in readme
+assert '[README install command](../README.md#install)' in (root / 'docs/guide.md').read_text()
 animation = (root / inline['path']).read_bytes()
 assert len(animation) == inline['bytes'] and hashlib.sha256(animation).hexdigest() == inline['sha256']
 assert animation[:4] == b'RIFF' and animation[8:12] == b'WEBP'

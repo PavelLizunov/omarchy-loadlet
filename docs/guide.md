@@ -202,6 +202,14 @@ separately gated. Suspend/clock gaps invalidate counter baselines on resume.
 
 ## Build and install
 
+For a fresh user installation, use the [README install command](../README.md#install).
+It uses the native `omarchy plugin add` flow without enabling the plugin, rebuilds
+`activity-sampler` in the installed checkout, then enables the stable ID. The
+commands are chained so a failed add or build does not continue to enablement.
+The Marketplace's **Manual setup** flag suppresses its command independently of
+this repository; the source link remains the route to these instructions.
+
+The separate source-checkout workflow below is for development and verification.
 Requires the system C++17 compiler, make, Python 3 and the Omarchy shell.
 Tests also use Node.js and the installed Qt Quick Test runner. NVIDIA metrics
 optionally use the driver's `libnvidia-ml.so.1`; there is no `nvidia-smi` polling.

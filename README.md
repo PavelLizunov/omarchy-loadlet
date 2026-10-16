@@ -3,7 +3,30 @@
 A small native Omarchy system monitor with a load-indicating character. CPU,
 memory, temperature and sampled processes are one click away.
 
-[Install and build](docs/guide.md#build-and-install) · [Controls and limits](docs/guide.md)
+[Install](#install) · [Build from source](docs/guide.md#build-and-install) · [Controls and limits](docs/guide.md)
+
+## Install
+
+Requires Omarchy Quattro, Git, make, a C++17 compiler and Python 3.
+For a fresh installation, add the plugin, build its native sampler locally,
+then enable it:
+
+```sh
+omarchy plugin add https://github.com/PavelLizunov/omarchy-loadlet.git --yes &&
+make -C "$HOME/.config/omarchy/plugins/slovn.activity-lite" -B activity-sampler &&
+omarchy plugin enable slovn.activity-lite
+```
+
+The plugin runs with your user permissions inside the shared Omarchy shell.
+Review the source before running these commands. `--yes` skips the add prompt
+and leaves the plugin disabled until the build succeeds. No root access or
+second shell is needed. An existing installation is not overwritten.
+
+The [Marketplace listing](https://plugins.omarchy.org/plugin.html?id=slovn.activity-lite)
+currently uses **Manual setup**, so it hides the automatic install command;
+its **View source** link leads here. That catalog setting is maintained separately
+from this README. See [the guide](docs/guide.md#build-and-install) for source builds,
+updates and troubleshooting.
 
 ![Loadlet compact native metrics panel with demonstration data](docs/images/compact.png)
 
