@@ -58,7 +58,7 @@
         "type": "boolean",
         "label": "Background icon indicators",
         "defaultValue": true,
-        "description": "Read CPU, memory and CPU temperature every 15 seconds while the panel is closed."
+        "description": "Read CPU, memory and CPU/GPU temperature every 15 seconds while the panel is closed."
       },
       {
         "key": "iconShape",

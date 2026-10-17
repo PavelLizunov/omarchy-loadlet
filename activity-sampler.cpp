@@ -1313,6 +1313,7 @@ struct GpuAdapter {
   std::int64_t memory_total = -1;
   std::string memory_kind = "unknown";
   double frequency_mhz = -1;
+  double temperature_c = -1;
 };
 
 struct NvidiaReading {
@@ -1322,6 +1323,7 @@ struct NvidiaReading {
   std::int64_t memory_used = -1;
   std::int64_t memory_total = -1;
   double frequency_mhz = -1;
+  double temperature_c = -1;
 };
 
 class NvidiaProvider {
@@ -1373,6 +1375,11 @@ public:
       unsigned int clock = 0;
       if (get_clock_(device, 0, &clock) == 0)
         reading.frequency_mhz = clock;
+
+      unsigned int temperature = 0; // NVML_TEMPERATURE_GPU
+      if (get_temperature_ && get_temperature_(device, 0, &temperature) == 0 &&
+          temperature > 0 && temperature < 150)
+        reading.temperature_c = temperature;
       if (!reading.id.empty())
         readings.push_back(std::move(reading));
     }
@@ -1399,6 +1406,7 @@ private:
   using GetUtilization = int (*)(void *, NvmlUtilization *);
   using GetMemory = int (*)(void *, NvmlMemory *);
   using GetClock = int (*)(void *, unsigned int, unsigned int *);
+  using GetTemperature = int (*)(void *, unsigned int, unsigned int *);
 
   std::string fixture_;
   void *library_ = nullptr;
@@ -1410,6 +1418,7 @@ private:
   GetUtilization get_utilization_ = nullptr;
   GetMemory get_memory_ = nullptr;
   GetClock get_clock_ = nullptr;
+  GetTemperature get_temperature_ = nullptr;
 
   template <typename Function> Function Symbol(const char *name) {
     return reinterpret_cast<Function>(dlsym(library_, name));
@@ -1430,6 +1439,8 @@ private:
     get_utilization_ = Symbol<GetUtilization>("nvmlDeviceGetUtilizationRates");
     get_memory_ = Symbol<GetMemory>("nvmlDeviceGetMemoryInfo");
     get_clock_ = Symbol<GetClock>("nvmlDeviceGetClockInfo");
+    // Optional: a missing temperature symbol must not hide the other readings.
+    get_temperature_ = Symbol<GetTemperature>("nvmlDeviceGetTemperature");
     if (!init || !shutdown_ || !get_handle_ ||
         !get_name_ || !get_utilization_ || !get_memory_ || !get_clock_) {
       Close();
@@ -1475,6 +1486,8 @@ private:
       reading.memory_total =
           static_cast<std::int64_t>(ParseUnsigned(fields[4]).value_or(0));
       reading.frequency_mhz = ParseDouble(fields[5]).value_or(-1);
+      if (fields.size() > 6)
+        reading.temperature_c = ParseDouble(fields[6]).value_or(-1);
       if (!reading.id.empty())
         readings.push_back(std::move(reading));
     }
@@ -1533,6 +1546,31 @@ double ActiveDpmClock(const std::string &path) {
   return -1;
 }
 
+// The adapter's own hwmon: amdgpu "edge", xe "pkg", otherwise temp1 or any sensor.
+double GpuHwmonTemperature(const std::string &device_path) {
+  double best = -1;
+  int best_rank = 3;
+  for (const auto &path :
+       GlobPaths(Join(device_path, "hwmon/hwmon*/temp*_input"))) {
+    const auto value = ReadUnsigned(path);
+    if (!value || *value == 0 || *value >= 150000)
+      continue;
+    const std::string sensor = path.substr(0, path.size() - 6);
+    std::string label = ReadLine(sensor + "_label").value_or("");
+    label = Lowercase(std::move(label));
+    int rank = 2;
+    if (label == "edge" || label == "pkg" || label == "gpu")
+      rank = 0;
+    else if (EndsWith(sensor, "/temp1"))
+      rank = 1;
+    if (rank >= best_rank)
+      continue;
+    best_rank = rank;
+    best = static_cast<double>(*value) / 1000.0;
+  }
+  return best;
+}
+
 class GpuCollector {
 public:
   explicit GpuCollector(Paths paths)
@@ -1555,8 +1593,23 @@ public:
              << gpu.memory_kind << '\t';
       EmitNumber(output, gpu.frequency_mhz);
       output << '\n';
+      EmitTemperature(output, gpu);
     }
     EmitDrmClients(output);
+  }
+
+  // Thermals cadence: only temperatures, so the closed-panel tooltip can show
+  // them without per-process DRM scans or utilization/memory reads.
+  void CollectTemperatures(std::ostream &output) {
+    DiscoverAdapters();
+    for (auto &gpu : adapters_) {
+      gpu.temperature_c = -1;
+      if (gpu.vendor_hex == "10de" || !Awake(gpu)) continue;
+      gpu.temperature_c = GpuHwmonTemperature(gpu.device_path);
+    }
+    ApplyNvidia();
+    for (const auto &gpu : adapters_)
+      EmitTemperature(output, gpu);
   }
 
 private:
@@ -1590,6 +1643,21 @@ private:
   std::vector<std::string> fdinfo_paths_;
   Clock::time_point next_fd_discovery_{};
   std::chrono::milliseconds discovery_interval_;
+
+  // A separate row keeps the established gpu record layout unchanged.
+  static void EmitTemperature(std::ostream &output, const GpuAdapter &gpu) {
+    if (!std::isfinite(gpu.temperature_c) || gpu.temperature_c <= 0)
+      return;
+    output << "gpu-temperature\t" << gpu.id << '\t';
+    EmitNumber(output, gpu.temperature_c);
+    output << '\n';
+  }
+
+  // Do not reset an autosuspend timer by reading telemetry on a sleeping dGPU.
+  static bool Awake(const GpuAdapter &gpu) {
+    const auto power = ReadLine(Join(gpu.device_path, "power/runtime_status"));
+    return !power || *power == "active" || *power == "unsupported";
+  }
 
   static void EmitNumber(std::ostream &output, double value) {
     if (!std::isfinite(value) || value < 0) {
@@ -1661,10 +1729,9 @@ private:
       gpu.memory_total = -1;
       gpu.memory_kind = "unknown";
       gpu.frequency_mhz = -1;
+      gpu.temperature_c = -1;
 
-      // Do not reset an autosuspend timer by reading telemetry on a sleeping dGPU.
-      const auto power = ReadLine(Join(gpu.device_path, "power/runtime_status"));
-      if (power && *power != "active" && *power != "unsupported") continue;
+      if (!Awake(gpu)) continue;
       if (gpu.vendor_hex == "10de") continue;
 
       if (gpu.vendor_hex == "1002") {
@@ -1721,6 +1788,7 @@ private:
         if (frequency)
           gpu.frequency_mhz = *frequency;
       }
+      gpu.temperature_c = GpuHwmonTemperature(gpu.device_path);
     }
   }
 
@@ -1753,6 +1821,7 @@ private:
         found->name = reading.name;
       found->utilization = reading.utilization;
       found->frequency_mhz = reading.frequency_mhz;
+      found->temperature_c = reading.temperature_c;
       if (reading.memory_total > 0) {
         found->memory_used =
             std::min(reading.memory_used, reading.memory_total);
@@ -1945,8 +2014,10 @@ public:
       resources_.Glance(output);
     else if (kind == "processes")
       processes_.Collect(output);
-    else if (kind == "thermals")
+    else if (kind == "thermals") {
       thermals_.Collect(output);
+      gpus_.CollectTemperatures(output);
+    }
     else if (kind == "gpus")
       gpus_.Collect(output);
     else if (kind == "storage")

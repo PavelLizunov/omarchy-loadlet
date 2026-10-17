@@ -28,6 +28,7 @@ int nvmlDeviceGetName(void*,char* s,unsigned n) { snprintf(s,n,"Fixture"); retur
 int nvmlDeviceGetUtilizationRates(void*,void* p) { ((unsigned*)p)[0]=12; ((unsigned*)p)[1]=0; return 0; }
 int nvmlDeviceGetMemoryInfo(void*,void* p) { auto v=(unsigned long long*)p; v[0]=100;v[1]=80;v[2]=20; return 0; }
 int nvmlDeviceGetClockInfo(void*,unsigned,unsigned* p) { *p=300; return 0; }
+int nvmlDeviceGetTemperature(void*,unsigned s,unsigned* p) { *p=s==0?58:0; return 0; }
 }
 ''')
     subprocess.run(['g++', '-shared', '-fPIC', str(source), '-o', str(base/'libnvidia-ml.so.1')], check=True)
@@ -40,6 +41,7 @@ int nvmlDeviceGetClockInfo(void*,unsigned,unsigned* p) { *p=300; return 0; }
         result = subprocess.run([str(ROOT/'activity-sampler'), '--activity-gpus'],
                                 env=env, capture_output=True, text=True, timeout=3, check=True)
         if status == 'active': assert log.read_text() == 'init2\nstop\n'
+        if status == 'active': assert 'gpu-temperature\tcard0\t58\n' in result.stdout, result.stdout
         elif log.exists(): assert log.read_text() == 'init2\nstop\n'
         else: assert not log.exists()
-    print('PASS NVIDIA: suspended skips NVML; active uses NO_ATTACH and shutdown')
+    print('PASS NVIDIA: suspended skips NVML; active uses NO_ATTACH, reads GPU temperature and shuts down')

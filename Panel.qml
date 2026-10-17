@@ -375,6 +375,17 @@ Panel {
     return usedText + " / " + totalText + " · " + I18n.t("cache", root.effectiveLanguage) + " " + cacheText
   }
 
+  // CPU and GPU side by side; either one alone when the other is unknown.
+  function tooltipTemperatureLine() {
+    var parts = []
+    if (activity.thermalFresh)
+      parts.push(I18n.t("cpu", effectiveLanguage) + " " + Model.formatTemperature(activity.iconTemperature, temperatureUnitSetting)
+        + (activity.heatAlert ? " · " + I18n.t("icon_hot", effectiveLanguage) : ""))
+    if (activity.gpuThermalFresh)
+      parts.push(I18n.t("gpu", effectiveLanguage) + " " + Model.formatTemperature(activity.iconGpuTemperature, temperatureUnitSetting))
+    return parts.length > 0 ? parts.join(" · ") + "\n" : ""
+  }
+
   function cpuCardDetail() {
     var parts = []
     if (cpuTemperature)
@@ -440,6 +451,12 @@ Panel {
     return frequency ? usage + " · " + frequency : usage
   }
 
+  function gpuTemperatureText(gpu) {
+    var temperature = Number(gpu && gpu.temperature)
+    if (!isFinite(temperature) || temperature <= 0) return ""
+    return Model.formatTemperature(temperature, temperatureUnitSetting)
+  }
+
   function gpuMemoryLabel(gpu) {
     if (gpu && gpu.memoryKind === "shared") return I18n.t("gpu_shared", effectiveLanguage)
     if (gpu && gpu.memoryKind === "vram") return "VRAM"
@@ -478,6 +495,17 @@ Panel {
     var parts = []
     for (var i = 0; i < Math.min(2, adapters.length); i++)
       parts.push(compactGpuName(adapters[i]) + " " + gpuUsageAndClockText(adapters[i]))
+    return parts.join(" · ")
+  }
+
+  function gpuCardTemperature() {
+    var adapters = Array.isArray(gpus) ? gpus : []
+    if (adapters.length === 1) return gpuTemperatureText(adapters[0])
+    var parts = []
+    for (var i = 0; i < Math.min(2, adapters.length); i++) {
+      var temperature = gpuTemperatureText(adapters[i])
+      if (temperature) parts.push(compactGpuName(adapters[i]) + " " + temperature)
+    }
     return parts.join(" · ")
   }
 
@@ -644,10 +672,7 @@ Panel {
         + " · " + I18n.t("ram", root.effectiveLanguage) + " "
         + Model.formatBytes(activity.glanceMemoryUsed) + " / " + Model.formatBytes(activity.glanceMemoryTotal) + "\n"
       : I18n.t("icon_no_data", root.effectiveLanguage) + "\n")
-      + (activity.thermalFresh
-        ? I18n.t("cpu", root.effectiveLanguage) + " " + Model.formatTemperature(activity.iconTemperature, root.temperatureUnitSetting)
-          + (activity.heatAlert ? " · " + I18n.t("icon_hot", root.effectiveLanguage) : "") + "\n"
-        : "")
+      + root.tooltipTemperatureLine()
       + I18n.t("tooltip", root.effectiveLanguage)
     onPressed: function(buttonCode) {
       if (buttonCode === Qt.LeftButton) root.toggle()
@@ -1599,10 +1624,18 @@ Panel {
           width: summaryViewport.width
           columns: width >= Style.space(600) ? 3 : (width >= Style.space(380) ? 2 : 1)
           spacing: Style.spacing.sm
+          // One height for every card keeps rows even when the GPU card
+          // gains its temperature line.
+          readonly property real cardHeight: {
+            var height = Style.space(72)
+            for (var i = 0; i < children.length; i++)
+              height = Math.max(height, children[i].implicitHeight || 0)
+            return height
+          }
 
           MetricCard {
             width: (parent.width - parent.spacing * (parent.columns - 1)) / parent.columns
-            height: Math.max(Style.space(72), implicitHeight)
+            height: summaryGrid.cardHeight
             label: root.cpuCardLabel()
             value: activity.cpuReady ? root.percentText(root.metrics.cpu) : "—"
             detail: root.cpuCardDetail()
@@ -1616,7 +1649,7 @@ Panel {
 
           MetricCard {
             width: (parent.width - parent.spacing * (parent.columns - 1)) / parent.columns
-            height: Math.max(Style.space(72), implicitHeight)
+            height: summaryGrid.cardHeight
             label: root.memoryCardLabel()
             value: root.hasSnapshot ? root.percentText(root.metrics.memory) : "—"
             detail: root.memoryBreakdownText()
@@ -1630,17 +1663,18 @@ Panel {
 
           MetricCard {
             width: (parent.width - parent.spacing * (parent.columns - 1)) / parent.columns
-            height: Math.max(Style.space(72), implicitHeight)
+            height: summaryGrid.cardHeight
             label: root.gpuHeadingText()
             value: root.primaryGpuUsageText()
             detail: root.gpuCardDetail()
+            secondaryDetail: root.gpuCardTemperature()
             tone: root.primaryGpuUsage() >= 0 ? root.pressureColor(root.primaryGpuUsage()) : root.accent
             tall: false
           }
 
           MetricCard {
             width: (parent.width - parent.spacing * (parent.columns - 1)) / parent.columns
-            height: Math.max(Style.space(72), implicitHeight)
+            height: summaryGrid.cardHeight
             label: I18n.t("network", root.effectiveLanguage)
             value: Model.formatBytes(root.metrics.download, "/s")
             detail: "\uf093 " + Model.formatBytes(root.metrics.upload, "/s")
@@ -1651,7 +1685,7 @@ Panel {
 
           MetricCard {
             width: (parent.width - parent.spacing * (parent.columns - 1)) / parent.columns
-            height: Math.max(Style.space(72), implicitHeight)
+            height: summaryGrid.cardHeight
             label: root.diskCardLabel()
             badge: root.diskPagerText()
             value: Model.formatBytes(root.diskCardRead(), "/s")
@@ -1665,7 +1699,7 @@ Panel {
 
           MetricCard {
             width: (parent.width - parent.spacing * (parent.columns - 1)) / parent.columns
-            height: Math.max(Style.space(72), implicitHeight)
+            height: summaryGrid.cardHeight
             label: root.storageCardLabel()
             badge: root.storagePagerText()
             value: root.storageCardValue()
@@ -1800,6 +1834,7 @@ Panel {
     property string badge: ""
     property string value: ""
     property string detail: ""
+    property string secondaryDetail: ""
     property color detailTone: root.dim
     property var history: []
     property var paint: ({ width: 0, height: 0, frames: [], cells: [] })
@@ -1815,7 +1850,8 @@ Panel {
     signal activated(int delta)
 
     implicitHeight: Math.max(Style.space(tall ? 104 : 72),
-      Style.spacing.md * 2 + Style.font.caption * 2 + Style.font.heading + Style.space(12) + Style.spacing.sm * 2)
+      Style.spacing.md * 2 + Style.font.caption * (secondaryDetail !== "" ? 3 : 2)
+        + Style.font.heading + Style.space(12) + Style.spacing.sm * 2)
     color: Style.normalFillFor(root.foreground, root.accent)
     borderSpec: Border.controlSpec("normal", root.foreground, root.accent)
     radius: Style.cornerRadius
@@ -1883,6 +1919,16 @@ Panel {
           Text {
             width: parent.width
             text: detail
+            color: metricCard.detailTone
+            font.family: root.bar ? root.bar.fontFamily : Style.font.family
+            font.pixelSize: Style.font.caption
+            elide: Text.ElideRight
+          }
+
+          Text {
+            width: parent.width
+            visible: metricCard.secondaryDetail !== ""
+            text: metricCard.secondaryDetail
             color: metricCard.detailTone
             font.family: root.bar ? root.bar.fontFamily : Style.font.family
             font.pixelSize: Style.font.caption

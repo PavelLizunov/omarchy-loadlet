@@ -64,7 +64,8 @@ function emptyThermalSnapshot() {
   return {
     schema: 0,
     sample: 0,
-    temperatures: []
+    temperatures: [],
+    gpuTemperatures: []
   }
 }
 
@@ -115,6 +116,7 @@ function gpuSnapshotEntry(snapshot, id) {
     driver: "unknown",
     name: "GPU",
     frequencyMHz: -1,
+    temperature: -1,
     directUtilization: -1,
     memoryUsed: -1,
     memoryTotal: -1,
@@ -260,6 +262,10 @@ function parseThermalSnapshot(raw) {
       snapshot.sample = number(fields[1])
     } else if (fields[0] === "temperature") {
       snapshot.temperatures.push(temperatureFromFields(fields))
+    } else if (fields[0] === "gpu-temperature") {
+      var celsius = number(fields[2], -1)
+      if (celsius > 0 && celsius < 150)
+        snapshot.gpuTemperatures.push({ id: String(fields[1] || ""), value: celsius })
     }
   }
 
@@ -386,6 +392,9 @@ function parseGpuSnapshot(raw) {
         capacity: Math.max(1, number(fields[6], 1)),
         kind: String(fields[7] || "time")
       })
+    } else if (kind === "gpu-temperature") {
+      var celsius = number(fields[2], -1)
+      gpuSnapshotEntry(snapshot, fields[1]).temperature = celsius > 0 && celsius < 150 ? celsius : -1
     } else if (kind === "gpu-memory") {
       var memoryGpu = gpuSnapshotEntry(snapshot, fields[1])
       var memoryValue = Math.max(0, number(fields[3]))
@@ -477,6 +486,7 @@ function nextGpus(previous, current) {
       driver: gpu.driver,
       name: gpu.name,
       frequencyMHz: gpu.frequencyMHz,
+      temperature: number(gpu.temperature, -1),
       usage: usage < 0 ? -1 : clamp(usage, 0, 100),
       memoryUsed: gpu.memoryUsed,
       memoryTotal: gpu.memoryTotal,
@@ -1799,6 +1809,17 @@ function temperatureRank(temperature) {
   return 100
 }
 
+// The hottest adapter: one compact tooltip value that never hides a hot dGPU.
+function gpuTemperature(temperatures) {
+  var values = Array.isArray(temperatures) ? temperatures : []
+  var hottest = -1
+  for (var i = 0; i < values.length; i++) {
+    var value = number(values[i] && values[i].value, -1)
+    if (value > 0 && value < 150 && value > hottest) hottest = value
+  }
+  return hottest
+}
+
 function cpuTemperature(temperatures) {
   var values = Array.isArray(temperatures) ? temperatures : []
   var selected = null
@@ -1822,6 +1843,7 @@ if (typeof module !== "undefined") {
     emptyMetrics: emptyMetrics,
     emptyProcessSnapshot: emptyProcessSnapshot,
     emptyThermalSnapshot: emptyThermalSnapshot,
+    gpuTemperature: gpuTemperature,
     emptyPackagePowerSnapshot: emptyPackagePowerSnapshot,
     emptyPower: emptyPower,
     emptyStorageSnapshot: emptyStorageSnapshot,

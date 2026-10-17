@@ -65,6 +65,8 @@ Item {
   property bool memoryAlert: false
   property real iconTemperature: -1
   property double thermalUpdatedAt: 0
+  property real iconGpuTemperature: -1
+  property double gpuThermalUpdatedAt: 0
   property bool heatAlert: false
   property int heatLevel: 0
   readonly property int heatMotionInterval: Heat.interval(heatLevel)
@@ -74,9 +76,12 @@ Item {
   }
   readonly property bool thermalFresh: thermalUpdatedAt > 0 && freshnessClock >= thermalUpdatedAt
     && freshnessClock - thermalUpdatedAt < glanceMaxAge && iconTemperature > 0
+  readonly property bool gpuThermalFresh: gpuThermalUpdatedAt > 0 && freshnessClock >= gpuThermalUpdatedAt
+    && freshnessClock - gpuThermalUpdatedAt < glanceMaxAge && iconGpuTemperature > 0
 
   function clearThermal() {
     iconTemperature = -1; thermalUpdatedAt = 0; heatAlert = false; heatLevel = 0
+    iconGpuTemperature = -1; gpuThermalUpdatedAt = 0
   }
 
   function updateHeatAlert() {
@@ -86,11 +91,17 @@ Item {
 
   function updateThermal(next) {
     if (!thermalFresh) { heatAlert = false; heatLevel = 0 }
+    var now = Date.now()
+    var gpu = Model.gpuTemperature(next.gpuTemperatures)
     var selected = Model.cpuTemperature(next.temperatures)
-    if (!selected) { clearThermal(); return }
+    if (!selected) clearThermal()
+    // GPU heat is informational only; flames and motion stay CPU-driven.
+    iconGpuTemperature = gpu
+    gpuThermalUpdatedAt = gpu > 0 ? now : 0
+    freshnessClock = now
+    if (!selected) return
     iconTemperature = selected.value
-    thermalUpdatedAt = Date.now()
-    freshnessClock = thermalUpdatedAt
+    thermalUpdatedAt = now
     updateHeatAlert()
   }
 
