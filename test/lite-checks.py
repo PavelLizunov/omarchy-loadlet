@@ -118,14 +118,21 @@ with tempfile.TemporaryDirectory() as directory:
     env = dict(os.environ, OMARCHY_SYSTEM_STATS_PROC_PATH=str(base / 'proc'),
                OMARCHY_SYSTEM_STATS_SYS_PATH=str(base / 'sys'),
                OMARCHY_SYSTEM_STATS_NVIDIA_FIXTURE_PATH=str(nvidia))
-    def gpu_temperatures():
-        lines = subprocess.run([str(ROOT / 'activity-sampler'), '--activity-gpus'], env=env,
+    def gpu_temperatures(mode='--activity-gpus'):
+        lines = subprocess.run([str(ROOT / 'activity-sampler'), mode], env=env,
                                capture_output=True, text=True, timeout=3, check=True).stdout.splitlines()
-        assert sum(line.startswith('gpu\t') for line in lines) == 3, lines
+        if mode == '--activity-gpus':
+            assert sum(line.startswith('gpu\t') for line in lines) == 3, lines
+        else:
+            assert lines[0] == 'schema\tactivity-thermals\t1', lines
+            assert not any(line.startswith(('gpu\t', 'engine\t', 'gpu-memory\t')) for line in lines), lines
         return sorted(line for line in lines if line.startswith('gpu-temperature\t'))
-    assert gpu_temperatures() == ['gpu-temperature\t0000:03:00.0\t54',
-                                  'gpu-temperature\t0000:04:00.0\t66'], gpu_temperatures()
+    both = ['gpu-temperature\t0000:03:00.0\t54', 'gpu-temperature\t0000:04:00.0\t66']
+    assert gpu_temperatures() == both, gpu_temperatures()
+    assert gpu_temperatures('--activity-thermals') == both, gpu_temperatures('--activity-thermals')
     (devices / '0000:03:00.0/power').mkdir()
     (devices / '0000:03:00.0/power/runtime_status').write_text('suspended\n')
-    assert gpu_temperatures() == ['gpu-temperature\t0000:04:00.0\t66'], gpu_temperatures()
-    print('PASS GPU temperature: AMD edge sensor, NVML reading, no sensor stays unknown, suspended dGPU not read')
+    for mode in ['--activity-gpus', '--activity-thermals']:
+        assert gpu_temperatures(mode) == ['gpu-temperature\t0000:04:00.0\t66'], gpu_temperatures(mode)
+    print('PASS GPU temperature: AMD edge sensor, NVML reading, no sensor stays unknown, suspended dGPU not read; '
+          'thermal frame carries temperatures only')

@@ -35,7 +35,9 @@ brightest bounded shade retaining 3:1 active-row/body contrast on checked opaque
 palettes. Unlike 2.7.1-2.7.2, it does not mix active colors with grey background.
 Near-neutral theme roles use blue/red hue fallbacks; no theme settings change.
 The panel cards and legacy icon shapes retain their original gauge palette.
-The tooltip shows current CPU, RAM and temperature with short click hints.
+The tooltip shows current CPU, RAM, CPU temperature and the hottest GPU
+temperature (when an adapter reports one) with short click hints. GPU heat is
+informational: flames and motion stay driven by the CPU temperature.
 Settings explains the selected shape's gauge mapping and six-row threshold.
 Legacy shapes keep their flatter CPU mouth, approximately
 6 logical units between endpoints with a 2.4-unit stroke, and fitted RAM eyes.
@@ -63,11 +65,13 @@ of movement may run every three seconds; its physical resource
 cost has not been measured.
 
 With **Background icon indicators** enabled (default), the same native reader
-requests aggregate CPU/RAM and a separate CPU thermal sample every 15 seconds
+requests aggregate CPU/RAM and a separate thermal sample every 15 seconds
 while the panel is closed. Requests are serial. The thermal reader reuses its
 cached sensor path; initial discovery or sensor loss can enumerate hwmon sensors.
-With diagnostic history disabled, no process inventory, topology, GPU or disk
-requests run in this mode. Open-panel samples feed the icon without a second
+The thermal sample also reads each GPU's temperature: DRM adapters are rediscovered
+at most every 30 seconds, a suspended dGPU is skipped, and an active NVIDIA GPU
+uses NVML. With diagnostic history disabled, no process inventory, topology, GPU
+load/memory/DRM-client or disk requests run in this mode. Open-panel samples feed the icon without a second
 reader. Disabling both background icon indicators and diagnostic history stops
 closed-panel collection, while open-panel sampling continues normally.
 
@@ -182,7 +186,7 @@ parent page, with its header and bottom actions outside the settings viewport.
 The default Efficient profile samples resources every 3 seconds, processes every
 6 seconds and temperature every 15 seconds. GPU and volume details are only
 requested in expanded view (4 and 60 seconds respectively; scheduling rounds to
-the resource timer). The GPU card adds temperature when the adapter reports one:
+the resource timer). The GPU card shows temperature on its own line when the adapter reports one:
 the amdgpu edge or xe package sensor of its own hwmon, or NVML for an active NVIDIA
 GPU. A suspended dGPU is not woken to read it. One request is in flight at a time. History is bounded to
 20–240 points. A failed request times out after 5 seconds; restarts back off from

@@ -479,16 +479,21 @@ Panel {
     var adapters = Array.isArray(gpus) ? gpus : []
     if (adapters.length === 0)
       return gpuSnapshot.sample <= 0 ? I18n.t("sampling", root.effectiveLanguage) : "—"
-    if (adapters.length === 1) {
-      var temperature = gpuTemperatureText(adapters[0])
-      var memory = gpuMemoryLabel(adapters[0]) + " " + gpuMemoryText(adapters[0])
-      return temperature ? memory + " · " + temperature : memory
-    }
+    if (adapters.length === 1)
+      return gpuMemoryLabel(adapters[0]) + " " + gpuMemoryText(adapters[0])
+    var parts = []
+    for (var i = 0; i < Math.min(2, adapters.length); i++)
+      parts.push(compactGpuName(adapters[i]) + " " + gpuUsageAndClockText(adapters[i]))
+    return parts.join(" · ")
+  }
+
+  function gpuCardTemperature() {
+    var adapters = Array.isArray(gpus) ? gpus : []
+    if (adapters.length === 1) return gpuTemperatureText(adapters[0])
     var parts = []
     for (var i = 0; i < Math.min(2, adapters.length); i++) {
-      var adapterTemperature = gpuTemperatureText(adapters[i])
-      parts.push(compactGpuName(adapters[i]) + " " + gpuUsageAndClockText(adapters[i])
-        + (adapterTemperature ? " · " + adapterTemperature : ""))
+      var temperature = gpuTemperatureText(adapters[i])
+      if (temperature) parts.push(compactGpuName(adapters[i]) + " " + temperature)
     }
     return parts.join(" · ")
   }
@@ -659,6 +664,9 @@ Panel {
       + (activity.thermalFresh
         ? I18n.t("cpu", root.effectiveLanguage) + " " + Model.formatTemperature(activity.iconTemperature, root.temperatureUnitSetting)
           + (activity.heatAlert ? " · " + I18n.t("icon_hot", root.effectiveLanguage) : "") + "\n"
+        : "")
+      + (activity.gpuThermalFresh
+        ? I18n.t("gpu", root.effectiveLanguage) + " " + Model.formatTemperature(activity.iconGpuTemperature, root.temperatureUnitSetting) + "\n"
         : "")
       + I18n.t("tooltip", root.effectiveLanguage)
     onPressed: function(buttonCode) {
@@ -1611,10 +1619,18 @@ Panel {
           width: summaryViewport.width
           columns: width >= Style.space(600) ? 3 : (width >= Style.space(380) ? 2 : 1)
           spacing: Style.spacing.sm
+          // One height for every card keeps rows even when the GPU card
+          // gains its temperature line.
+          readonly property real cardHeight: {
+            var height = Style.space(72)
+            for (var i = 0; i < children.length; i++)
+              height = Math.max(height, children[i].implicitHeight || 0)
+            return height
+          }
 
           MetricCard {
             width: (parent.width - parent.spacing * (parent.columns - 1)) / parent.columns
-            height: Math.max(Style.space(72), implicitHeight)
+            height: summaryGrid.cardHeight
             label: root.cpuCardLabel()
             value: activity.cpuReady ? root.percentText(root.metrics.cpu) : "—"
             detail: root.cpuCardDetail()
@@ -1628,7 +1644,7 @@ Panel {
 
           MetricCard {
             width: (parent.width - parent.spacing * (parent.columns - 1)) / parent.columns
-            height: Math.max(Style.space(72), implicitHeight)
+            height: summaryGrid.cardHeight
             label: root.memoryCardLabel()
             value: root.hasSnapshot ? root.percentText(root.metrics.memory) : "—"
             detail: root.memoryBreakdownText()
@@ -1642,17 +1658,18 @@ Panel {
 
           MetricCard {
             width: (parent.width - parent.spacing * (parent.columns - 1)) / parent.columns
-            height: Math.max(Style.space(72), implicitHeight)
+            height: summaryGrid.cardHeight
             label: root.gpuHeadingText()
             value: root.primaryGpuUsageText()
             detail: root.gpuCardDetail()
+            secondaryDetail: root.gpuCardTemperature()
             tone: root.primaryGpuUsage() >= 0 ? root.pressureColor(root.primaryGpuUsage()) : root.accent
             tall: false
           }
 
           MetricCard {
             width: (parent.width - parent.spacing * (parent.columns - 1)) / parent.columns
-            height: Math.max(Style.space(72), implicitHeight)
+            height: summaryGrid.cardHeight
             label: I18n.t("network", root.effectiveLanguage)
             value: Model.formatBytes(root.metrics.download, "/s")
             detail: "\uf093 " + Model.formatBytes(root.metrics.upload, "/s")
@@ -1663,7 +1680,7 @@ Panel {
 
           MetricCard {
             width: (parent.width - parent.spacing * (parent.columns - 1)) / parent.columns
-            height: Math.max(Style.space(72), implicitHeight)
+            height: summaryGrid.cardHeight
             label: root.diskCardLabel()
             badge: root.diskPagerText()
             value: Model.formatBytes(root.diskCardRead(), "/s")
@@ -1677,7 +1694,7 @@ Panel {
 
           MetricCard {
             width: (parent.width - parent.spacing * (parent.columns - 1)) / parent.columns
-            height: Math.max(Style.space(72), implicitHeight)
+            height: summaryGrid.cardHeight
             label: root.storageCardLabel()
             badge: root.storagePagerText()
             value: root.storageCardValue()
@@ -1812,6 +1829,7 @@ Panel {
     property string badge: ""
     property string value: ""
     property string detail: ""
+    property string secondaryDetail: ""
     property color detailTone: root.dim
     property var history: []
     property var paint: ({ width: 0, height: 0, frames: [], cells: [] })
@@ -1827,7 +1845,8 @@ Panel {
     signal activated(int delta)
 
     implicitHeight: Math.max(Style.space(tall ? 104 : 72),
-      Style.spacing.md * 2 + Style.font.caption * 2 + Style.font.heading + Style.space(12) + Style.spacing.sm * 2)
+      Style.spacing.md * 2 + Style.font.caption * (secondaryDetail !== "" ? 3 : 2)
+        + Style.font.heading + Style.space(12) + Style.spacing.sm * 2)
     color: Style.normalFillFor(root.foreground, root.accent)
     borderSpec: Border.controlSpec("normal", root.foreground, root.accent)
     radius: Style.cornerRadius
@@ -1895,6 +1914,16 @@ Panel {
           Text {
             width: parent.width
             text: detail
+            color: metricCard.detailTone
+            font.family: root.bar ? root.bar.fontFamily : Style.font.family
+            font.pixelSize: Style.font.caption
+            elide: Text.ElideRight
+          }
+
+          Text {
+            width: parent.width
+            visible: metricCard.secondaryDetail !== ""
+            text: metricCard.secondaryDetail
             color: metricCard.detailTone
             font.family: root.bar ? root.bar.fontFamily : Style.font.family
             font.pixelSize: Style.font.caption

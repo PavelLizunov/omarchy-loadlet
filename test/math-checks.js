@@ -30,3 +30,8 @@ assert.equal(M.nextGpus(M.emptyGpuSnapshot(),M.parseGpuSnapshot(gpuFrame('')))[0
 assert.equal(M.parseGpuSnapshot(gpuFrame('gpu-temperature\t0000:04:00.0\t900\n')).gpus[0].temperature,-1);
 assert.equal(M.parseGpuSnapshot(gpuFrame('gpu-temperature\t0000:04:00.0\t61\n')).gpus.length,1);
 console.log('PASS GPU temperature parsing: present, absent from an older sampler, and implausible values');
+const thermal=M.parseThermalSnapshot('schema\tactivity-thermals\t1\nsample\t10\ntemperature\thwmon5/temp1\tcoretemp\tPackage id 0\t38000\ngpu-temperature\tcard0\t45\ngpu-temperature\tcard1\t61.5\ngpu-temperature\tcard2\t900\n');
+assert.equal(thermal.temperatures.length,1);assert.equal(thermal.gpuTemperatures.length,2);
+assert.equal(M.gpuTemperature(thermal.gpuTemperatures),61.5);
+assert.equal(M.gpuTemperature(M.parseThermalSnapshot('schema\tactivity-thermals\t1\nsample\t10\n').gpuTemperatures),-1);
+console.log('PASS thermal GPU temperature: hottest adapter, implausible rows dropped, absent stays unknown');

@@ -1593,14 +1593,23 @@ public:
              << gpu.memory_kind << '\t';
       EmitNumber(output, gpu.frequency_mhz);
       output << '\n';
-      // A separate row keeps the established gpu record layout unchanged.
-      if (std::isfinite(gpu.temperature_c) && gpu.temperature_c > 0) {
-        output << "gpu-temperature\t" << gpu.id << '\t';
-        EmitNumber(output, gpu.temperature_c);
-        output << '\n';
-      }
+      EmitTemperature(output, gpu);
     }
     EmitDrmClients(output);
+  }
+
+  // Thermals cadence: only temperatures, so the closed-panel tooltip can show
+  // them without per-process DRM scans or utilization/memory reads.
+  void CollectTemperatures(std::ostream &output) {
+    DiscoverAdapters();
+    for (auto &gpu : adapters_) {
+      gpu.temperature_c = -1;
+      if (gpu.vendor_hex == "10de" || !Awake(gpu)) continue;
+      gpu.temperature_c = GpuHwmonTemperature(gpu.device_path);
+    }
+    ApplyNvidia();
+    for (const auto &gpu : adapters_)
+      EmitTemperature(output, gpu);
   }
 
 private:
@@ -1634,6 +1643,21 @@ private:
   std::vector<std::string> fdinfo_paths_;
   Clock::time_point next_fd_discovery_{};
   std::chrono::milliseconds discovery_interval_;
+
+  // A separate row keeps the established gpu record layout unchanged.
+  static void EmitTemperature(std::ostream &output, const GpuAdapter &gpu) {
+    if (!std::isfinite(gpu.temperature_c) || gpu.temperature_c <= 0)
+      return;
+    output << "gpu-temperature\t" << gpu.id << '\t';
+    EmitNumber(output, gpu.temperature_c);
+    output << '\n';
+  }
+
+  // Do not reset an autosuspend timer by reading telemetry on a sleeping dGPU.
+  static bool Awake(const GpuAdapter &gpu) {
+    const auto power = ReadLine(Join(gpu.device_path, "power/runtime_status"));
+    return !power || *power == "active" || *power == "unsupported";
+  }
 
   static void EmitNumber(std::ostream &output, double value) {
     if (!std::isfinite(value) || value < 0) {
@@ -1707,9 +1731,7 @@ private:
       gpu.frequency_mhz = -1;
       gpu.temperature_c = -1;
 
-      // Do not reset an autosuspend timer by reading telemetry on a sleeping dGPU.
-      const auto power = ReadLine(Join(gpu.device_path, "power/runtime_status"));
-      if (power && *power != "active" && *power != "unsupported") continue;
+      if (!Awake(gpu)) continue;
       if (gpu.vendor_hex == "10de") continue;
 
       if (gpu.vendor_hex == "1002") {
@@ -1992,8 +2014,10 @@ public:
       resources_.Glance(output);
     else if (kind == "processes")
       processes_.Collect(output);
-    else if (kind == "thermals")
+    else if (kind == "thermals") {
       thermals_.Collect(output);
+      gpus_.CollectTemperatures(output);
+    }
     else if (kind == "gpus")
       gpus_.Collect(output);
     else if (kind == "storage")

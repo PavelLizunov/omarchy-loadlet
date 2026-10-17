@@ -64,7 +64,8 @@ function emptyThermalSnapshot() {
   return {
     schema: 0,
     sample: 0,
-    temperatures: []
+    temperatures: [],
+    gpuTemperatures: []
   }
 }
 
@@ -261,6 +262,10 @@ function parseThermalSnapshot(raw) {
       snapshot.sample = number(fields[1])
     } else if (fields[0] === "temperature") {
       snapshot.temperatures.push(temperatureFromFields(fields))
+    } else if (fields[0] === "gpu-temperature") {
+      var celsius = number(fields[2], -1)
+      if (celsius > 0 && celsius < 150)
+        snapshot.gpuTemperatures.push({ id: String(fields[1] || ""), value: celsius })
     }
   }
 
@@ -1804,6 +1809,17 @@ function temperatureRank(temperature) {
   return 100
 }
 
+// The hottest adapter: one compact tooltip value that never hides a hot dGPU.
+function gpuTemperature(temperatures) {
+  var values = Array.isArray(temperatures) ? temperatures : []
+  var hottest = -1
+  for (var i = 0; i < values.length; i++) {
+    var value = number(values[i] && values[i].value, -1)
+    if (value > 0 && value < 150 && value > hottest) hottest = value
+  }
+  return hottest
+}
+
 function cpuTemperature(temperatures) {
   var values = Array.isArray(temperatures) ? temperatures : []
   var selected = null
@@ -1827,6 +1843,7 @@ if (typeof module !== "undefined") {
     emptyMetrics: emptyMetrics,
     emptyProcessSnapshot: emptyProcessSnapshot,
     emptyThermalSnapshot: emptyThermalSnapshot,
+    gpuTemperature: gpuTemperature,
     emptyPackagePowerSnapshot: emptyPackagePowerSnapshot,
     emptyPower: emptyPower,
     emptyStorageSnapshot: emptyStorageSnapshot,
