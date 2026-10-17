@@ -28,6 +28,11 @@ Current previews are the files in this directory and root preview.png.
 No HTML reconstruction, theme mutation, image upscaling or claim that presentation
 cuts are native transitions.
 
+GPU temperature (Loadlet after2.8.0) changed Panel.qml/Model.js without changing
+these pixels: the demo GPU has no temperature. Local Qt offscreen/software renders of
+the expanded consumer from main and from the change were byte-identical at DPR1 and
+DPR2, so only the live source hashes were refreshed; no published asset was rerendered.
+
 Native pointer/key/raster tests are separate from image evidence. Physical Wayland
 focus, every theme, screen readers and battery remain unverified. Direct native
 design/anti-slop inspection is not independent acceptance. No independent review

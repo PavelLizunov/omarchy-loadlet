@@ -182,7 +182,9 @@ parent page, with its header and bottom actions outside the settings viewport.
 The default Efficient profile samples resources every 3 seconds, processes every
 6 seconds and temperature every 15 seconds. GPU and volume details are only
 requested in expanded view (4 and 60 seconds respectively; scheduling rounds to
-the resource timer). One request is in flight at a time. History is bounded to
+the resource timer). The GPU card adds temperature when the adapter reports one:
+the amdgpu edge or xe package sensor of its own hwmon, or NVML for an active NVIDIA
+GPU. A suspended dGPU is not woken to read it. One request is in flight at a time. History is bounded to
 20–240 points. A failed request times out after 5 seconds; restarts back off from
 2 to 30 seconds. Shutdown allows 1 second before killing the owned reader.
 

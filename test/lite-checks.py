@@ -94,3 +94,38 @@ with tempfile.TemporaryDirectory() as directory:
                                          'cpu\tcpu\t1000\t800', 'memory\t1000\t600\t0\t0\t100',
                                          'snapshot-end\tglance'], result.stdout
     print('PASS glance reader: aggregate CPU/RAM only, framed response')
+
+with tempfile.TemporaryDirectory() as directory:
+    base = Path(directory)
+    (base / 'proc').mkdir()
+    (base / 'proc/uptime').write_text('100.0 0.0\n')
+    devices = base / 'devices'
+    for card, bus, vendor in [('card0', '0000:00:02.0', '0x8086'),
+                              ('card1', '0000:03:00.0', '0x1002'),
+                              ('card2', '0000:04:00.0', '0x10de')]:
+        device = devices / bus
+        device.mkdir(parents=True)
+        (device / 'vendor').write_text(vendor + '\n')
+        (device / 'product_name').write_text('Fixture\n')
+        (base / 'sys/class/drm' / card).mkdir(parents=True)
+        (base / 'sys/class/drm' / card / 'device').symlink_to(device)
+    hwmon = devices / '0000:03:00.0/hwmon/hwmon3'
+    hwmon.mkdir(parents=True)
+    (hwmon / 'temp1_input').write_text('54000\n'); (hwmon / 'temp1_label').write_text('edge\n')
+    (hwmon / 'temp2_input').write_text('71000\n'); (hwmon / 'temp2_label').write_text('junction\n')
+    nvidia = base / 'nvidia.tsv'
+    nvidia.write_text('00000000:04:00.0\tNVIDIA Fixture\t62\t20\t100\t1950\t66\n')
+    env = dict(os.environ, OMARCHY_SYSTEM_STATS_PROC_PATH=str(base / 'proc'),
+               OMARCHY_SYSTEM_STATS_SYS_PATH=str(base / 'sys'),
+               OMARCHY_SYSTEM_STATS_NVIDIA_FIXTURE_PATH=str(nvidia))
+    def gpu_temperatures():
+        lines = subprocess.run([str(ROOT / 'activity-sampler'), '--activity-gpus'], env=env,
+                               capture_output=True, text=True, timeout=3, check=True).stdout.splitlines()
+        assert sum(line.startswith('gpu\t') for line in lines) == 3, lines
+        return sorted(line for line in lines if line.startswith('gpu-temperature\t'))
+    assert gpu_temperatures() == ['gpu-temperature\t0000:03:00.0\t54',
+                                  'gpu-temperature\t0000:04:00.0\t66'], gpu_temperatures()
+    (devices / '0000:03:00.0/power').mkdir()
+    (devices / '0000:03:00.0/power/runtime_status').write_text('suspended\n')
+    assert gpu_temperatures() == ['gpu-temperature\t0000:04:00.0\t66'], gpu_temperatures()
+    print('PASS GPU temperature: AMD edge sensor, NVML reading, no sensor stays unknown, suspended dGPU not read')

@@ -440,6 +440,12 @@ Panel {
     return frequency ? usage + " · " + frequency : usage
   }
 
+  function gpuTemperatureText(gpu) {
+    var temperature = Number(gpu && gpu.temperature)
+    if (!isFinite(temperature) || temperature <= 0) return ""
+    return Model.formatTemperature(temperature, temperatureUnitSetting)
+  }
+
   function gpuMemoryLabel(gpu) {
     if (gpu && gpu.memoryKind === "shared") return I18n.t("gpu_shared", effectiveLanguage)
     if (gpu && gpu.memoryKind === "vram") return "VRAM"
@@ -473,11 +479,17 @@ Panel {
     var adapters = Array.isArray(gpus) ? gpus : []
     if (adapters.length === 0)
       return gpuSnapshot.sample <= 0 ? I18n.t("sampling", root.effectiveLanguage) : "—"
-    if (adapters.length === 1)
-      return gpuMemoryLabel(adapters[0]) + " " + gpuMemoryText(adapters[0])
+    if (adapters.length === 1) {
+      var temperature = gpuTemperatureText(adapters[0])
+      var memory = gpuMemoryLabel(adapters[0]) + " " + gpuMemoryText(adapters[0])
+      return temperature ? memory + " · " + temperature : memory
+    }
     var parts = []
-    for (var i = 0; i < Math.min(2, adapters.length); i++)
-      parts.push(compactGpuName(adapters[i]) + " " + gpuUsageAndClockText(adapters[i]))
+    for (var i = 0; i < Math.min(2, adapters.length); i++) {
+      var adapterTemperature = gpuTemperatureText(adapters[i])
+      parts.push(compactGpuName(adapters[i]) + " " + gpuUsageAndClockText(adapters[i])
+        + (adapterTemperature ? " · " + adapterTemperature : ""))
+    }
     return parts.join(" · ")
   }
 
