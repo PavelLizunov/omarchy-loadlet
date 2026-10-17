@@ -375,6 +375,17 @@ Panel {
     return usedText + " / " + totalText + " · " + I18n.t("cache", root.effectiveLanguage) + " " + cacheText
   }
 
+  // CPU and GPU side by side; either one alone when the other is unknown.
+  function tooltipTemperatureLine() {
+    var parts = []
+    if (activity.thermalFresh)
+      parts.push(I18n.t("cpu", effectiveLanguage) + " " + Model.formatTemperature(activity.iconTemperature, temperatureUnitSetting)
+        + (activity.heatAlert ? " · " + I18n.t("icon_hot", effectiveLanguage) : ""))
+    if (activity.gpuThermalFresh)
+      parts.push(I18n.t("gpu", effectiveLanguage) + " " + Model.formatTemperature(activity.iconGpuTemperature, temperatureUnitSetting))
+    return parts.length > 0 ? parts.join(" · ") + "\n" : ""
+  }
+
   function cpuCardDetail() {
     var parts = []
     if (cpuTemperature)
@@ -661,13 +672,7 @@ Panel {
         + " · " + I18n.t("ram", root.effectiveLanguage) + " "
         + Model.formatBytes(activity.glanceMemoryUsed) + " / " + Model.formatBytes(activity.glanceMemoryTotal) + "\n"
       : I18n.t("icon_no_data", root.effectiveLanguage) + "\n")
-      + (activity.thermalFresh
-        ? I18n.t("cpu", root.effectiveLanguage) + " " + Model.formatTemperature(activity.iconTemperature, root.temperatureUnitSetting)
-          + (activity.heatAlert ? " · " + I18n.t("icon_hot", root.effectiveLanguage) : "") + "\n"
-        : "")
-      + (activity.gpuThermalFresh
-        ? I18n.t("gpu", root.effectiveLanguage) + " " + Model.formatTemperature(activity.iconGpuTemperature, root.temperatureUnitSetting) + "\n"
-        : "")
+      + root.tooltipTemperatureLine()
       + I18n.t("tooltip", root.effectiveLanguage)
     onPressed: function(buttonCode) {
       if (buttonCode === Qt.LeftButton) root.toggle()

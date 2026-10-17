@@ -4,7 +4,7 @@
   "runtimeVersion": "2.8.0",
   "date": "2026-10-14T10:53:36.416Z",
   "sourceHashes": {
-    "Panel.qml": "51a0360fc1114c28cf0f005d95aebb6d341f6bfe2eac8667314078dc7e0e7632",
+    "Panel.qml": "3ee38955e5d0a05bb2b59c3b1442750e192e02ef8fa2fd826fcc368a3724119e",
     "ActivityIcon.qml": "072bb6ee74b3f5d85fc7fd2b52b54ad65fc634584c3921600f77bb500460f609",
     "ActivityIconSvg.js": "e183d251ef9eda24a6e0284db1d84f9812b13b3c1443b3a7fe57343473ad2eae",
     "ActivityController.qml": "d3da1c46cf6103761791f6c14e87aeb3253605229068d3566f22821d479d53c0",
