@@ -6,6 +6,9 @@ import "HeatPolicy.js" as Heat
 
 Image {
   id: root
+  // Keep SVG pixel dimensions from becoming the next logical size on HiDPI.
+  width: Style.bar.iconCanvas
+  height: width
   property real cpu: -1
   property real ram: -1
   property bool fresh: false
