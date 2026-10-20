@@ -164,7 +164,12 @@ std::optional<std::string> ReadLine(const std::string &path) {
   if (!stream)
     return std::nullopt;
   stream.getline(line.data(), line.size());
-  if (stream.fail() && !stream.eof()) { input_overflow = true; return std::nullopt; }
+  if (stream.fail() && !stream.eof()) {
+    // Only a line that filled the buffer is an overflow; a read error (e.g. ENODATA
+    // from an idle iwlwifi sensor) just means this file has no value.
+    if (stream.gcount() == static_cast<std::streamsize>(line.size()) - 1) input_overflow = true;
+    return std::nullopt;
+  }
   return Trim(line.data());
 }
 
