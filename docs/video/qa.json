@@ -73,7 +73,7 @@
     "docs/video/index.html": "aebea9790cc41838ee8e1b99323302a43be9040155f0e31c7eee4ad000de9625",
     "docs/video/js/timeline.mjs": "6c7d7cf925ca2333905dda2cd19dbe173ef85d96489c6fa4b11861e2a1be763a",
     "docs/video/render.py": "5752c39f84c3d776e8e99f870f11a11311c342cb4ab8e355a3788307f2b2c896",
-    "docs/video/assets/manifest.json": "6ef58a05a8fa075ccb76f03f77ae396f71d3a3f97add1866067b36ab1d76b749"
+    "docs/video/assets/manifest.json": "98d305961f2a9dc22b0d07e2ac184f6a9a5c886197ee6ce7a1b62aff7b7ab031"
   },
   "captureSha256": "e99140766399d88e15697c6f30b4b70528d1d411e582b5be34edb0baeda3b438",
   "readmeAnimation": {
@@ -105,7 +105,7 @@
     "overflow": false,
     "animatedPixelsChanged": true
   },
-  "review": "Twelve fresh native consumer states, published crops/assets, five scene stills, beat/phone sheets, four cut strips and both worst MP4 frames inspected inline. No independent review happened. Local GitHub-sanitized README and complete native WebP decode checked separately; fresh public-page check not yet run.",
+  "review": "Twelve fresh native consumer states, twelve byte-identical final qualifications and one corrected native tooltip, published crops/assets, five scene stills, beat/phone sheets, four cut strips and both worst MP4 frames inspected inline. No independent review happened. Local GitHub-sanitized README and complete native WebP decode checked separately; fresh public-page check not yet run.",
   "limits": [
     "Demonstration data, not machine measurement",
     "Camera motion not physical native interaction",

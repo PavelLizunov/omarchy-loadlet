@@ -41,12 +41,7 @@ Rectangle {
       ctrl.glanceUpdatedAt=100000;ctrl.thermalUpdatedAt=100000
       ctrl.iconTemperature=fixture.hot?85:72;ctrl.freshnessClock=fixture.stale?135000:115000
       ctrl.updateHeatAlert()
-      function nodes(item) {
-        var result=[item]
-        if(item.children) for(var i=0;i<item.children.length;i++) result=result.concat(nodes(item.children[i]))
-        return result
-      }
-      var button=nodes(plugin).filter(function(n){return n.iconComponent!==undefined})[0]
+      var button=plugin.barIcon ? plugin.barIcon.parent : null
       if(!button) return
       fixture.tooltipText=button.tooltipText
       fixture.previewReady=true

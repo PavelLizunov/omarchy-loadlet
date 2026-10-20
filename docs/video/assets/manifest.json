@@ -2,7 +2,7 @@
   "schema": 1,
   "productName": "Loadlet",
   "runtimeVersion": "2.8.1",
-  "date": "2026-10-20T20:25:47.881Z",
+  "date": "2026-10-20T20:39:13.975Z",
   "sourceHashes": {
     "Panel.qml": "5973e168e4d57d9b21aaecca02186563b0ee4a434b9ef0f4583618d345384022",
     "ActivityIcon.qml": "9e799b388b1ee577d0738da6640a6890169a1ca3e0db70f2958a05f055a6bc3a",
@@ -16,9 +16,10 @@
     "I18n.js": "6760f422ef395d4845182696b835e3b9b269ccee769746f49b6861cbbacbb540",
     "Messages.js": "924a8bdff7a38ef9347d730ea37cf9faff55ef9b65e2a4cc31923e75029757b5",
     "test/mock-data.js": "7b4cddbe213014d6cdbdb95a7042f28ba456b78aed4399df5ac69f8419350b9c",
-    "test/ui-checks.py": "b734aea860b4b21b7034e5a1607b969e574555010979847f9a4725c1e4fdd6a2",
+    "test/ui-checks.py": "95c478f9858c45c06acb0a6313879ce4eb46ceb95723141f7f16ddc8ae1a6dcc",
     "test/render-icon-update.qml": "d21834a00dc5f1b4342eefa1be94c7b64b5d2e56fd8317c43ab582a18d0c45ce",
-    "test/render-video-icon.qml": "679b204a679239eecc2ab498a29802660c6d9f2b829fec7fd549d33b314fb7cf"
+    "test/render-video-icon.qml": "679b204a679239eecc2ab498a29802660c6d9f2b829fec7fd549d33b314fb7cf",
+    "test/render-tooltip.qml": "62d6066e3775fce72dfb20c3f35df78761e201d36ab885afbabc4b83d30f2e45"
   },
   "assets": {
     "compact.png": {
@@ -88,5 +89,11 @@
     "product pixels are current; camera cuts are presentation",
     "hero enlargement is not native bar size"
   ],
-  "currentRuntimeEquivalent": true
+  "currentRuntimeEquivalent": true,
+  "reuseQualification": {
+    "changedOwner": "test/ui-checks.py; test/render-tooltip.qml",
+    "reason": "Restore the extracted native tooltip Commons alias and select the actual WidgetButton, with runtime plugin bytes unchanged. All twelve final strict consumer rerenders are byte-identical to the inspected 2.8.1 captures. A fresh tooltip also renders without diagnostics.",
+    "assetChange": false,
+    "filmReuse": "Exact source-assets bytes unchanged; complete newly rebuilt 2.8.1 film remains valid, no old 2.8.0 footage reused."
+  }
 }

@@ -128,6 +128,7 @@ Item {
     bubble = bar_source[start:end]
     (imports / 'ActivityHost/Ui/ActivityTooltipBubble.qml').write_text('''import QtQuick
 import qs.Commons
+import qs.Commons as Commons
 Item {
   id: root
   property string tooltipText: ""

@@ -2,7 +2,7 @@
   "schema": 1,
   "productName": "Loadlet",
   "runtimeVersion": "2.8.1",
-  "date": "2026-10-20T20:25:22.317Z",
+  "date": "2026-10-20T20:39:13.975Z",
   "sourceHashes": {
     "Panel.qml": "5973e168e4d57d9b21aaecca02186563b0ee4a434b9ef0f4583618d345384022",
     "ActivityIcon.qml": "9e799b388b1ee577d0738da6640a6890169a1ca3e0db70f2958a05f055a6bc3a",
@@ -16,9 +16,10 @@
     "I18n.js": "6760f422ef395d4845182696b835e3b9b269ccee769746f49b6861cbbacbb540",
     "Messages.js": "924a8bdff7a38ef9347d730ea37cf9faff55ef9b65e2a4cc31923e75029757b5",
     "test/mock-data.js": "7b4cddbe213014d6cdbdb95a7042f28ba456b78aed4399df5ac69f8419350b9c",
-    "test/ui-checks.py": "b734aea860b4b21b7034e5a1607b969e574555010979847f9a4725c1e4fdd6a2",
+    "test/ui-checks.py": "95c478f9858c45c06acb0a6313879ce4eb46ceb95723141f7f16ddc8ae1a6dcc",
     "test/render-icon-update.qml": "d21834a00dc5f1b4342eefa1be94c7b64b5d2e56fd8317c43ab582a18d0c45ce",
-    "test/render-video-icon.qml": "679b204a679239eecc2ab498a29802660c6d9f2b829fec7fd549d33b314fb7cf"
+    "test/render-video-icon.qml": "679b204a679239eecc2ab498a29802660c6d9f2b829fec7fd549d33b314fb7cf",
+    "test/render-tooltip.qml": "62d6066e3775fce72dfb20c3f35df78761e201d36ab885afbabc4b83d30f2e45"
   },
   "assetHashes": {
     "compact.png": "169f71d7c8600962ef2b74f1fd2d7cfb7b8a03eb27aad26c4f1b74a399c9640e",
@@ -114,7 +115,7 @@
     "imports/ActivityHost/Commons/UntypedInput.qml": "11031cf39d9edbdc28d70e9f85eb0de31da382be37b94445eb43f9ed41b85a48",
     "imports/ActivityHost/Commons/Util.qml": "4c0da8a8845acc64fb0e32f5cb1e47bfbb5b27e40280d2741128cb62ce6f8adf",
     "imports/ActivityHost/Commons/qmldir": "aefce52d6429308b76c20f2f76b98c992b7e3efc1d0102acf934abe9031c7954",
-    "imports/ActivityHost/Ui/ActivityTooltipBubble.qml": "f8c833074ce02dfb76ffaeb8054eee70cf7a027cb1ae321112c6bec3d8d960cd",
+    "imports/ActivityHost/Ui/ActivityTooltipBubble.qml": "008737293b96dc4825336e714810b0250de152f861ec75028d4eab353d540219",
     "imports/ActivityHost/Ui/BackgroundMedia.qml": "ce6144c0a21f7ae29305a7a29c58df654ed38c90bfea59814ed04a25426e43a9",
     "imports/ActivityHost/Ui/BarIconButton.qml": "18d708fde8776529245e11c638c7e9ca21dd6c879f1727f54a7ea2c7421b031b",
     "imports/ActivityHost/Ui/BarIconContent.qml": "00f185732b52215f57f1ef617bec554544f5f65b5c97a4d7048250ac6ac600d6",
@@ -168,7 +169,7 @@
     "plugin/ProcessActionController.qml": "d2990358ffe9f2e7c75c61416d85634629e3fcdabcf66a50b05068259d3d8fd5",
     "plugin/Sparkline.qml": "ad9a47bc3d5aa633982b2e0266ec95efdbfa2a0889af20a08b7fcdb491279cf8",
     "render-icon-update.qml": "862b1a873824bbfcf87f2b6cb5fbd7de6b2f1c0cf6447741088940b97a19dc76",
-    "render-tooltip.qml": "c9373b7cdcd7cc03a27b675d74d165991e5ff25ae567ef29eb0db68e4162884a",
+    "render-tooltip.qml": "a503ad277aa2241855030d65eb1e08e75204c35af488bc7b7d45e8ab87922f84",
     "render-video-icon.qml": "c2dec23efa17b670c4da49d2dc6b288a454961894edeeff59021a471ca9def1c",
     "tst_panel.qml": "a72650f87388bc5c84b13f3c54b209a3e4f60fff1c5294d62a3302d0da8ad1c5"
   },
@@ -203,5 +204,11 @@
     "inert demonstration data, not live desktop",
     "camera motion is presentation, not physical interaction",
     "arbitrary themes/accessibility/hardware/energy unverified"
-  ]
+  ],
+  "reuseQualification": {
+    "changedOwner": "test/ui-checks.py; test/render-tooltip.qml",
+    "reason": "Restore the extracted native tooltip Commons alias and select the actual WidgetButton, with runtime plugin bytes unchanged. All twelve final strict consumer rerenders are byte-identical to the inspected 2.8.1 captures. A fresh tooltip also renders without diagnostics.",
+    "assetChange": false,
+    "filmReuse": "Exact source-assets bytes unchanged; complete newly rebuilt 2.8.1 film remains valid, no old 2.8.0 footage reused."
+  }
 }
