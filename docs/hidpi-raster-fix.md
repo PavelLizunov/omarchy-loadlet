@@ -31,14 +31,17 @@ pixels and16/32raster pixels. Run:
 python3 test/icon-raster-checks.py
 ```
 
-The existing UI entry point runs this test before the broader suite. The broader
-suite currently fails to compile against this host: its inert fixture does not
+The existing UI entry point runs this test before the broader suite. At the
+original repair checkpoint, the broader suite failed to compile against this host: its inert fixture does not
 provide the newly imported Commons AudioNodes/Singleton contract. No broad UI
 PASS is claimed. Core checks reached the existing exact-media source-hash gate,
 which rejects the changed ActivityIcon.qml. Published screenshots/video remain
 historical, not re-attested current-source media; no hashes were rewritten to
 manufacture a pass. Standalone icon/controller/math/catalog/diagnostic/NVIDIA
-checks passed.
+checks passed. The later 2.8.1 release resolves those fixture/media gates with
+reviewed inert dependencies, fresh actual-consumer assets and a complete local
+`make check` pass. See VERIFICATION.md; the historical failure above is not a
+current release blocker.
 
 A reviewed MCP0.3.0/Qt6.12offscreen actual-icon/native-loader render atDPR2 had
 empty diagnostics and passed16px/inside-slot geometry; its PNG was inspected.

@@ -27,6 +27,24 @@ jobs:
       - name: Check complete public history for diagnostic metadata
         run: PYTHONDONTWRITEBYTECODE=1 python3 test/publication-checks.py --public
 
+  reproducible-package:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    # Official Arch base-devel 20261018.0.612668, immutable image identity.
+    container: archlinux@sha256:a25b54cf4b9c0de8752f5417c81810fb41bbfa5cdd6a504a9b6816a3b86b1e59
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - name: Reproduce the shipped executable from this exact source
+        shell: bash
+        run: |
+          set -euo pipefail
+          pacman -Q gcc gcc-libs glibc binutils make
+          test "$(g++ -dumpfullversion)" = 16.2.1
+          cp activity-sampler "$RUNNER_TEMP/distributed-sampler"
+          LC_ALL=C make -B activity-sampler
+          cmp "$RUNNER_TEMP/distributed-sampler" activity-sampler
+          sha256sum "$RUNNER_TEMP/distributed-sampler" activity-sampler
+
   native-ui:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -42,7 +60,7 @@ jobs:
           cache: true
       - name: Load pinned host source, without executing its scripts
         env:
-          HOST_REV: c668141e9c42b13c80c9ca4ea108e11708c5e8a5
+          HOST_REV: 03ff1eff3812933f7088484533784d2f63eaf19a
         run: |
           git clone --no-checkout --filter=blob:none https://github.com/omacom/omarchy.git "$RUNNER_TEMP/activity-host"
           git -C "$RUNNER_TEMP/activity-host" sparse-checkout set bin shell/Ui shell/Commons shell/plugins/bar

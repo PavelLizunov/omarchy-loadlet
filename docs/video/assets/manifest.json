@@ -1,11 +1,11 @@
 {
   "schema": 1,
   "productName": "Loadlet",
-  "runtimeVersion": "2.8.0",
-  "date": "2026-10-14T10:53:37.513Z",
+  "runtimeVersion": "2.8.1",
+  "date": "2026-10-20T20:25:47.881Z",
   "sourceHashes": {
-    "Panel.qml": "fb216c20809a01fef0e0155c86fe4230ec872639424f95270af7b83fd64f930e",
-    "ActivityIcon.qml": "072bb6ee74b3f5d85fc7fd2b52b54ad65fc634584c3921600f77bb500460f609",
+    "Panel.qml": "5973e168e4d57d9b21aaecca02186563b0ee4a434b9ef0f4583618d345384022",
+    "ActivityIcon.qml": "9e799b388b1ee577d0738da6640a6890169a1ca3e0db70f2958a05f055a6bc3a",
     "ActivityIconSvg.js": "e183d251ef9eda24a6e0284db1d84f9812b13b3c1443b3a7fe57343473ad2eae",
     "ActivityController.qml": "517deff91f032f99d1e8a11311bda9689e55733c41d73878b6e1ec1f9d816060",
     "DiagnosticExport.qml": "f9d87bcfd76d30dda87462c24084694f8988869ef0519de64e466c29df443295",
@@ -16,40 +16,40 @@
     "I18n.js": "6760f422ef395d4845182696b835e3b9b269ccee769746f49b6861cbbacbb540",
     "Messages.js": "924a8bdff7a38ef9347d730ea37cf9faff55ef9b65e2a4cc31923e75029757b5",
     "test/mock-data.js": "7b4cddbe213014d6cdbdb95a7042f28ba456b78aed4399df5ac69f8419350b9c",
-    "test/ui-checks.py": "8ad1147ac3cd941cba0f43cd853a394fdca4dd30683d4e4ad038cc67fa1e013e",
+    "test/ui-checks.py": "b734aea860b4b21b7034e5a1607b969e574555010979847f9a4725c1e4fdd6a2",
     "test/render-icon-update.qml": "d21834a00dc5f1b4342eefa1be94c7b64b5d2e56fd8317c43ab582a18d0c45ce",
     "test/render-video-icon.qml": "679b204a679239eecc2ab498a29802660c6d9f2b829fec7fd549d33b314fb7cf"
   },
   "assets": {
     "compact.png": {
-      "sha256": "2de0afd88f2e87026a81b7f52753a24a0c97fee3395d6d677f99ff9bd99db2e0",
+      "sha256": "fe0ffb26bcbfa02d635b579f14ae68f815e572429ff7af31dadbfd4904be0071",
       "size": [
         960,
         844
       ],
       "dpr": 2,
-      "rawSha256": "af199e8856710e9d7c32a121b1d14a0dcc797c95c1a2c256f2bdfe9b3573ba75",
-      "source": "Fresh actual Loadlet2.8.0 native QML; generic demonstration values"
+      "rawSha256": "46f182c337a606f177cb80c08cb56fc13a1b3500a939ceeb685621c78e8568ab",
+      "source": "Fresh actual Loadlet2.8.1 native QML; generic demonstration values"
     },
     "expanded.png": {
-      "sha256": "86b0d3b0d38aaefb169ec2d7916cb559d6be70baad3fd21f1c69df7a2d06b2b9",
+      "sha256": "a3aeb8ad071e3db798f30b59a5c9a27c35a7e374c215664587132c3c350c2e98",
       "size": [
         1560,
         1184
       ],
       "dpr": 2,
-      "rawSha256": "f79819ad3d80182bf05639a79c72b16cbb2eb1fdaf5f2f78801c0d1113d33ebd",
-      "source": "Fresh actual Loadlet2.8.0 native QML; generic demonstration values"
+      "rawSha256": "807889bae377f054498afa2252aeecb63ce5eb66e3608121f1392a25b3d29548",
+      "source": "Fresh actual Loadlet2.8.1 native QML; generic demonstration values"
     },
     "settings.png": {
-      "sha256": "5fefa51046d3642001274c2a688593276731074f0973879624998678e0712e79",
+      "sha256": "fbf582d84fa06bc9172df1e10f523085d742fe10ee8ce3614fb1846c32d07bdd",
       "size": [
         960,
         844
       ],
       "dpr": 2,
-      "rawSha256": "c6a59391ed9da1a4ddffd794d6f54cb398d62927bb2c354c77ae309cf1379a20",
-      "source": "Fresh actual Loadlet2.8.0 native QML; generic demonstration values"
+      "rawSha256": "9e12ce7e87ef977a99040852024ffad2ef9d703d934eea67c0da7fd2d163a7ea",
+      "source": "Fresh actual Loadlet2.8.1 native QML; generic demonstration values"
     },
     "icon.png": {
       "sha256": "3c43bd0b8d72b6ce5b84d350dbe62798594f7f18aaab8b157c498ddd3c1e5d44",
@@ -59,10 +59,10 @@
       ],
       "dpr": 2,
       "rawSha256": "3c43bd0b8d72b6ce5b84d350dbe62798594f7f18aaab8b157c498ddd3c1e5d44",
-      "source": "Fresh actual Loadlet2.8.0 native QML; generic demonstration values"
+      "source": "Fresh actual Loadlet2.8.1 native QML; generic demonstration values"
     }
   },
-  "hostRevision": "c668141e9c42b13c80c9ca4ea108e11708c5e8a5",
+  "hostRevision": "03ff1eff3812933f7088484533784d2f63eaf19a",
   "renderer": {
     "tool": "qml-preview0.3.0",
     "qt": "6.12.0",
@@ -88,13 +88,5 @@
     "product pixels are current; camera cuts are presentation",
     "hero enlargement is not native bar size"
   ],
-  "currentRuntimeEquivalent": true,
-  "reuseQualification": {
-    "changedOwner": "Messages.js",
-    "reason": "Compatibility catalog only; current Panel does not import it. Restored title keys and added executable catalog parse regression. All other listed source/fixture/asset bytes unchanged.",
-    "oldSha256": "4bcd002aa23ab5783b75766d7974681897b7ed123cb0b9402051147994e07a2f",
-    "newSha256": "924a8bdff7a38ef9347d730ea37cf9faff55ef9b65e2a4cc31923e75029757b5",
-    "nativeCheck": "One actual compact consumer rerender with corrected dependency: byte-identical PNG, empty diagnostics; inspected inline. Other current visual consumers do not import this catalog.",
-    "assetChange": false
-  }
+  "currentRuntimeEquivalent": true
 }

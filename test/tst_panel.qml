@@ -165,7 +165,7 @@ Item {
       ctrl.glanceUpdatedAt=100000;ctrl.iconTemperature=72;ctrl.thermalUpdatedAt=100000;ctrl.freshnessClock=115000
       var header=nodes(plugin).filter(function(n){return n.text==='Loadlet'})
       verify(header.length>0,'the retained brand is visible in every supported locale')
-      var tip=pick('iconComponent').tooltipText
+      var tip=plugin.barIcon.parent.tooltipText
       verify(tip.indexOf('27%')>=0 && tip.indexOf('9.11 GiB / 14.9 GiB')>=0,'raw below-threshold measurements stay visible')
       var lines=tip.split('\n')
       verify(lines.length<=4,'hover must not include the settings tutorial')
@@ -179,13 +179,13 @@ Item {
       verify(tip.indexOf(plugin.iconLegend)<0,'full icon legend belongs only in preferences')
       verify(plugin.iconLegend.indexOf('50')>=0,'preferences still explain the threshold')
       ctrl.freshnessClock=135000;wait(10)
-      tip=pick('iconComponent').tooltipText
+      tip=plugin.barIcon.parent.tooltipText
       verify(tip.indexOf('27%')<0 && tip.indexOf('72')<0,'stale samples must not be shown as current')
       verify(tip.split('\n').length<=3)
     }
     function test_bar_pointer_routes() {
       plugin.close();plugin.bar=inertBar;inertBar.shownTooltip="";inertBar.requestedCommand=""
-      var button=pick('iconComponent')
+      var button=plugin.barIcon.parent
       mouseMove(host,host.width+20,host.height+20);wait(10)
       mouseMove(button,button.width/2,button.height/2);wait(20)
       compare(inertBar.shownTooltip,button.tooltipText,'actual host hover forwards compact copy')

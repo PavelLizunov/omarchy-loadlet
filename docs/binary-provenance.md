@@ -39,6 +39,15 @@ response from temporary procfs data. It protects a changed-byte negative control
 and checks that normal sampling does not create a journal. CI runs it before
 rebuilding the sampler; source-built tests are separate evidence.
 
+The 2.8.1 workflow additionally has a `reproducible-package` job in the immutable
+official Arch base-devel image
+`archlinux@sha256:a25b54cf4b9c0de8752f5417c81810fb41bbfa5cdd6a504a9b6816a3b86b1e59`.
+It checks GCC16.2.1, saves the distributed executable, rebuilds the exact checked
+source, then uses `cmp` and prints both hashes. A mismatch fails the job rather
+than replacing package bytes or treating source-declared hashes as proof.
+Check that job on the exact release commit; the job definition alone is not a
+successful remote reproduction.
+
 Fresh native add/enable/update consumers and the existing loaded shared consumer
 are checked separately in [verification](../VERIFICATION.md). Native shell IPC
 stubs do not prove a fresh production Wayland window or all hardware sensors.

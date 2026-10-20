@@ -1,5 +1,41 @@
 # Loadlet verification
 
+## 2.8.1 release candidate — 2026-10-20
+
+This patch combines bounded HiDPI image dimensions with restoration of the
+16-unit final bar canvas on Omarchy 4.5. The accepted die, gauges, palette,
+slot, settings, click actions and sampling remain unchanged.
+
+Full `make check` now passes locally: package/core gates, 40 actual-panel QtTest
+cases, four focused native-bar cases at each DPR 1/2, no-compiler native
+add/enable/update and manifest validation. The broad fixture now exports only
+reviewed display singletons, provides inert shell/Hyprland/file adapters and
+preserves already-qualified palette references. Runtime host modules are not
+modified. CI uses official Omarchy 4.5.0-rc1 source at
+`03ff1eff3812933f7088484533784d2f63eaf19a`; relevant installed host files match it.
+
+Twelve fresh strict QML Preview 0.3.0 / Qt 6.12 states were rendered with empty
+diagnostics and inspected inline. The current-source screenshots and DPR2 film
+assets were regenerated, then the complete silent 16-second film and README
+animation rebuilt. Their manifests attest these captures, not rewritten hashes
+of the old assets. Native Chromium decoded every animation frame; local sanitized
+README consumers at desktop/phone widths animate without overflow. See the
+current media manifests and film QA for exact bytes and bounded coverage.
+
+The shipped 239736-byte sampler is unchanged. A fresh local GCC 16.2.1 build
+again reproduced it byte-for-byte. CI adds an immutable official Arch container
+job that rebuilds this exact source and compares it directly with the original
+shipped executable. A hash-only check is not this source-to-binary proof; the
+job's remote result must be checked separately before claiming CI reproduction.
+
+The existing installed fix was observed separately as scene16/raster32 at DPR2;
+its status still reports 2.8.0 until an explicitly applied release update.
+Source checks, installed bytes, loaded identity, GitHub main, exact-commit CI and
+Marketplace approval are separate. Physical visual acceptance, multi-hour memory
+behavior, every theme/hardware/accessibility and independent review are not
+established by this release. Marketplace issue #11824 requires maintainer review;
+no source commit or issue edit alone changes the listed snapshot or install flag.
+
 ## Omarchy 4.5 visible bar size follow-up
 
 The HiDPI repair bounded source dimensions but missed the new host's additional
@@ -11,8 +47,9 @@ DPR1/2tests pass size,centering,theme scaling,vertical layout,click behavior and
 read-only status confirms scene16/raster32/slot27x26 over8observations35seconds,
 with the same shell process and unchanged user configuration.
 [Detailed scope and verification limits](docs/bar-size-compatibility.md).
-The existing full media-source hash and broad current-host fixture import gates
-remain red;physical user acceptance and long-session behavior are not inferred.
+At the original repair checkpoint, the media-source hash and broad current-host
+fixture gates were red. The 2.8.1 release work above resolves those gates;
+physical user acceptance and long-session behavior are still not inferred.
 
 ## Standard packaged installation repair
 

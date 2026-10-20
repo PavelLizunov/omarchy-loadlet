@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "productName": "Loadlet",
-  "runtimeVersion": "2.8.0",
+  "runtimeVersion": "2.8.1",
   "durationSeconds": 16,
   "fps": 30,
   "frames": 480,
@@ -19,30 +19,30 @@
   "fullDecode": "PASS",
   "fastStart": "PASS",
   "determinism": "30times forward/backward/shuffled PASS",
-  "renderSeconds": 44.8231641970051,
+  "renderSeconds": 29.702730404002068,
   "captureCount": 480,
   "encodingQuality": {
     "loadlet.mp4": {
       "frames": 480,
-      "minSSIM": 0.998981,
-      "meanSSIM": 0.99954586875,
+      "minSSIM": 0.998944,
+      "meanSSIM": 0.9995452375,
       "below098": 0,
       "worstFrame": 314,
       "comparison": "Complete decoded output vs same-geometry pristine current native-assets film"
     },
     "loadlet-web.mp4": {
       "frames": 480,
-      "minSSIM": 0.996358,
-      "meanSSIM": 0.9983688875,
+      "minSSIM": 0.996202,
+      "meanSSIM": 0.9983580354166667,
       "below098": 0,
-      "worstFrame": 314,
+      "worstFrame": 389,
       "comparison": "Complete decoded output vs same-geometry pristine current native-assets film"
     }
   },
   "outputs": {
     "loadlet.mp4": {
-      "bytes": 2914262,
-      "sha256": "0f25cd759317406666764ec902e777c1f0f26f0594a0e140af6bae6cead6e641",
+      "bytes": 2914669,
+      "sha256": "ed41ef9369a9afa59809b05b091d23329c15491281269858be7033f7778802f1",
       "geometry": [
         1280,
         720
@@ -55,8 +55,8 @@
       ]
     },
     "loadlet-web.mp4": {
-      "bytes": 1410849,
-      "sha256": "5f0361c5fd9801a9df90abea5f32e172d83f15465ce9e3f117ea4a81394103fe",
+      "bytes": 1412325,
+      "sha256": "45aab6b590b2236a523a24e80383e73ef3885565d30ec2db5f6fea5511306747",
       "geometry": [
         960,
         540
@@ -73,50 +73,39 @@
     "docs/video/index.html": "aebea9790cc41838ee8e1b99323302a43be9040155f0e31c7eee4ad000de9625",
     "docs/video/js/timeline.mjs": "6c7d7cf925ca2333905dda2cd19dbe173ef85d96489c6fa4b11861e2a1be763a",
     "docs/video/render.py": "5752c39f84c3d776e8e99f870f11a11311c342cb4ab8e355a3788307f2b2c896",
-    "docs/video/assets/manifest.json": "04f2342fa024597244a2fea9e87581091a25b206c4f115a4a713d1258e6b8add"
+    "docs/video/assets/manifest.json": "6ef58a05a8fa075ccb76f03f77ae396f71d3a3f97add1866067b36ab1d76b749"
   },
   "captureSha256": "e99140766399d88e15697c6f30b4b70528d1d411e582b5be34edb0baeda3b438",
   "readmeAnimation": {
     "path": "docs/video/loadlet.webp",
     "source": "docs/video/loadlet.mp4",
-    "sourceSha256": "0f25cd759317406666764ec902e777c1f0f26f0594a0e140af6bae6cead6e641",
-    "bytes": 2308946,
-    "sha256": "61aa439e4bc2137698cf6ba10f1c93f60998273e1dccb1b7db6c1bd403ba2986",
+    "sourceSha256": "ed41ef9369a9afa59809b05b091d23329c15491281269858be7033f7778802f1",
+    "bytes": 2306330,
+    "sha256": "1e3edf6edcfffc130874cfdf0793da1c9e3a3ba8df182c90406517cabbbd3f41",
     "geometry": [
       640,
       360
     ],
     "fps": 15,
-    "encodedFrames": 239,
+    "encodedFrames": 238,
     "durationMs": 15999,
     "loop": 0,
     "timingRoundingMs": 1,
-    "decode": "NativeChromium all239frames PASS",
+    "decode": "NativeChromium all238frames PASS",
     "timedFrames": 240,
     "encodingQuality": {
       "timedFrames": 240,
-      "minSSIM": 0.993184,
-      "meanSSIM": 0.9967232374999999,
+      "minSSIM": 0.992752,
+      "meanSSIM": 0.9964610541666666,
       "below097": 0,
       "worstFrame": 134
     },
     "desktopWidth": 640,
     "phoneWidth": 327,
     "overflow": false,
-    "animatedPixelsChanged": true,
-    "publicConsumer": {
-      "repo": "PavelLizunov/omarchy-loadlet",
-      "testedSourceCommit": "d62971eba6171157673e18cd758dac09742d85d8",
-      "anonymous": true,
-      "staticImagesLoaded": 3,
-      "desktopWidth": 640,
-      "phoneWidth": 309,
-      "animatedPixelsChanged": true,
-      "articleOverflow": false,
-      "method": "Stable nonzero settled viewport crops on actual GitHub README; inspected inline. Exact anonymous artifact downloads and local full decode checked separately."
-    }
+    "animatedPixelsChanged": true
   },
-  "review": "12 original final native states and one byte-identical compact qualification; crops/assets, five full-size stills, beat/phone sheets, four cut strips, both worst MP4 frames and worst WebP frame read inline. GitHub-sanitized local README image layouts inspected separately. No independent review happened.",
+  "review": "Twelve fresh native consumer states, published crops/assets, five scene stills, beat/phone sheets, four cut strips and both worst MP4 frames inspected inline. No independent review happened. Local GitHub-sanitized README and complete native WebP decode checked separately; fresh public-page check not yet run.",
   "limits": [
     "Demonstration data, not machine measurement",
     "Camera motion not physical native interaction",

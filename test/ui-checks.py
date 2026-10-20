@@ -1,6 +1,7 @@
 """Run the real plugin with inert IO and installed host widgets, without Wayland."""
 from pathlib import Path
 import os
+import re
 import shutil
 import subprocess
 import tempfile
@@ -17,6 +18,9 @@ QtObject {
   function execDetached(argv) {}
 }''',
     'IpcHandler': 'import QtQuick\nItem { property string target: "" }',
+    'Hyprland/Hyprland': '''pragma Singleton
+import QtQuick
+QtObject { signal rawEvent(var event) }''',
     'Io/Process': '''import QtQuick
 Item {
   property bool running: false
@@ -36,6 +40,7 @@ Item {
   property string path: ""
   property bool watchChanges: false
   property bool printErrors: false
+  property bool blockLoading: false
   signal loaded()
   signal loadFailed()
   signal fileChanged()
@@ -57,11 +62,21 @@ def prepare(directory):
     imports = base / 'imports'
     for module in ['Ui', 'Commons']:
         shutil.copytree(HOST / module, imports / 'ActivityHost' / module)
+    # Import only reviewed display dependencies, not unrelated host services.
+    commons = imports / 'ActivityHost/Commons'
+    exports = ['singleton Border 1.0 Border.qml', 'singleton Color 1.0 Color.qml',
+               'singleton Style 1.0 Style.qml', 'singleton Util 1.0 Util.qml']
+    if (commons / 'I18n.qml').is_file():
+        exports.append('singleton I18n 1.0 I18n.qml')
+    exports.append('ShellIpc 1.0 ShellIpc.qml')
+    (commons / 'qmldir').write_text('module ActivityHost.Commons\n' + '\n'.join(exports) + '\n')
+    (commons / 'ShellIpc.qml').write_text('import QtQuick\nItem { property string target: "" }\n')
     for name, source in TYPES.items():
         dest = imports / 'ActivityFixture' / (name + '.qml')
         dest.parent.mkdir(parents=True, exist_ok=True)
         dest.write_text(source)
     (imports / 'ActivityFixture/qmldir').write_text('module ActivityFixture\nsingleton Quickshell 1.0 Quickshell.qml\nIpcHandler 1.0 IpcHandler.qml\n')
+    (imports / 'ActivityFixture/Hyprland/qmldir').write_text('module ActivityFixture.Hyprland\nsingleton Hyprland 1.0 Hyprland.qml\n')
     (imports / 'ActivityFixture/Io/qmldir').write_text('module ActivityFixture.Io\n' + ''.join(
         f'{name} 1.0 {name}.qml\n' for name in ['Process', 'FileView', 'SplitParser', 'StdioCollector', 'IpcHandler']))
     # Keep host sizing formulas and card insets; replace only the Wayland window.
@@ -131,6 +146,7 @@ Item {
     # inert in both native preview and QtTest. Runtime imports are unchanged.
     for source in [*imports.rglob('*.qml'), *imports.rglob('qmldir'), *plugin.glob('*.qml'), base / 'tst_panel.qml']:
         text = source.read_text().replace('import Quickshell.Io', 'import ActivityFixture.Io')
+        text = text.replace('import Quickshell.Hyprland', 'import ActivityFixture.Hyprland')
         text = text.replace('import Quickshell\n', 'import ActivityFixture\n')
         # A distinct host-module name prevents mixed file:/qs: singleton
         # identities in the native adapter. All widgets share ONE palette.
@@ -140,7 +156,7 @@ Item {
         if (source.suffix == '.qml' and source.parent.name in ['Ui', 'Commons']
                 and source.name != 'Color.qml' and 'Color.' in text):
             text = text.replace('import QtQuick', 'import QtQuick\nimport ActivityHost.Commons as Host', 1)
-            text = text.replace('Color.', 'Host.Color.')
+            text = re.sub(r'(?<![\w.])Color\.', 'Host.Color.', text)
         source.write_text(text)
     return imports
 

@@ -31,11 +31,14 @@ Independent review was not performed;this project requires direct work.
 
 Icon/controller/model/catalog and bounded sampler checks pass;qmllint exits0
 with existing warnings;manifest validation and task diff checks pass.
-Full `make check` still stops at the exact-source media hash assertion,now naming
+At the original repair checkpoint, full `make check` stopped at the exact-source
+media hash assertion, naming
 Panel.qml. Published screenshots/film have not been re-attested or their hashes
 rewritten. `make check-ui` passes the focused raster/scene checks,then its existing
 full fixture fails to import the new host Commons AudioNodes/Singleton contract.
-No complete UI/media gate pass is claimed.
+No complete UI/media gate pass was claimed for that checkpoint. The subsequent
+2.8.1 release fixes the reviewed fixture imports, freshly renders actual-consumer
+media, rebuilds the film, and passes full `make check`; see VERIFICATION.md.
 
 ## Installed observation
 
@@ -48,4 +51,5 @@ advance. Original shellPID and byte-identical user configuration are preserved.
 This finite observation does not establish multi-hour resource behavior.
 
 Source,installed bytes,loaded identity,remote checkpoint and user visual acceptance
-are separate. No release,main merge or Marketplace change is part of this repair.
+are separate. The original repair published only a checkpoint. Main and the
+existing Marketplace update are separate steps of the authorized 2.8.1 release.

@@ -1,28 +1,31 @@
 # Current film review
 
-Direct self-review, not independent signoff. Five full-size scene stills, the
-complete beat sheet, phone sheet, four transition strips and each output's
-worst-quality frame were inspected inline. Hook names Loadlet from the first
-shot; current native icon/panel/preferences pixels and generic demo processes
-remain the actual product. Final card shows the public name and MIT attribution.
+The 2.8.1 film was rebuilt from fresh actual-consumer native assets on
+2026-10-20, using the pinned official Omarchy 4.5.0-rc1 host. Direct self-review,
+not independent signoff. Five full-size scene stills, the complete beat sheet,
+phone sheet, four cut strips and each MP4's worst-quality frame were read inline.
+No headline overlap, clipped brand or accidental blank frames were observed.
+Native screenshots, film assets and source manifests agree. The unchanged
+accepted die, Loadlet headings, demo process owners and MIT attribution remain.
+Camera movement is presentation, not native input or changing telemetry.
 
-Observed: no headline/image overlap or clipped brand; scene boundaries are clean
-cuts without accidental blank frames in inspected strips. Native screenshots and
-film assets have consistent current source identities. Camera motion is a small
-presentation push, not fake telemetry or a physical click demonstration.
+Phone-size review retains the same limit: the brand and hero are recognizable,
+but fine explanatory text and full process rows are desktop detail, not certified
+legible on a narrow phone. No universal theme, contrast or accessibility claim.
 
-Phone-size limits: Loadlet/headline/hero remain recognizable; full process rows
-and some fine explanatory text are intentionally desktop detail, not certified
-legible on a narrow phone. README screenshots and MP4 download retain resolution.
-No unearned contrast/theme/accessibility or user-taste score is claimed.
+Thirty pure-time forward/backward/shuffled replays passed. Both silent H.264
+outputs fully decode as 480 frames / 16 seconds / 30fps, yuv420p, moov before mdat.
+Complete decoded-output versus pristine-film SSIM:
+master minimum 0.998944, mean 0.9995452375;
+messenger minimum 0.996202, mean 0.9983580354166667.
+Neither output has a frame below 0.98. Worst frames are
+314 and 389, inspected inline.
 
-Thirty pure-time forward/backward/shuffled replays are byte-deterministic.
-Full MP4 decode has480frames per output; H.264/yuv420p,16s,no audio,moov beforemdat.
-Complete frame-by-frame SSIM: master minimum0.998981/mean0.99954586875;
-messenger minimum0.996358/mean0.9983688875; no frames below0.98. Both worst frames
-are314and were inspected. Encoding quality is not creative or physical acceptance.
-
-The full inline animatedWebP has239encoded frames over15999ms, with one millisecond
-container rounding. Native Chromium timed decode and GitHub README consumption
-are recorded separately in qa.json; encoded-count compression does not imply
-missing footage. No audio QA, synthesis, external inference or desktop capture.
+The new inline WebP contains 238 encoded frames / 15999ms,
+with 1ms rounding. Native Chromium decoded all frames. Its 240 timed frames
+have SSIM minimum 0.992752 against the current MP4.
+Local GitHub-sanitized README consumers at desktop/phone widths animate without
+overflow; their screenshots were inspected. This is separate from the current
+public GitHub page, which still needs checking after publication. Historical
+public-page evidence for 2.8.0 is not reused as a 2.8.1 claim.
+No audio QA, synthesis, external inference or desktop capture.
