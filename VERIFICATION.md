@@ -1,5 +1,19 @@
 # Loadlet verification
 
+## Omarchy 4.5 visible bar size follow-up
+
+The HiDPI repair bounded source dimensions but missed the new host's additional
+custom-icon normalization: the final scene canvas became12instead of16logical
+pixels. The bar now centers the unchanged bounded icon directly in a native
+WidgetButton. Original final-size regression fails12vs16; corrected native
+DPR1/2tests pass size,centering,theme scaling,vertical layout,click behavior and
+40updates. Strict actual-bar before/after renders were inspected. Installed
+read-only status confirms scene16/raster32/slot27x26 over8observations35seconds,
+with the same shell process and unchanged user configuration.
+[Detailed scope and verification limits](docs/bar-size-compatibility.md).
+The existing full media-source hash and broad current-host fixture import gates
+remain red;physical user acceptance and long-session behavior are not inferred.
+
 ## Scope
 
 Loadlet2.8.0 is a reviewed clean source snapshot with a new public display name,

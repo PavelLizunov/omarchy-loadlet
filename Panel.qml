@@ -66,7 +66,11 @@ Panel {
         iconPalette: root.iconShapeSetting === IconVector.defaultShape ? "vivid-gauges" : "legacy",
         iconDesign: root.iconShapeSetting === IconVector.defaultShape ? "symmetric-split-die-cheeks" : "legacy",
         iconFill: root.iconShapeSetting === IconVector.defaultShape ? "six-rows-floor" : "continuous",
+        iconSizeRevision: "native-canvas-v1",
         iconRaster: root.barIcon ? { width: root.barIcon.width, height: root.barIcon.height,
+          sceneWidth: root.barIcon.mapToItem(root, 0, 0, root.barIcon.width, root.barIcon.height).width,
+          sceneHeight: root.barIcon.mapToItem(root, 0, 0, root.barIcon.width, root.barIcon.height).height,
+          slotWidth: button.width, slotHeight: button.height,
           dpr: root.barIcon.rasterDpr, sourceWidth: root.barIcon.sourceSize.width,
           sourceHeight: root.barIcon.sourceSize.height, decodedWidth: root.barIcon.implicitWidth,
           decodedHeight: root.barIcon.implicitHeight, ready: root.barIcon.status === Image.Ready } : null,
@@ -616,28 +620,31 @@ Panel {
   }
 
   // Native slot dimensions are unchanged; draw inside the optical canvas.
-  BarIconButton {
+  WidgetButton {
     id: button
     anchors.fill: parent
     bar: root.bar
-    text: ""
-    iconComponent: Component {
-      ActivityIcon {
-        objectName: "activityBarIcon"
-        Component.onCompleted: root.barIcon = this
-        cpu: activity.glanceCpu
-        ram: activity.glanceMemory
-        fresh: activity.glanceFresh
-        loadThreshold: root.iconLoadThresholdSetting
-        shape: root.iconShapeSetting
-        hot: activity.heatAlert
-        heatLevel: activity.heatLevel
-        temperatureFresh: activity.thermalFresh
-        thermalSampleAt: activity.thermalUpdatedAt
-        motionEnabled: root.booleanSetting("iconMotion", true)
-        foreground: button.foreground
-        background: root.bar ? root.bar.background : Host.Color.background
-      }
+    labelVisible: false
+    hasVisualContent: true
+    fixedWidth: vertical ? -1 : Style.bar.iconSlot
+    fixedHeight: vertical ? Style.bar.iconSlot : -1
+    ActivityIcon {
+      objectName: "activityBarIcon"
+      x: (parent.width - width) / 2
+      y: (parent.height - height) / 2
+      Component.onCompleted: root.barIcon = this
+      cpu: activity.glanceCpu
+      ram: activity.glanceMemory
+      fresh: activity.glanceFresh
+      loadThreshold: root.iconLoadThresholdSetting
+      shape: root.iconShapeSetting
+      hot: activity.heatAlert
+      heatLevel: activity.heatLevel
+      temperatureFresh: activity.thermalFresh
+      thermalSampleAt: activity.thermalUpdatedAt
+      motionEnabled: root.booleanSetting("iconMotion", true)
+      foreground: button.foreground
+      background: root.bar ? root.bar.background : Host.Color.background
     }
     tooltipText: (activity.glanceFresh
       ? "CPU " + (activity.glanceCpu >= 0 ? root.percentText(activity.glanceCpu) : "—")

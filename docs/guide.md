@@ -15,6 +15,10 @@ Raw readings in the panel/tooltip, sampling, thermal markers and motion are
 unchanged. Empty tracks are not proof of zero or fresh data; read the tooltip
 or panel for exact values/freshness.
 The selected 3x6 eyes and small cutout cheeks stay inside the 16-unit canvas.
+On Omarchy 4.5, the bar uses a native WidgetButton with that canvas centered
+directly in the unchanged slot. This preserves the previous character size
+instead of applying the new host's additional 12-unit custom-icon normalization.
+Logical icon dimensions remain fixed; HiDPI changes only the bounded raster.
 Version2.7.7 adds small stepped edge chips and staggered shoulders to the default
 body, retaining all gauge/temperature meanings. Version2.7.8 widens that body
 from12to14 logical units within the same16-unit canvas, without stretching eyes

@@ -299,6 +299,9 @@ Item {
         wait(5)
         compare(icon.width,Style.bar.iconCanvas,'decoded pixels must not resize the bar icon')
         compare(icon.height,Style.bar.iconCanvas)
+        var sceneBounds=icon.mapToItem(plugin,0,0,icon.width,icon.height)
+        fuzzyCompare(sceneBounds.width,Style.bar.iconCanvas,0.01,'native custom-icon normalization must not shrink Loadlet')
+        fuzzyCompare(sceneBounds.height,Style.bar.iconCanvas,0.01)
         compare(icon.sourceSize.width,Math.ceil(Style.bar.iconCanvas*icon.rasterDpr))
         compare(icon.sourceSize.height,Math.ceil(Style.bar.iconCanvas*icon.rasterDpr))
       }
