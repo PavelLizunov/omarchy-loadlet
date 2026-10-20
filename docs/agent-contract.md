@@ -12,7 +12,9 @@ copy; source files do not establish the loaded revision.
   middle-click have no plugin action. Expanded processes remain inside the panel,
   reachable through its Expand control, `e` and the existing details IPC route.
 - The selected shape10 is a symmetric Split die: 14x12 body, 3x6 eyes, cheek holes,
-  no letters. The 16x16 optical canvas fits the native 27x26 logical slot. Preserve
+  no letters. The 16x16 optical canvas fits the native 27x26 logical slot. Center
+  it directly in the native WidgetButton so host custom-icon normalization does
+  not shrink it. Keep decoded HiDPI pixels separate from logical size. Preserve
   paired side notches and balanced shoulders/base. CPU left, RAM right. Unequal
   readings and heat colors remain independent; older shape indices0-9 stay stable.
 - Six touching bottom-up rows are floor-quantized. Fill threshold defaults50;
