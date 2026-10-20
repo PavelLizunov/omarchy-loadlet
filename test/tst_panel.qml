@@ -287,6 +287,22 @@ Item {
         compare(icon.sourceSize.width,Math.max(1,Math.ceil(icon.width*icon.rasterDpr)))
       }
     }
+    function test_icon_hidpi_refresh_keeps_logical_size() {
+      plugin.close()
+      var icon=plugin.barIcon
+      verify(icon!==null)
+      icon.motionEnabled=false
+      icon.fresh=true
+      for(var i=0;i<24;i++) {
+        icon.cpu=(i*17)%100;icon.ram=(i*23)%100
+        tryCompare(icon,'status',Image.Ready)
+        wait(5)
+        compare(icon.width,Style.bar.iconCanvas,'decoded pixels must not resize the bar icon')
+        compare(icon.height,Style.bar.iconCanvas)
+        compare(icon.sourceSize.width,Math.ceil(Style.bar.iconCanvas*icon.rasterDpr))
+        compare(icon.sourceSize.height,Math.ceil(Style.bar.iconCanvas*icon.rasterDpr))
+      }
+    }
     function test_icon_preferences_and_frame() {
       plugin.settings={locale:'ru',iconIndicator:false,iconShape:1};wait(10)
       var panel=pick('fittedContentWidth'), w=panel.width, h=panel.height

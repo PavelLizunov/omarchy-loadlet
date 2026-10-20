@@ -145,6 +145,7 @@ Item {
     return imports
 
 def main():
+    subprocess.run([sys.executable, str(ROOT / 'test/icon-raster-checks.py')], check=True)
     if len(sys.argv) == 3 and sys.argv[1] == '--preview-dir':
         base = Path(sys.argv[2])
         base.mkdir(exist_ok=False)
