@@ -181,6 +181,29 @@ default tokens the outer cards are 480×422 and 780×592. Actual theme overrides
 screen bounds can change these dimensions. Settings uses the same frame as its
 parent page, with its header and bottom actions outside the settings viewport.
 
+## Cooling tab
+
+The pinned Overview/Cooling tabs share the same fitted panel frame. The Cooling
+page scrolls internally and lists readable hwmon temperature and fan inputs, plus
+active NVIDIA temperatures and per-fan percentages from the existing NVML provider.
+RPM is displayed only for a sensor that actually supplies RPM. Missing fan data
+is unavailable, not zero. No fan-control or driver-configuration writes are made.
+
+Cooling uses the existing serial native reader at approximately 3-second cadence
+only while this page is open. Sensor discovery is cached for 30 seconds and
+bounded to 128 hwmon inputs, with at most 8 fan readings per NVIDIA adapter.
+Graphs reuse Sparkline, keep at most 240 samples per sensor in memory, and offer
+1/3/10-minute windows with observed duration and min/max. Samples are not stored
+in the diagnostic journal. Closing the panel, reader failure or suspend resets
+history; a sampling gap over 15 seconds starts a new line instead of bridging it.
+Previously collected curves can remain visible when stale, but the current value
+becomes unavailable after 15 seconds. Sleeping NVIDIA devices remain excluded.
+
+GPU summary cards now wrap each adapter name and show its load, clock and memory
+on separate lines instead of concatenating two adapters into one clipped detail.
+The CPU temperature is a visible badge in its summary card. Press `h` to switch
+the Cooling page; Escape returns to Overview before collapsing or closing.
+
 ## Sampling and limits
 
 The default Efficient profile samples resources every 3 seconds, processes every

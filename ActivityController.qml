@@ -20,6 +20,13 @@ Item {
   readonly property int backgroundInterval: 15000
   readonly property int glanceMaxAge: backgroundInterval * 2 + 5000
   property bool expanded: false
+  property bool sensorsActive: false
+  readonly property var sensorSnapshot: _sensorSnapshot
+  property var _sensorSnapshot: Model.emptySensorSnapshot()
+  property var sensorHistory: ({})
+  property double sensorsUpdatedAt: 0
+  readonly property bool sensorsFresh: sensorsUpdatedAt > 0 && freshnessClock >= sensorsUpdatedAt
+    && freshnessClock - sensorsUpdatedAt < 15000
   property string errorText: ""
   property string state: "stopped" // stopped, starting, ready, stopping, backoff
   property string pending: ""
@@ -130,6 +137,9 @@ Item {
     _thermalSnapshot = Model.emptyThermalSnapshot()
     _storageSnapshot = Model.emptyStorageSnapshot()
     _gpuSnapshot = Model.emptyGpuSnapshot()
+    _sensorSnapshot = Model.emptySensorSnapshot()
+    sensorsUpdatedAt = 0
+    sensorHistory = ({})
     _gpus = []; _processes = []; _processMetricsReady = false
     cpuReady = false
     _metrics = Model.emptyMetrics()
@@ -194,6 +204,7 @@ Item {
     var kinds = !active ? ["glance", "thermals"] : expanded
       ? ["resources", "processes", "thermals", "gpus", "storage"]
       : ["resources", "processes", "thermals"]
+    if (active && sensorsActive) kinds = ["sensors", "glance", "thermals"]
     if (journalEnabled !== journalWriterEnabled) {
       var configurationKind=journalEnabled ? "journal-on" : "journal-off"
       if ((due[configurationKind] || 0) <= now || !journalEnabled) {
@@ -203,7 +214,7 @@ Item {
       }
     }
     if (journalEnabled && journalWriterEnabled) {
-      if (!active) kinds = kinds.concat(["processes"])
+      if (!active || sensorsActive) kinds = kinds.concat(["processes"])
       kinds = kinds.concat(["diagnostics", "journal"])
     }
 
@@ -236,6 +247,7 @@ Item {
     errorText = ""
 
     var interval = kind === "journal-on" || kind === "journal-off" ? 60000
+      : kind === "sensors" ? 3000
       : kind === "journal" ? 15000 : kind === "diagnostics" ? 60000
       : kind === "processes" && !active ? 30000
       : kind === "glance" || !active ? backgroundInterval : kind === "processes" && !_processMetricsReady ? 600
@@ -273,6 +285,17 @@ Item {
       if (thermal.schema !== 1 || thermal.sample <= 0) return false
       updateThermal(thermal)
       _thermalSnapshot = thermal
+    } else if (kind === "sensors") {
+      var sensors = Model.parseSensorSnapshot(raw)
+      if (sensors.schema !== 1 || sensors.sample <= 0) return false
+      if (active && sensorsActive) {
+        sensorHistory = Model.nextSensorHistory(sensorHistory, sensors, 240)
+        _sensorSnapshot = sensors
+        _thermalSnapshot = sensors
+        sensorsUpdatedAt = Date.now()
+        freshnessClock = sensorsUpdatedAt
+        updateThermal(sensors)
+      }
     } else if (kind === "gpus") {
       var gpu = Model.parseGpuSnapshot(raw)
       if (gpu.schema !== 1 || gpu.sample <= 0) return false
@@ -335,6 +358,12 @@ Item {
     }
   }
 
+  onSensorsActiveChanged: {
+    due.sensors = 0
+    if (!sensorsActive) { due.resources = 0; due.processes = 0 }
+    dispatch()
+  }
+
   onProfileNameChanged: if (active) refresh()
 
   Component.onDestruction: {
@@ -376,7 +405,7 @@ Item {
 
   Timer {
     id: scheduler
-    interval: root.active ? Math.max(750, root.profile.resources) : root.backgroundInterval
+    interval: root.active ? (root.sensorsActive ? 3000 : Math.max(750, root.profile.resources)) : root.backgroundInterval
     repeat: true
     onTriggered: {
       root.freshnessClock = Date.now()

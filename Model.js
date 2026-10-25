@@ -68,6 +68,50 @@ function emptyThermalSnapshot() {
   }
 }
 
+function emptySensorSnapshot() {
+  return { schema: 0, sample: 0, temperatures: [], fans: [] }
+}
+
+function parseSensorSnapshot(raw) {
+  var snapshot = emptySensorSnapshot()
+  var lines = String(raw || "").split("\n")
+  for (var i = 0; i < lines.length; i++) {
+    var fields = lines[i].split("\t")
+    if (fields[0] === "schema") snapshot.schema = fields[1] === "activity-sensors" ? number(fields[2]) : 0
+    else if (fields[0] === "sample") snapshot.sample = number(fields[1])
+    else if (fields[0] === "temperature" && fields.length >= 5) {
+      var temperature = temperatureFromFields(fields)
+      temperature.value = fields[4] === "" ? NaN : Number(fields[4]) / 1000
+      if (isFinite(temperature.value) && temperature.value >= -40 && temperature.value < 150)
+        snapshot.temperatures.push(temperature)
+    } else if (fields[0] === "fan" && fields.length >= 6) {
+      var value = fields[4] === "" ? NaN : Number(fields[4])
+      var unit = fields[5] === "percent" ? "percent" : "rpm"
+      if (isFinite(value) && value >= 0 && value <= (unit === "percent" ? 100 : 100000))
+        snapshot.fans.push({ id: String(fields[1]), chip: String(fields[2]),
+          label: String(fields[3]), value: value, unit: unit })
+    }
+  }
+  snapshot.temperatures = snapshot.temperatures.slice(0, 144)
+  snapshot.fans = snapshot.fans.slice(0, 144)
+  return snapshot
+}
+
+function nextSensorHistory(previous, snapshot, limit) {
+  var result = {}
+  var values = snapshot.temperatures.concat(snapshot.fans)
+  for (var i = 0; i < values.length; i++) {
+    var sensor = values[i]
+    var old = previous[sensor.id] || []
+    // Do not bridge a closed-panel/suspend gap with an invented continuous line.
+    if (old.length && (snapshot.sample <= old[old.length - 1].time
+        || snapshot.sample - old[old.length - 1].time > 15)) old = []
+    result[sensor.id] = old.concat([{time: snapshot.sample, value: sensor.value}])
+      .slice(-Math.max(20, Math.min(240, limit)))
+  }
+  return result
+}
+
 function emptyPackagePowerSnapshot() {
   return {
     schema: 0,
@@ -1822,6 +1866,9 @@ if (typeof module !== "undefined") {
     emptyMetrics: emptyMetrics,
     emptyProcessSnapshot: emptyProcessSnapshot,
     emptyThermalSnapshot: emptyThermalSnapshot,
+    emptySensorSnapshot: emptySensorSnapshot,
+    parseSensorSnapshot: parseSensorSnapshot,
+    nextSensorHistory: nextSensorHistory,
     emptyPackagePowerSnapshot: emptyPackagePowerSnapshot,
     emptyPower: emptyPower,
     emptyStorageSnapshot: emptyStorageSnapshot,

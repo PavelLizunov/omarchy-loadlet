@@ -28,6 +28,11 @@ Panel {
       return JSON.stringify({
         opened: root.opened,
         expanded: root.expanded,
+        sensorsOpen: root.sensorsOpen,
+        sensorSample: activity.sensorSnapshot.sample,
+        temperatureSensors: activity.sensorSnapshot.temperatures.length,
+        fanSensors: activity.sensorSnapshot.fans.length,
+        sensorsFresh: activity.sensorsFresh,
         state: activity.state,
         sampling: activity.sampling,
         sample: activity.snapshot.sample,
@@ -84,6 +89,8 @@ Panel {
 
   property bool expanded: false
   property bool settingsOpen: false
+  property bool sensorsOpen: false
+  property int sensorWindowSeconds: 180
   property bool settingsControlActive: false
   property bool hintsVisible: false
   property bool languageExpanded: false
@@ -418,19 +425,9 @@ Panel {
       .replace(/^NVIDIA[ ]*/i, "")
       .replace(/^Advanced Micro Devices[^]]*\][ ]*/i, "")
       .replace(/^AMD[ ]*/i, "")
-    return name || "GPU"
-  }
-
-  function gpuHeadingText() {
-    var adapters = Array.isArray(gpus) ? gpus : []
-    if (adapters.length === 0) return I18n.t("gpu", root.effectiveLanguage)
-    if (adapters.length > 1) return I18n.t("gpu", root.effectiveLanguage) + " · " + adapters.length
-    var name = compactGpuName(adapters[0])
     var bracketed = name.match(/\[([^\]]+)\]/g)
-    if (bracketed && bracketed.length > 0)
-      name = bracketed[bracketed.length - 1].slice(1, -1)
-    var frequency = gpuFrequencyText(adapters[0])
-    return I18n.t("gpu", root.effectiveLanguage) + " · " + name + (frequency ? " · " + frequency : "")
+    if (bracketed && bracketed.length) name = bracketed[bracketed.length - 1].slice(1, -1)
+    return name || "GPU"
   }
 
   function gpuUsageText(gpu) {
@@ -457,32 +454,6 @@ Panel {
     var usedText = Model.formatCompactBytes(used)
     if (!isFinite(total) || total <= 0) return usedText
     return usedText + " / " + Model.formatCompactBytes(total)
-  }
-
-  function primaryGpuUsage() {
-    var adapters = Array.isArray(gpus) ? gpus : []
-    if (adapters.length === 0) return -1
-    var usage = Number(adapters[0].usage)
-    return isFinite(usage) ? usage : -1
-  }
-
-  function primaryGpuUsageText() {
-    var adapters = Array.isArray(gpus) ? gpus : []
-    if (gpuSnapshot.sample <= 0) return "…"
-    if (adapters.length === 0) return "—"
-    return gpuUsageText(adapters[0])
-  }
-
-  function gpuCardDetail() {
-    var adapters = Array.isArray(gpus) ? gpus : []
-    if (adapters.length === 0)
-      return gpuSnapshot.sample <= 0 ? I18n.t("sampling", root.effectiveLanguage) : "—"
-    if (adapters.length === 1)
-      return gpuMemoryLabel(adapters[0]) + " " + gpuMemoryText(adapters[0])
-    var parts = []
-    for (var i = 0; i < Math.min(2, adapters.length); i++)
-      parts.push(compactGpuName(adapters[i]) + " " + gpuUsageAndClockText(adapters[i]))
-    return parts.join(" · ")
   }
 
   function resetDriveSelection() {
@@ -575,6 +546,7 @@ Panel {
   onOpenedChanged: {
     if (opened) {
       expanded = openExpandedByDefault
+      sensorsOpen = false
       settingsOpen = false
       settingsControlActive = false
       languageExpanded = false
@@ -586,6 +558,7 @@ Panel {
       resetDriveSelection()
     } else {
       expanded = false
+      sensorsOpen = false
       settingsOpen = false
       settingsControlActive = false
       languageExpanded = false
@@ -601,13 +574,14 @@ Panel {
     active: root.opened
     backgroundEnabled: root.booleanSetting("iconIndicator", true)
     expanded: root.expanded
+    sensorsActive: root.sensorsOpen && !root.settingsOpen
   }
   DiagnosticExport { id: diagnosticExport; language: root.effectiveLanguage }
 
   ProcessActionController {
     id: processActions
     active: root.opened
-    enabled: !root.settingsOpen && !root.languageExpanded
+    enabled: !root.settingsOpen && !root.languageExpanded && !root.sensorsOpen
     language: root.effectiveLanguage
     onConfirmationRequested: processConfirm.selectedIndex = 0
     onFocusRequested: if (root.opened) keyCatcher.forceActiveFocus()
@@ -685,6 +659,7 @@ Panel {
         if (processActions.confirmationOpen) processActions.cancel()
         else if (root.languageExpanded) root.languageExpanded = false
         else if (root.settingsOpen) root.setSettingsOpen(false)
+        else if (root.sensorsOpen) root.sensorsOpen = false
         else keyCatcher.closeRequested()
       }
       blocked: !processActions.confirmationOpen
@@ -696,7 +671,7 @@ Panel {
           if (dx !== 0) processConfirm.selectedIndex = processConfirm.selectedIndex === 0 ? 1 : 0
           return
         }
-        if (root.settingsOpen || root.languageExpanded) return
+        if (root.settingsOpen || root.languageExpanded || root.sensorsOpen) return
         if (dy !== 0) root.moveProcess(dy)
         else if (dx !== 0) root.cycleSort(dx)
       }
@@ -706,7 +681,7 @@ Panel {
           else processActions.confirm()
           return
         }
-        if (!root.expanded && !root.settingsOpen && !root.languageExpanded) root.setExpanded(true)
+        if (!root.expanded && !root.settingsOpen && !root.languageExpanded && !root.sensorsOpen) root.setExpanded(true)
       }
       onCloseRequested: {
         if (processActions.confirmationOpen) {
@@ -715,11 +690,12 @@ Panel {
         }
         if (root.languageExpanded) { root.languageExpanded = false; return }
         if (root.settingsOpen) root.setSettingsOpen(false)
+        else if (root.sensorsOpen) root.sensorsOpen = false
         else if (root.expanded) root.setExpanded(false)
         else root.close()
       }
       onDeleteRequested: {
-        if (!root.settingsOpen && !root.languageExpanded && !processActions.confirmationOpen && root.selectedProcess)
+        if (!root.settingsOpen && !root.languageExpanded && !root.sensorsOpen && !processActions.confirmationOpen && root.selectedProcess)
           processActions.request(root.selectedProcess, false)
       }
       onTabRequested: function(direction) {
@@ -737,6 +713,8 @@ Panel {
         if (key === "s") root.setSettingsOpen(!root.settingsOpen)
         else if (key === "?") root.hintsVisible = !root.hintsVisible
         else if (root.settingsOpen || root.languageExpanded) return
+        else if (key === "h") { processActions.cancel(); root.sensorsOpen = !root.sensorsOpen }
+        else if (root.sensorsOpen) return
         else if (key === "e") root.setExpanded(!root.expanded)
         else if (key === "r") root.refresh()
         else if (key === "x" && root.selectedProcess) processActions.request(root.selectedProcess, false)
@@ -815,11 +793,45 @@ Panel {
         }
       }
 
-      // 3. Page Content Area (compact, expanded, or settings)
+      Row {
+        id: pageTabs
+        objectName: "pageTabs"
+        visible: !root.settingsOpen && !root.languageExpanded
+        anchors.top: persistentHeader.bottom
+        anchors.topMargin: Style.spacing.sm
+        width: parent.width
+        spacing: Style.spacing.sm
+        Repeater {
+          model: [
+            { key: "overview", icon: "\uf080", sensors: false },
+            { key: "sensors", icon: "\uf2c9", sensors: true }
+          ]
+          Button {
+            required property var modelData
+            width: (pageTabs.width - pageTabs.spacing) / 2
+            height: Style.space(30)
+            text: I18n.t(modelData.key, root.effectiveLanguage)
+            iconText: modelData.icon
+            fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
+            fontSize: Style.font.bodySmall
+            foreground: root.foreground
+            accent: root.accent
+            bordered: true
+            focusable: true
+            selected: root.sensorsOpen === modelData.sensors
+            onClicked: {
+              processActions.cancel()
+              root.sensorsOpen = modelData.sensors
+            }
+          }
+        }
+      }
+
+      // The header and tabs stay pinned; each page owns its internal scrolling.
       Item {
         id: pageArea
         visible: !root.languageExpanded
-        anchors.top: persistentHeader.bottom
+        anchors.top: pageTabs.visible ? pageTabs.bottom : persistentHeader.bottom
         anchors.topMargin: Style.spacing.sm
         anchors.left: parent.left
         anchors.right: parent.right
@@ -830,7 +842,7 @@ Panel {
           anchors.fill: parent
           sourceComponent: root.settingsOpen
             ? settingsContent
-            : (root.expanded ? expandedContent : compactContent)
+            : (root.sensorsOpen ? sensorsContent : (root.expanded ? expandedContent : compactContent))
         }
       }
 
@@ -902,6 +914,7 @@ Panel {
           elide: Text.ElideRight
           text: root.settingsOpen
             ? I18n.t("title", root.effectiveLanguage) + " · " + I18n.t("settings", root.effectiveLanguage)
+            : root.sensorsOpen ? I18n.t("title", root.effectiveLanguage) + " · " + I18n.t("sensors", root.effectiveLanguage)
             : (root.expanded
               ? I18n.t("title", root.effectiveLanguage) + " · " + I18n.t("all_processes", root.effectiveLanguage)
               : I18n.t("title", root.effectiveLanguage))
@@ -983,7 +996,7 @@ Panel {
 
       PanelActionButton {
         id: expandButton
-        visible: !root.settingsOpen
+        visible: !root.settingsOpen && !root.sensorsOpen
         size: parent.parent.headerControlHeight
         anchors.verticalCenter: parent.verticalCenter
         iconText: root.expanded ? "\uf066" : "\uf065"
@@ -1085,7 +1098,8 @@ Panel {
             height: Math.max(Style.space(82), implicitHeight)
             label: root.cpuCardLabel()
             value: activity.cpuReady ? root.percentText(root.metrics.cpu) : "—"
-            detail: root.cpuCardDetail()
+            badge: root.cpuCardDetail()
+            badgeTone: activity.heatAlert && activity.thermalFresh ? root.urgent : root.foreground
             detailTone: activity.heatAlert && activity.thermalFresh ? root.urgent : root.dim
             paint: root.corePaintCompact
             history: root.metrics.cpuHistory
@@ -1177,6 +1191,191 @@ Panel {
         value: Math.max(0, Math.min(4, Math.floor(
           (compactBody.height - compactProcesses.y - compactTableHeader.height)
             / (root.processRowHeight + compactProcesses.spacing))))
+      }
+    }
+  }
+
+  Component {
+    id: sensorsContent
+    Item {
+      anchors.fill: parent
+      Column {
+        id: sensorControls
+        width: parent.width
+        spacing: Style.spacing.xs
+        Row {
+          width: parent.width
+          spacing: Style.spacing.xs
+          Repeater {
+            model: [60, 180, 600]
+            Button {
+              required property int modelData
+              width: (sensorControls.width - Style.spacing.xs * 2) / 3
+              height: Style.space(28)
+              text: I18n.t("sensor_minutes", root.effectiveLanguage, modelData / 60)
+              fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
+              fontSize: Style.font.caption
+              foreground: root.foreground
+              accent: root.accent
+              selected: root.sensorWindowSeconds === modelData
+              bordered: true
+              focusable: true
+              onClicked: root.sensorWindowSeconds = modelData
+            }
+          }
+        }
+        Text {
+          width: parent.width
+          text: I18n.t("sensor_history_hint", root.effectiveLanguage)
+          textFormat: Text.PlainText
+          wrapMode: Text.Wrap
+          color: root.dim
+          font.family: root.bar ? root.bar.fontFamily : Style.font.family
+          font.pixelSize: Style.font.caption
+        }
+      }
+      Flickable {
+        objectName: "sensorsViewport"
+        anchors.top: sensorControls.bottom
+        anchors.topMargin: Style.spacing.sm
+        anchors.bottom: parent.bottom
+        anchors.left: parent.left
+        anchors.right: parent.right
+        contentWidth: width
+        contentHeight: sensorBody.implicitHeight
+        clip: true
+        boundsBehavior: Flickable.StopAtBounds
+        ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+        Column {
+          id: sensorBody
+          width: parent.width - Style.spacing.sm
+          spacing: Style.spacing.sm
+          Text {
+            width: parent.width
+            visible: activity.errorText !== "" || !activity.sensorsFresh
+            text: activity.errorText || I18n.t("sampling", root.effectiveLanguage)
+            textFormat: Text.PlainText
+            wrapMode: Text.Wrap
+            color: activity.errorText ? root.urgent : root.dim
+            font.family: root.bar ? root.bar.fontFamily : Style.font.family
+            font.pixelSize: Style.font.caption
+          }
+          PanelSectionHeader {
+            width: parent.width
+            text: "\uf2c9 " + I18n.t("temperatures", root.effectiveLanguage)
+            foreground: root.foreground
+            fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
+          }
+          Repeater {
+            model: activity.sensorSnapshot.temperatures
+            SensorCard {
+              required property var modelData
+              width: sensorBody.width
+              sensor: modelData
+            }
+          }
+          Text {
+            visible: activity.sensorsFresh && activity.sensorSnapshot.temperatures.length === 0
+            width: parent.width
+            text: I18n.t("no_temperature_sensors", root.effectiveLanguage)
+            textFormat: Text.PlainText
+            wrapMode: Text.Wrap
+            color: root.dim
+            font.family: root.bar ? root.bar.fontFamily : Style.font.family
+            font.pixelSize: Style.font.caption
+          }
+          PanelSectionHeader {
+            width: parent.width
+            text: "\uf863 " + I18n.t("fans", root.effectiveLanguage)
+            foreground: root.foreground
+            fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
+          }
+          Repeater {
+            model: activity.sensorSnapshot.fans
+            SensorCard {
+              required property var modelData
+              width: sensorBody.width
+              sensor: modelData
+              fan: true
+            }
+          }
+          Text {
+            width: parent.width
+            text: I18n.t(activity.sensorsFresh && activity.sensorSnapshot.fans.length === 0
+              ? "no_fan_sensors" : "fan_units_hint", root.effectiveLanguage)
+            textFormat: Text.PlainText
+            wrapMode: Text.Wrap
+            color: root.dim
+            font.family: root.bar ? root.bar.fontFamily : Style.font.family
+            font.pixelSize: Style.font.caption
+          }
+        }
+      }
+    }
+  }
+
+  component SensorCard: DetailSurface {
+    id: sensorCard
+    property var sensor: ({})
+    property bool fan: false
+    readonly property var points: {
+      var all = sensor.id ? activity.sensorHistory[sensor.id] || [] : []
+      var cutoff = activity.sensorSnapshot.sample - root.sensorWindowSeconds
+      return all.filter(function(point) { return point.time >= cutoff })
+    }
+    readonly property var readings: points.map(function(point) { return point.value })
+    readonly property real span: points.length > 1 ? points[points.length - 1].time - points[0].time : 0
+    function valueText(value) {
+      if (!fan) return Model.formatTemperature(value, root.temperatureUnitSetting)
+      return sensor.unit === "percent" ? Math.round(value) + "%"
+        : I18n.t("fan_rpm", root.effectiveLanguage, Math.round(value))
+    }
+    height: sensorCardBody.implicitHeight + Style.spacing.md * 2
+    Column {
+      id: sensorCardBody
+      x: Style.spacing.md
+      y: Style.spacing.md
+      width: parent.width - Style.spacing.md * 2
+      spacing: Style.spacing.xs
+      Text {
+        width: parent.width
+        text: String(sensorCard.sensor.chip || "") + " · " + String(sensorCard.sensor.label || "")
+        textFormat: Text.PlainText
+        wrapMode: Text.Wrap
+        color: root.foreground
+        font.family: root.bar ? root.bar.fontFamily : Style.font.family
+        font.pixelSize: Style.font.bodySmall
+        font.bold: true
+      }
+      Text {
+        width: parent.width
+        text: activity.sensorsFresh ? sensorCard.valueText(sensorCard.sensor.value) : "—"
+        textFormat: Text.PlainText
+        color: !sensorCard.fan && sensorCard.sensor.value >= activity.heatThreshold ? root.urgent : root.accent
+        font.family: root.bar ? root.bar.fontFamily : Style.font.family
+        font.pixelSize: Style.font.heading
+        font.bold: true
+      }
+      Sparkline {
+        width: parent.width
+        height: Style.space(44)
+        values: sensorCard.readings
+        ceiling: sensorCard.fan ? (sensorCard.sensor.unit === "percent" ? 100 : 0) : 120
+        lineColor: root.accent
+      }
+      Text {
+        width: parent.width
+        text: sensorCard.readings.length > 1
+          ? I18n.t("sensor_range", root.effectiveLanguage,
+              sensorCard.valueText(Math.min.apply(null, sensorCard.readings)),
+              sensorCard.valueText(Math.max.apply(null, sensorCard.readings)))
+            + " · " + I18n.t("sensor_duration", root.effectiveLanguage, Math.round(sensorCard.span))
+          : I18n.t("sensor_wait_history", root.effectiveLanguage)
+        textFormat: Text.PlainText
+        wrapMode: Text.Wrap
+        color: root.dim
+        font.family: root.bar ? root.bar.fontFamily : Style.font.family
+        font.pixelSize: Style.font.caption
       }
     }
   }
@@ -1612,7 +1811,8 @@ Panel {
             height: Math.max(Style.space(72), implicitHeight)
             label: root.cpuCardLabel()
             value: activity.cpuReady ? root.percentText(root.metrics.cpu) : "—"
-            detail: root.cpuCardDetail()
+            badge: root.cpuCardDetail()
+            badgeTone: activity.heatAlert && activity.thermalFresh ? root.urgent : root.foreground
             detailTone: activity.heatAlert && activity.thermalFresh ? root.urgent : root.dim
             paint: root.corePaintExpanded
             tall: false
@@ -1635,14 +1835,50 @@ Panel {
             tone: root.pressureColor(root.metrics.memory)
           }
 
-          MetricCard {
-            width: (parent.width - parent.spacing * (parent.columns - 1)) / parent.columns
-            height: Math.max(Style.space(72), implicitHeight)
-            label: root.gpuHeadingText()
-            value: root.primaryGpuUsageText()
-            detail: root.gpuCardDetail()
-            tone: root.primaryGpuUsage() >= 0 ? root.pressureColor(root.primaryGpuUsage()) : root.accent
-            tall: false
+          Repeater {
+            model: root.gpus.length ? root.gpus : [null]
+            DetailSurface {
+              required property var modelData
+              width: (summaryGrid.width - summaryGrid.spacing * (summaryGrid.columns - 1)) / summaryGrid.columns
+              height: Math.max(Style.space(100), gpuColumn.implicitHeight + Style.spacing.md * 2)
+              Column {
+                id: gpuColumn
+                x: Style.spacing.md
+                y: Style.spacing.md
+                width: parent.width - Style.spacing.md * 2
+                spacing: Style.spacing.xs
+                Text {
+                  width: parent.width
+                  text: modelData ? root.compactGpuName(modelData) : I18n.t("gpu", root.effectiveLanguage)
+                  textFormat: Text.PlainText
+                  wrapMode: Text.Wrap
+                  color: root.foreground
+                  font.family: root.bar ? root.bar.fontFamily : Style.font.family
+                  font.pixelSize: Style.font.caption
+                  font.bold: true
+                }
+                Text {
+                  width: parent.width
+                  text: modelData ? root.gpuUsageAndClockText(modelData) : "—"
+                  textFormat: Text.PlainText
+                  wrapMode: Text.Wrap
+                  color: modelData && modelData.usage >= 0 ? root.pressureColor(modelData.usage) : root.dim
+                  font.family: root.bar ? root.bar.fontFamily : Style.font.family
+                  font.pixelSize: Style.font.body
+                  font.bold: true
+                }
+                Text {
+                  width: parent.width
+                  text: modelData ? root.gpuMemoryLabel(modelData) + " " + root.gpuMemoryText(modelData)
+                    : I18n.t("sampling", root.effectiveLanguage)
+                  textFormat: Text.PlainText
+                  wrapMode: Text.Wrap
+                  color: root.dim
+                  font.family: root.bar ? root.bar.fontFamily : Style.font.family
+                  font.pixelSize: Style.font.caption
+                }
+              }
+            }
           }
 
           MetricCard {
@@ -1856,6 +2092,7 @@ Panel {
           anchors.right: parent.right
           anchors.verticalCenter: parent.verticalCenter
           text: metricCard.badge
+          textFormat: Text.PlainText
           color: metricCard.badgeTone
           font.family: root.bar ? root.bar.fontFamily : Style.font.family
           font.pixelSize: Style.font.caption
@@ -1880,6 +2117,7 @@ Panel {
           Text {
             width: parent.width
             text: value
+            textFormat: Text.PlainText
             color: tone
             font.family: root.bar ? root.bar.fontFamily : Style.font.family
             font.pixelSize: Style.font.heading
@@ -1890,6 +2128,7 @@ Panel {
           Text {
             width: parent.width
             text: detail
+            textFormat: Text.PlainText
             color: metricCard.detailTone
             font.family: root.bar ? root.bar.fontFamily : Style.font.family
             font.pixelSize: Style.font.caption

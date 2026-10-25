@@ -41,7 +41,14 @@ brief optional motion without changing sampling cadence.
 
 Left-click toggles the panel. Right-click has no action. Expand inside the panel
 for GPU, storage, search and the full sampled process list. No separate Task
-Manager application is launched or required.
+Manager application is launched or required. Each GPU has its own wrapping card.
+
+The **Cooling** tab shows available hwmon temperatures and fan readings plus
+NVIDIA temperature/fan telemetry through the existing NVML provider. It reuses
+the native sampler and Sparkline component, without a new service or dependency.
+Choose a 1/3/10-minute graph window. Up to 240 samples are kept in memory while
+the tab is open, updating about every 3 seconds. Missing driver sensors are
+reported explicitly; NVIDIA percentages are not mislabeled as physical RPM.
 
 ![Loadlet expanded native panel with GPU, storage and processes](docs/images/expanded.png)
 

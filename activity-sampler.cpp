@@ -1005,7 +1005,56 @@ public:
            << '\t' << Sanitize(cached_label_) << '\t' << *value << '\n';
   }
 
+  void CollectSensors(std::ostream &output) {
+    output << "schema\tactivity-sensors\t1\n";
+    output << "sample\t" << UptimeSample(paths_) << '\n';
+    if (Clock::now() >= next_sensor_discovery_) {
+      sensors_.clear();
+      const std::string root = Join(paths_.sys, "class/hwmon");
+      for (const auto &hwmon : DirectoryNames(root)) {
+        const std::string path = Join(root, hwmon);
+        const std::string chip = ReadLine(Join(path, "name")).value_or(hwmon);
+        const auto power_path = Join(path, "device/power/runtime_status");
+        const auto power = ReadLine(power_path);
+        if ((chip == "nvidia" && power.value_or("") != "active") ||
+            (power && *power != "active" && *power != "unsupported")) continue;
+        for (const auto &name : DirectoryNames(path)) {
+          const bool temperature = StartsWith(name, "temp");
+          if ((!temperature && !StartsWith(name, "fan")) || !EndsWith(name, "_input"))
+            continue;
+          if (sensors_.size() >= 128) break;
+          const auto sensor = name.substr(0, name.size() - 6);
+          sensors_.push_back({Join(path, name), hwmon + "/" + sensor, chip,
+            ReadLine(Join(path, sensor + "_label")).value_or(sensor),
+            power_path, temperature});
+        }
+      }
+      next_sensor_discovery_ = Clock::now() + std::chrono::seconds(30);
+    }
+    for (const auto &sensor : sensors_) {
+      const auto power = ReadLine(sensor.power_path);
+      if ((sensor.chip == "nvidia" && power.value_or("") != "active") ||
+          (power && *power != "active" && *power != "unsupported")) continue;
+      const auto raw = ReadLine(sensor.path);
+      const auto value = raw ? ParseDouble(*raw) : std::nullopt;
+      if (!value || !std::isfinite(*value) ||
+          (sensor.temperature ? (*value < -40000 || *value >= 150000)
+                              : (*value < 0 || *value > 100000))) continue;
+      output << (sensor.temperature ? "temperature" : "fan") << '\t'
+             << sensor.id << '\t' << Sanitize(sensor.chip) << '\t'
+             << Sanitize(sensor.label) << '\t' << *value;
+      if (!sensor.temperature) output << "\trpm";
+      output << '\n';
+    }
+  }
+
 private:
+  struct Sensor {
+    std::string path, id, chip, label, power_path;
+    bool temperature;
+  };
+  std::vector<Sensor> sensors_;
+  Clock::time_point next_sensor_discovery_{};
   Paths paths_;
   std::string cached_path_;
   std::string cached_id_;
@@ -1300,6 +1349,11 @@ std::optional<std::uint64_t> MaxFrequency(
   return best;
 }
 
+struct FanReading {
+  unsigned int index;
+  unsigned int percent;
+};
+
 struct GpuAdapter {
   std::string id;
   std::string vendor_hex;
@@ -1313,6 +1367,8 @@ struct GpuAdapter {
   std::int64_t memory_total = -1;
   std::string memory_kind = "unknown";
   double frequency_mhz = -1;
+  double temperature = -1;
+  std::vector<FanReading> fans;
 };
 
 struct NvidiaReading {
@@ -1322,6 +1378,8 @@ struct NvidiaReading {
   std::int64_t memory_used = -1;
   std::int64_t memory_total = -1;
   double frequency_mhz = -1;
+  double temperature = -1;
+  std::vector<FanReading> fans;
 };
 
 class NvidiaProvider {
@@ -1340,7 +1398,8 @@ public:
     library_ = nullptr;
   }
 
-  std::vector<NvidiaReading> Read(const std::vector<std::string> &active_ids) {
+  std::vector<NvidiaReading> Read(const std::vector<std::string> &active_ids,
+                                  bool sensors = false) {
     if (!fixture_.empty())
       return ReadFixture();
     if (active_ids.empty()) return {};
@@ -1373,6 +1432,23 @@ public:
       unsigned int clock = 0;
       if (get_clock_(device, 0, &clock) == 0)
         reading.frequency_mhz = clock;
+      if (sensors) {
+        unsigned int temperature = 0;
+        if (get_temperature_ && get_temperature_(device, 0, &temperature) == 0 && temperature < 150)
+          reading.temperature = temperature;
+        unsigned int count = 0;
+        if (get_num_fans_ && get_fan_speed_v2_ && get_num_fans_(device, &count) == 0) {
+          for (unsigned int fan = 0; fan < std::min(count, 8U); ++fan) {
+            unsigned int speed = 0;
+            if (get_fan_speed_v2_(device, fan, &speed) == 0 && speed <= 100)
+              reading.fans.push_back({fan, speed});
+          }
+        } else if (get_fan_speed_) {
+          unsigned int speed = 0;
+          if (get_fan_speed_(device, &speed) == 0 && speed <= 100)
+            reading.fans.push_back({0, speed});
+        }
+      }
       if (!reading.id.empty())
         readings.push_back(std::move(reading));
     }
@@ -1399,6 +1475,7 @@ private:
   using GetUtilization = int (*)(void *, NvmlUtilization *);
   using GetMemory = int (*)(void *, NvmlMemory *);
   using GetClock = int (*)(void *, unsigned int, unsigned int *);
+  using GetValue = int (*)(void *, unsigned int *);
 
   std::string fixture_;
   void *library_ = nullptr;
@@ -1410,6 +1487,10 @@ private:
   GetUtilization get_utilization_ = nullptr;
   GetMemory get_memory_ = nullptr;
   GetClock get_clock_ = nullptr;
+  GetClock get_temperature_ = nullptr;
+  GetClock get_fan_speed_v2_ = nullptr;
+  GetValue get_num_fans_ = nullptr;
+  GetValue get_fan_speed_ = nullptr;
 
   template <typename Function> Function Symbol(const char *name) {
     return reinterpret_cast<Function>(dlsym(library_, name));
@@ -1430,6 +1511,10 @@ private:
     get_utilization_ = Symbol<GetUtilization>("nvmlDeviceGetUtilizationRates");
     get_memory_ = Symbol<GetMemory>("nvmlDeviceGetMemoryInfo");
     get_clock_ = Symbol<GetClock>("nvmlDeviceGetClockInfo");
+    get_temperature_ = Symbol<GetClock>("nvmlDeviceGetTemperature");
+    get_fan_speed_v2_ = Symbol<GetClock>("nvmlDeviceGetFanSpeed_v2");
+    get_num_fans_ = Symbol<GetValue>("nvmlDeviceGetNumFans");
+    get_fan_speed_ = Symbol<GetValue>("nvmlDeviceGetFanSpeed");
     if (!init || !shutdown_ || !get_handle_ ||
         !get_name_ || !get_utilization_ || !get_memory_ || !get_clock_) {
       Close();
@@ -1541,10 +1626,23 @@ public:
         discovery_interval_(std::chrono::milliseconds(PositiveEnv(
             "OMARCHY_SYSTEM_STATS_GPU_DISCOVERY_INTERVAL_MS", 10000))) {}
 
-  void Collect(std::ostream &output) {
+  void Collect(std::ostream &output, bool sensors = false) {
     DiscoverAdapters();
-    RefreshDynamicValues();
-    ApplyNvidia();
+    if (!sensors) RefreshDynamicValues();
+    ApplyNvidia(sensors);
+    if (sensors) {
+      for (const auto &gpu : adapters_) {
+        if (gpu.vendor_hex != "10de") continue;
+        if (gpu.temperature >= 0)
+          output << "temperature\tnvidia/" << gpu.id << "\tNVIDIA\t"
+                 << Sanitize(gpu.name) << '\t' << gpu.temperature * 1000 << '\n';
+        for (const auto &fan : gpu.fans)
+          output << "fan\tnvidia/" << gpu.id << "/fan" << fan.index
+                 << "\t" << Sanitize(gpu.name) << "\tfan" << fan.index + 1
+                 << '\t' << fan.percent << "\tpercent\n";
+      }
+      return;
+    }
 
     output << "schema\tactivity-gpus\t1\n";
     output << "sample\t" << UptimeSample(paths_) << '\n';
@@ -1725,7 +1823,8 @@ private:
     }
   }
 
-  void ApplyNvidia() {
+  void ApplyNvidia(bool sensors) {
+    for (auto &gpu : adapters_) { gpu.temperature = -1; gpu.fans.clear(); }
     if (!nvidia_present_ && paths_.nvidia_fixture.empty())
       return;
     std::vector<std::string> active_ids;
@@ -1734,7 +1833,7 @@ private:
           ReadLine(Join(gpu.device_path, "power/runtime_status")).value_or("") == "active")
         active_ids.push_back(gpu.id);
     }
-    for (const auto &reading : nvidia_.Read(active_ids)) {
+    for (const auto &reading : nvidia_.Read(active_ids, sensors)) {
       auto found =
           std::find_if(adapters_.begin(), adapters_.end(),
                        [&](const auto &gpu) { return gpu.id == reading.id; });
@@ -1754,6 +1853,8 @@ private:
         found->name = reading.name;
       found->utilization = reading.utilization;
       found->frequency_mhz = reading.frequency_mhz;
+      found->temperature = reading.temperature;
+      found->fans = reading.fans;
       if (reading.memory_total > 0) {
         found->memory_used =
             std::min(reading.memory_used, reading.memory_total);
@@ -1948,7 +2049,10 @@ public:
       processes_.Collect(output);
     else if (kind == "thermals")
       thermals_.Collect(output);
-    else if (kind == "gpus")
+    else if (kind == "sensors") {
+      thermals_.CollectSensors(output);
+      gpus_.Collect(output, true);
+    } else if (kind == "gpus")
       gpus_.Collect(output);
     else if (kind == "storage")
       storage_.Collect(output);
@@ -1992,7 +2096,7 @@ void Reader(Sampler &sampler) {
     if(ch!='\n') { if(request.size()>=31) break;request+=ch;continue; }
     request=Trim(request);
     if (request != "glance" && request != "resources" && request != "processes" &&
-        request != "thermals" && request != "gpus" && request != "storage" &&
+        request != "thermals" && request != "sensors" && request != "gpus" && request != "storage" &&
         request != "journal-on" && request != "journal-off" && request != "journal" && request != "diagnostics") {
       request.clear();
       continue;
@@ -2020,6 +2124,8 @@ int Run(int argc, char **argv) {
     sampler.Collect("processes", std::cout);
   else if (mode == "--activity-thermals")
     sampler.Collect("thermals", std::cout);
+  else if (mode == "--activity-sensors")
+    sampler.Collect("sensors", std::cout);
   else if (mode == "--activity-gpus")
     sampler.Collect("gpus", std::cout);
   else if (mode == "--activity-storage")
@@ -2029,7 +2135,7 @@ int Run(int argc, char **argv) {
   else {
     std::cerr << "Usage: activity-sampler "
                  "[--bar-widget|--activity-reader|--activity-resources|"
-                 "--activity-processes|--activity-thermals|--activity-gpus|"
+                 "--activity-processes|--activity-thermals|--activity-sensors|--activity-gpus|"
                  "--activity-storage]\n";
     return 64;
   }

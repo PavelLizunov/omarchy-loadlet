@@ -1,14 +1,14 @@
 {
   "schemaVersion": 1,
   "platform": "linux-x86_64",
-  "sourceBaseCommit": "84ede6bbd8354d5e718f6700f95202e73c4e85d7",
+  "sourceBaseCommit": "223f8fe91530c920f158e7d6461f396d3ba19a52",
   "sha256": {
-    "activity-sampler": "24a6c3251cced9282c0de0ff327029a13e97f6c59a3fa28de76abab03fdb048c",
-    "activity-sampler.cpp": "780d74d2ffd1fe715bbb90e497ea09da8c05c76a8c599011cb0983cc9a0ebb9f",
+    "activity-sampler": "d069884da76265aad141785fb1a6cd904444fccbbac0e51bcf0d5a91b55ef51a",
+    "activity-sampler.cpp": "b7cb7e670cbd0bb94efa543df552bd087ccd086233d7aee126cf48a62ef26f30",
     "DiagnosticJournal.h": "3b7643aef7c11853059100d380b833f4105503ec65a541fa014c02f7f4c0cd41",
     "Makefile": "c7c1a8bbbb409f1dd20fb940640a33cbb1dd616312d1a258027ee4ee6a66505b"
   },
-  "size": 239736,
+  "size": 252024,
   "compiler": "GCC 16.2.1 20260810",
   "buildCommand": "LC_ALL=C make -B activity-sampler",
   "buildResult": "Built successfully from the recorded source, header and Makefile; distributed executable replaced with this build",
@@ -24,7 +24,7 @@
   "runtimeBuild": false,
   "runtimeDownload": false,
   "limits": [
-    "Reproducibility and test suites were not rerun for the NVIDIA initialization fix",
+    "Reproducibility and test suites were not rerun for the Cooling-tab implementation",
     "Updated packaged consumer and live GPU readings were not rechecked after this build",
     "x86_64 only; no prebuilt ARM support",
     "Maintainer listing approval is separate from source and binary evidence"
