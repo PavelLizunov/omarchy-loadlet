@@ -194,9 +194,11 @@ Frames are bounded to 256 KiB before emission. Over-capacity input is rejected,
 not shown as a partial process inventory. The reader also bounds directory
 enumeration and input records. The panel clears unavailable data and retries.
 
-NVIDIA queries require `runtime_status=active`; NVML uses NO_ATTACH and is released
-after a sample. Unknown power state skips NVIDIA telemetry. AMD/Intel devices
-reported as suspended are not queried for dynamic sysfs readings. These gates
+NVIDIA queries require `runtime_status=active`; NVML uses normal initialization
+and is released after a sample. NO_ATTACH is not used because it can make an
+active GPU unavailable to PCI-bus handle lookup. Unknown power state skips NVIDIA
+telemetry. AMD/Intel devices reported as suspended are not queried for dynamic
+sysfs readings. These gates
 are not a guarantee about driver races or measured battery savings.
 
 There is no public cross-plugin lock-state API in the installed host facade.

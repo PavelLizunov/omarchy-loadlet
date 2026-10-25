@@ -1435,7 +1435,8 @@ private:
       Close();
       return false;
     }
-    initialized_ = init(2U) == 0; // NVML_INIT_FLAG_NO_ATTACH, as in bzillins' fix.
+    // NO_ATTACH can hide active GPUs from PCI-bus handle lookup.
+    initialized_ = init(0U) == 0;
     if (!initialized_) Close();
     return initialized_;
   }

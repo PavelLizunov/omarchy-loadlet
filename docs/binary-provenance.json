@@ -1,17 +1,17 @@
 {
   "schemaVersion": 1,
   "platform": "linux-x86_64",
-  "sourcePackageCommit": "3e8e8d4d5487ed296d21e74aa753d3a056ba2183",
+  "sourceBaseCommit": "84ede6bbd8354d5e718f6700f95202e73c4e85d7",
   "sha256": {
-    "activity-sampler": "48041c660e8fbc8eaced1b312ac9baf73e2303bdcb0957dcd3e5f4c8f6a4169d",
-    "activity-sampler.cpp": "1245c2e9b98097b382bc8e6390dcdab7c87879c1aad576459f69f0b9318eff03",
+    "activity-sampler": "24a6c3251cced9282c0de0ff327029a13e97f6c59a3fa28de76abab03fdb048c",
+    "activity-sampler.cpp": "780d74d2ffd1fe715bbb90e497ea09da8c05c76a8c599011cb0983cc9a0ebb9f",
     "DiagnosticJournal.h": "3b7643aef7c11853059100d380b833f4105503ec65a541fa014c02f7f4c0cd41",
     "Makefile": "c7c1a8bbbb409f1dd20fb940640a33cbb1dd616312d1a258027ee4ee6a66505b"
   },
   "size": 239736,
   "compiler": "GCC 16.2.1 20260810",
   "buildCommand": "LC_ALL=C make -B activity-sampler",
-  "buildResult": "Byte-identical to the distributed executable; current source, header and Makefile",
+  "buildResult": "Built successfully from the recorded source, header and Makefile; distributed executable replaced with this build",
   "dynamicRequirements": {
     "glibc": "2.34",
     "libstdc++": "GLIBCXX_3.4.32",
@@ -24,8 +24,8 @@
   "runtimeBuild": false,
   "runtimeDownload": false,
   "limits": [
-    "Measured reproducibility with the recorded Linux toolchain, not every compiler",
-    "Real packaged consumer tested separately; source rebuild does not substitute for it",
+    "Reproducibility and test suites were not rerun for the NVIDIA initialization fix",
+    "Updated packaged consumer and live GPU readings were not rechecked after this build",
     "x86_64 only; no prebuilt ARM support",
     "Maintainer listing approval is separate from source and binary evidence"
   ]

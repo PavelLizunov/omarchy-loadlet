@@ -5,12 +5,12 @@ Users do not compile it, install a toolchain, download another executable or run
 an automatic build on enablement. The native Omarchy add/update flow obtains it
 with the QML and Python helpers from this public repository.
 
-The distributed executable is not accepted merely as an inherited opaque file.
-On 2026-10-16 the current `activity-sampler.cpp`, `DiagnosticJournal.h` and Makefile
-were rebuilt using GCC 16.2.1 20260810 on Linux x86_64. The output was byte-identical
-to the existing 239736-byte package, SHA256
-`48041c660e8fbc8eaced1b312ac9baf73e2303bdcb0957dcd3e5f4c8f6a4169d`.
-The runtime and binary bytes did not change in this installation repair.
+The distributed executable was rebuilt from `activity-sampler.cpp`,
+`DiagnosticJournal.h` and Makefile using GCC 16.2.1 20260810 on Linux x86_64
+for the NVIDIA initialization fix. The executable and source bytes changed.
+The exact build-input and executable hashes and size are recorded in the
+machine-readable provenance. No separate reproducibility check or test suite
+was run for this fix.
 
 [Machine-readable provenance](binary-provenance.json) binds source, header,
 Makefile and executable SHA256 values. Build hardening and source-path mapping

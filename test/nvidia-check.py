@@ -21,7 +21,7 @@ with tempfile.TemporaryDirectory() as directory:
 #include <cstdlib>
 extern "C" {
 void logcall(const char *s) { auto f=fopen(getenv("NVML_LOG"),"a"); if(f){fputs(s,f);fclose(f);} }
-int nvmlInitWithFlags(unsigned f) { logcall(f==2?"init2\\n":"bad\\n"); return 0; }
+int nvmlInitWithFlags(unsigned f) { logcall(f==0?"init0\\n":"bad\\n"); return 0; }
 int nvmlShutdown() { logcall("stop\\n"); return 0; }
 int nvmlDeviceGetHandleByPciBusId_v2(const char*,void** d) { *d=(void*)1; return 0; }
 int nvmlDeviceGetName(void*,char* s,unsigned n) { snprintf(s,n,"Fixture"); return 0; }
@@ -39,7 +39,7 @@ int nvmlDeviceGetClockInfo(void*,unsigned,unsigned* p) { *p=300; return 0; }
         power.write_text(status+'\n')
         result = subprocess.run([str(ROOT/'activity-sampler'), '--activity-gpus'],
                                 env=env, capture_output=True, text=True, timeout=3, check=True)
-        if status == 'active': assert log.read_text() == 'init2\nstop\n'
-        elif log.exists(): assert log.read_text() == 'init2\nstop\n'
+        if status == 'active': assert log.read_text() == 'init0\nstop\n'
+        elif log.exists(): assert log.read_text() == 'init0\nstop\n'
         else: assert not log.exists()
-    print('PASS NVIDIA: suspended skips NVML; active uses NO_ATTACH and shutdown')
+    print('PASS NVIDIA: suspended skips NVML; active uses normal initialization and shutdown')
