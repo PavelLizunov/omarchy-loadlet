@@ -986,6 +986,9 @@ private:
   }
 };
 
+std::string PciDeviceName(const std::string &vendor_hex,
+                          const std::string &device_hex);
+
 class ThermalCollector {
 public:
   explicit ThermalCollector(Paths paths) : paths_(std::move(paths)) {}
@@ -1010,6 +1013,16 @@ public:
     output << "sample\t" << UptimeSample(paths_) << '\n';
     if (Clock::now() >= next_sensor_discovery_) {
       sensors_.clear();
+      std::string cpu_model;
+      std::ifstream cpuinfo(Join(paths_.proc, "cpuinfo"));
+      std::string line;
+      while (std::getline(cpuinfo, line)) {
+        if (StartsWith(line, "model name")) {
+          const auto colon = line.find(':');
+          if (colon != std::string::npos) cpu_model = Trim(line.substr(colon + 1));
+          break;
+        }
+      }
       const std::string root = Join(paths_.sys, "class/hwmon");
       for (const auto &hwmon : DirectoryNames(root)) {
         const std::string path = Join(root, hwmon);
@@ -1018,6 +1031,29 @@ public:
         const auto power = ReadLine(power_path);
         if ((chip == "nvidia" && power.value_or("") != "active") ||
             (power && *power != "active" && *power != "unsupported")) continue;
+        std::string category = "unknown", owner;
+        const auto device = RealPath(Join(path, "device"));
+        const auto location = BaseName(device.empty() ? RealPath(path) : device);
+        if (chip == "k10temp" || chip == "coretemp" || chip == "zenpower") {
+          category = "cpu";
+          owner = cpu_model;
+        } else if (chip == "amdgpu" || chip == "nouveau" || chip == "nvidia" || chip == "i915" || chip == "xe") {
+          category = "gpu";
+          auto vendor = Lowercase(ReadLine(Join(path, "device/vendor")).value_or(""));
+          auto product = Lowercase(ReadLine(Join(path, "device/device")).value_or(""));
+          if (StartsWith(vendor, "0x")) vendor.erase(0, 2);
+          if (StartsWith(product, "0x")) product.erase(0, 2);
+          owner = PciDeviceName(vendor, product);
+        } else if (chip == "nvme" || chip == "drivetemp") {
+          category = "storage";
+          owner = ReadLine(Join(path, "device/model")).value_or("");
+        } else if (chip == "spd5118" || chip == "jc42") {
+          category = "memory";
+        } else if (StartsWith(chip, "iwlwifi")) {
+          category = "wifi";
+        } else if (StartsWith(chip, "r8169") || StartsWith(chip, "r8125")) {
+          category = "ethernet";
+        }
         for (const auto &name : DirectoryNames(path)) {
           const bool temperature = StartsWith(name, "temp");
           if ((!temperature && !StartsWith(name, "fan")) || !EndsWith(name, "_input"))
@@ -1026,7 +1062,7 @@ public:
           const auto sensor = name.substr(0, name.size() - 6);
           sensors_.push_back({Join(path, name), hwmon + "/" + sensor, chip,
             ReadLine(Join(path, sensor + "_label")).value_or(sensor),
-            power_path, temperature});
+            power_path, category, Sanitize(owner), Sanitize(location), temperature});
         }
       }
       next_sensor_discovery_ = Clock::now() + std::chrono::seconds(30);
@@ -1044,13 +1080,14 @@ public:
              << sensor.id << '\t' << Sanitize(sensor.chip) << '\t'
              << Sanitize(sensor.label) << '\t' << *value;
       if (!sensor.temperature) output << "\trpm";
-      output << '\n';
+      output << '\t' << sensor.category << '\t' << sensor.owner << '\t'
+             << sensor.location << '\n';
     }
   }
 
 private:
   struct Sensor {
-    std::string path, id, chip, label, power_path;
+    std::string path, id, chip, label, power_path, category, owner, location;
     bool temperature;
   };
   std::vector<Sensor> sensors_;
@@ -1635,11 +1672,13 @@ public:
         if (gpu.vendor_hex != "10de") continue;
         if (gpu.temperature >= 0)
           output << "temperature\tnvidia/" << gpu.id << "\tNVIDIA\t"
-                 << Sanitize(gpu.name) << '\t' << gpu.temperature * 1000 << '\n';
+                 << Sanitize(gpu.name) << '\t' << gpu.temperature * 1000
+                 << "\tgpu\t" << Sanitize(gpu.name) << '\t' << gpu.id << '\n';
         for (const auto &fan : gpu.fans)
           output << "fan\tnvidia/" << gpu.id << "/fan" << fan.index
                  << "\t" << Sanitize(gpu.name) << "\tfan" << fan.index + 1
-                 << '\t' << fan.percent << "\tpercent\n";
+                 << '\t' << fan.percent << "\tpercent\tgpu\t"
+                 << Sanitize(gpu.name) << '\t' << gpu.id << '\n';
       }
       return;
     }

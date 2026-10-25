@@ -82,6 +82,9 @@ function parseSensorSnapshot(raw) {
     else if (fields[0] === "temperature" && fields.length >= 5) {
       var temperature = temperatureFromFields(fields)
       temperature.value = fields[4] === "" ? NaN : Number(fields[4]) / 1000
+      temperature.category = String(fields[5] || "unknown")
+      temperature.owner = String(fields[6] || "")
+      temperature.location = String(fields[7] || "")
       if (isFinite(temperature.value) && temperature.value >= -40 && temperature.value < 150)
         snapshot.temperatures.push(temperature)
     } else if (fields[0] === "fan" && fields.length >= 6) {
@@ -89,11 +92,19 @@ function parseSensorSnapshot(raw) {
       var unit = fields[5] === "percent" ? "percent" : "rpm"
       if (isFinite(value) && value >= 0 && value <= (unit === "percent" ? 100 : 100000))
         snapshot.fans.push({ id: String(fields[1]), chip: String(fields[2]),
-          label: String(fields[3]), value: value, unit: unit })
+          label: String(fields[3]), value: value, unit: unit,
+          category: String(fields[6] || "unknown"), owner: String(fields[7] || ""),
+          location: String(fields[8] || "") })
     }
   }
-  snapshot.temperatures = snapshot.temperatures.slice(0, 144)
-  snapshot.fans = snapshot.fans.slice(0, 144)
+  var order = ["cpu", "gpu", "memory", "storage", "wifi", "ethernet", "unknown"]
+  function byOwner(a, b) {
+    return order.indexOf(a.category) - order.indexOf(b.category)
+      || String(a.owner + a.location).localeCompare(String(b.owner + b.location))
+      || a.id.localeCompare(b.id)
+  }
+  snapshot.temperatures = snapshot.temperatures.slice(0, 144).sort(byOwner)
+  snapshot.fans = snapshot.fans.slice(0, 144).sort(byOwner)
   return snapshot
 }
 

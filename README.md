@@ -49,6 +49,9 @@ the native sampler and Sparkline component, without a new service or dependency.
 Choose a 1/3/10-minute graph window. Up to 240 samples are kept in memory while
 the tab is open, updating about every 3 seconds. Missing driver sensors are
 reported explicitly; NVIDIA percentages are not mislabeled as physical RPM.
+Device categories/models and reading meanings replace driver-only sensor headings.
+Settings offers four compact tile slots, including CPU temperature and individual
+GPUs. Uniform tile sizing keeps CPU core grids inside their cards.
 
 ![Loadlet expanded native panel with GPU, storage and processes](docs/images/expanded.png)
 

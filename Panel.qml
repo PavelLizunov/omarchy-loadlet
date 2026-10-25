@@ -145,7 +145,40 @@ Panel {
     return Math.max(1, inner - fixed - tableSpacing * gaps)
   }
 
-  readonly property var cpuTemperature: activity.thermalFresh ? Model.cpuTemperature(activity.thermalSnapshot.temperatures) : null
+  readonly property var cpuTemperature: activity.thermalFresh ? { value: activity.iconTemperature } : null
+  readonly property var compactTiles: [0, 1, 2, 3].map(function(index) {
+    var defaults = ["cpu", "ram", "network", "disk"]
+    var key = String(root.setting("compactTile" + index, defaults[index]))
+    return root.tileOptions.indexOf(key) >= 0 || key.indexOf("gpu:") === 0 ? key : defaults[index]
+  }).filter(function(key) { return key !== "none" })
+  readonly property var tileOptions: ["cpu", "ram", "gpu", "temperature", "fans", "network", "disk", "storage", "none"]
+    .concat(root.gpus.map(function(gpu) { return "gpu:" + gpu.id }))
+  readonly property real tileHeight: Math.max(Style.space(100), Style.font.caption * 4 + Style.font.title + Style.spacing.md * 2 + Style.space(14))
+  function tileTitle(key) {
+    if (key.indexOf("gpu:") === 0) {
+      var gpu = root.gpus.filter(function(item) { return "gpu:" + item.id === key })[0]
+      return gpu ? root.compactGpuName(gpu) : I18n.t("gpu", effectiveLanguage) + " " + key.slice(4)
+    }
+    return I18n.t(key === "temperature" ? "temperatures" : key, effectiveLanguage)
+  }
+  function sensorOwner(sensor) {
+    var category = String(sensor.category || "unknown")
+    var owner = String(sensor.owner || "")
+    var prefix = I18n.t("sensor_owner_" + category, effectiveLanguage)
+    return prefix + (owner ? " · " + owner : "")
+      + (category === "memory" && sensor.location ? " · " + sensor.location : "")
+  }
+  function sensorLabel(sensor) {
+    var label = String(sensor.label || "")
+    var mapped = { Tctl: "sensor_cpu_control", Tdie: "sensor_cpu_die", Composite: "sensor_composite", edge: "sensor_gpu_edge", junction: "sensor_gpu_hotspot", mem: "sensor_gpu_memory" }
+    if (mapped[label]) return I18n.t(mapped[label], effectiveLanguage)
+    if (sensor.category === "gpu" && label === sensor.owner) return I18n.t("temp_unit", effectiveLanguage)
+    var ccd = label.match(/^Tccd(\d+)$/i)
+    if (ccd) return I18n.t("sensor_ccd", effectiveLanguage, ccd[1])
+    var fan = label.match(/^fan(\d+)$/i)
+    if (fan) return I18n.t("sensor_fan", effectiveLanguage, fan[1])
+    return I18n.t("sensor_reading", effectiveLanguage)
+  }
   property string selectedDiskId: "all"
   property string selectedStoragePath: ""
   property bool storageSelectionPinned: false
@@ -369,7 +402,8 @@ Panel {
       iconLoadThreshold: 50,
       iconHeatThreshold: 80,
       iconMotion: true,
-      diagnosticJournal: false
+      diagnosticJournal: false,
+      compactTile0: "cpu", compactTile1: "ram", compactTile2: "network", compactTile3: "disk"
     })
   }
 
@@ -575,6 +609,11 @@ Panel {
     backgroundEnabled: root.booleanSetting("iconIndicator", true)
     expanded: root.expanded
     sensorsActive: root.sensorsOpen && !root.settingsOpen
+    gpuEnabled: root.expanded || root.settingsOpen || root.compactTiles.some(function(key) { return key === "gpu" || key.indexOf("gpu:") === 0 })
+    storageEnabled: root.expanded || root.compactTiles.indexOf("storage") >= 0
+    sensorSummaryEnabled: !root.sensorsOpen && (root.expanded || root.compactTiles.some(function(key) {
+      return key === "temperature" || key === "fans" || key === "gpu" || key.indexOf("gpu:") === 0
+    }))
   }
   DiagnosticExport { id: diagnosticExport; language: root.effectiveLanguage }
 
@@ -1088,61 +1127,29 @@ Panel {
         anchors.right: parent.right
         spacing: Style.spacing.xs
 
-        // CPU & RAM Cards
-        Row {
+        Flickable {
           width: parent.width
-          spacing: Style.spacing.md
-
-          MetricCard {
-            width: (parent.width - parent.spacing) / 2
-            height: Math.max(Style.space(82), implicitHeight)
-            label: root.cpuCardLabel()
-            value: activity.cpuReady ? root.percentText(root.metrics.cpu) : "—"
-            badge: root.cpuCardDetail()
-            badgeTone: activity.heatAlert && activity.thermalFresh ? root.urgent : root.foreground
-            detailTone: activity.heatAlert && activity.thermalFresh ? root.urgent : root.dim
-            paint: root.corePaintCompact
-            history: root.metrics.cpuHistory
-            ceiling: 100
-            tone: root.pressureColor(root.metrics.cpu)
-          }
-
-          MetricCard {
-            width: (parent.width - parent.spacing) / 2
-            height: Math.max(Style.space(82), implicitHeight)
-            label: root.memoryCardLabel()
-            value: root.hasSnapshot ? root.percentText(root.metrics.memory) : "—"
-            detail: root.memoryBreakdownText()
-            badge: root.swapBadgeText()
-            badgeTone: root.snapshot.memory.swapTotal ? root.pressureColor(root.metrics.swap) : root.dim
-            history: root.metrics.memoryHistory
-            ceiling: 100
-            tone: root.pressureColor(root.metrics.memory)
+          height: Math.min(compactGrid.implicitHeight, Math.max(Style.space(80), compactBody.height - Style.space(45)))
+          contentWidth: width
+          contentHeight: compactGrid.implicitHeight
+          clip: true
+          boundsBehavior: Flickable.StopAtBounds
+          ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+        Grid {
+          id: compactGrid
+          width: parent.width - Style.spacing.xs
+          columns: width >= Style.space(360) ? 2 : 1
+          spacing: Style.spacing.sm
+          Repeater {
+            model: root.compactTiles
+            SummaryTile {
+              required property string modelData
+              tile: modelData
+              width: (compactGrid.width - compactGrid.spacing * (compactGrid.columns - 1)) / compactGrid.columns
+              height: root.tileHeight
+            }
           }
         }
-
-        // Net & Disk Activity Pairs
-        Row {
-          width: parent.width
-          spacing: Style.spacing.md
-
-          ActivityPair {
-            width: (parent.width - parent.spacing) / 2
-            height: Math.max(Style.space(32), naturalHeight)
-            iconText: "\uf019"
-            label: I18n.t("network", root.effectiveLanguage)
-            value: Model.formatBytes(root.metrics.download, "/s")
-            secondary: "\uf093 " + Model.formatBytes(root.metrics.upload, "/s")
-          }
-
-          ActivityPair {
-            width: (parent.width - parent.spacing) / 2
-            height: Math.max(Style.space(32), naturalHeight)
-            iconText: "\uf0a0"
-            label: I18n.t("disk", root.effectiveLanguage)
-            value: Model.formatBytes(root.metrics.diskRead, "/s")
-            secondary: "\uf093 " + Model.formatBytes(root.metrics.diskWrite, "/s")
-          }
         }
 
         PanelSeparator {
@@ -1339,13 +1346,31 @@ Panel {
       spacing: Style.spacing.xs
       Text {
         width: parent.width
-        text: String(sensorCard.sensor.chip || "") + " · " + String(sensorCard.sensor.label || "")
+        text: root.sensorOwner(sensorCard.sensor)
         textFormat: Text.PlainText
         wrapMode: Text.Wrap
         color: root.foreground
         font.family: root.bar ? root.bar.fontFamily : Style.font.family
         font.pixelSize: Style.font.bodySmall
         font.bold: true
+      }
+      Text {
+        width: parent.width
+        text: root.sensorLabel(sensorCard.sensor)
+        textFormat: Text.PlainText
+        wrapMode: Text.Wrap
+        color: root.foreground
+        font.family: root.bar ? root.bar.fontFamily : Style.font.family
+        font.pixelSize: Style.font.caption
+      }
+      Text {
+        width: parent.width
+        text: [sensorCard.sensor.chip, sensorCard.sensor.label, sensorCard.sensor.location || sensorCard.sensor.id].join(" · ")
+        textFormat: Text.PlainText
+        wrapMode: Text.Wrap
+        color: root.dim
+        font.family: root.bar ? root.bar.fontFamily : Style.font.family
+        font.pixelSize: Style.font.caption
       }
       Text {
         width: parent.width
@@ -1466,6 +1491,31 @@ Panel {
                 font.family: root.bar ? root.bar.fontFamily : Style.font.family
                 font.pixelSize: Style.font.caption
                 wrapMode: Text.WordWrap
+              }
+
+              PanelSectionHeader {
+                width: parent.width
+                text: I18n.t("compact_tiles", root.effectiveLanguage)
+                foreground: root.foreground
+                fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
+              }
+              Repeater {
+                model: 4
+                Dropdown {
+                  required property int index
+                  width: parent.width
+                  label: I18n.t("compact_tile_slot", root.effectiveLanguage, index + 1)
+                  value: String(root.setting("compactTile" + index, ["cpu", "ram", "network", "disk"][index]))
+                  options: root.tileOptions.map(function(key) { return { value: key, label: root.tileTitle(key) } })
+                  foreground: root.foreground
+                  accent: root.accent
+                  fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
+                  onChanged: function(next) {
+                    var change = {}
+                    change["compactTile" + index] = next
+                    root.persistSettings(change)
+                  }
+                }
               }
 
               Grid {
@@ -1802,122 +1852,19 @@ Panel {
           ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
         Grid {
           id: summaryGrid
-          width: summaryViewport.width
+          width: summaryViewport.width - Style.spacing.sm
           columns: width >= Style.space(600) ? 3 : (width >= Style.space(380) ? 2 : 1)
           spacing: Style.spacing.sm
-
-          MetricCard {
-            width: (parent.width - parent.spacing * (parent.columns - 1)) / parent.columns
-            height: Math.max(Style.space(72), implicitHeight)
-            label: root.cpuCardLabel()
-            value: activity.cpuReady ? root.percentText(root.metrics.cpu) : "—"
-            badge: root.cpuCardDetail()
-            badgeTone: activity.heatAlert && activity.thermalFresh ? root.urgent : root.foreground
-            detailTone: activity.heatAlert && activity.thermalFresh ? root.urgent : root.dim
-            paint: root.corePaintExpanded
-            tall: false
-            history: root.metrics.cpuHistory
-            ceiling: 100
-            tone: root.pressureColor(root.metrics.cpu)
-          }
-
-          MetricCard {
-            width: (parent.width - parent.spacing * (parent.columns - 1)) / parent.columns
-            height: Math.max(Style.space(72), implicitHeight)
-            label: root.memoryCardLabel()
-            value: root.hasSnapshot ? root.percentText(root.metrics.memory) : "—"
-            detail: root.memoryBreakdownText()
-            badge: root.swapBadgeText()
-            badgeTone: root.snapshot.memory.swapTotal ? root.pressureColor(root.metrics.swap) : root.dim
-            history: root.metrics.memoryHistory
-            ceiling: 100
-            tall: false
-            tone: root.pressureColor(root.metrics.memory)
-          }
-
           Repeater {
-            model: root.gpus.length ? root.gpus : [null]
-            DetailSurface {
-              required property var modelData
+            model: ["cpu", "ram"].concat(root.gpus.length
+              ? root.gpus.map(function(gpu) { return "gpu:" + gpu.id }) : ["gpu"])
+              .concat(["temperature", "network", "disk", "storage"])
+            SummaryTile {
+              required property string modelData
+              tile: modelData
               width: (summaryGrid.width - summaryGrid.spacing * (summaryGrid.columns - 1)) / summaryGrid.columns
-              height: Math.max(Style.space(100), gpuColumn.implicitHeight + Style.spacing.md * 2)
-              Column {
-                id: gpuColumn
-                x: Style.spacing.md
-                y: Style.spacing.md
-                width: parent.width - Style.spacing.md * 2
-                spacing: Style.spacing.xs
-                Text {
-                  width: parent.width
-                  text: modelData ? root.compactGpuName(modelData) : I18n.t("gpu", root.effectiveLanguage)
-                  textFormat: Text.PlainText
-                  wrapMode: Text.Wrap
-                  color: root.foreground
-                  font.family: root.bar ? root.bar.fontFamily : Style.font.family
-                  font.pixelSize: Style.font.caption
-                  font.bold: true
-                }
-                Text {
-                  width: parent.width
-                  text: modelData ? root.gpuUsageAndClockText(modelData) : "—"
-                  textFormat: Text.PlainText
-                  wrapMode: Text.Wrap
-                  color: modelData && modelData.usage >= 0 ? root.pressureColor(modelData.usage) : root.dim
-                  font.family: root.bar ? root.bar.fontFamily : Style.font.family
-                  font.pixelSize: Style.font.body
-                  font.bold: true
-                }
-                Text {
-                  width: parent.width
-                  text: modelData ? root.gpuMemoryLabel(modelData) + " " + root.gpuMemoryText(modelData)
-                    : I18n.t("sampling", root.effectiveLanguage)
-                  textFormat: Text.PlainText
-                  wrapMode: Text.Wrap
-                  color: root.dim
-                  font.family: root.bar ? root.bar.fontFamily : Style.font.family
-                  font.pixelSize: Style.font.caption
-                }
-              }
+              height: root.tileHeight
             }
-          }
-
-          MetricCard {
-            width: (parent.width - parent.spacing * (parent.columns - 1)) / parent.columns
-            height: Math.max(Style.space(72), implicitHeight)
-            label: I18n.t("network", root.effectiveLanguage)
-            value: Model.formatBytes(root.metrics.download, "/s")
-            detail: "\uf093 " + Model.formatBytes(root.metrics.upload, "/s")
-            history: root.metrics.networkHistory
-            tone: root.accent
-            tall: false
-          }
-
-          MetricCard {
-            width: (parent.width - parent.spacing * (parent.columns - 1)) / parent.columns
-            height: Math.max(Style.space(72), implicitHeight)
-            label: root.diskCardLabel()
-            badge: root.diskPagerText()
-            value: Model.formatBytes(root.diskCardRead(), "/s")
-            detail: "\uf093 " + Model.formatBytes(root.diskCardWrite(), "/s")
-            history: root.diskCardHistory()
-            tone: root.accent
-            tall: false
-            interactive: root.canCycleDisks
-            onActivated: function(delta) { root.cycleDisk(delta) }
-          }
-
-          MetricCard {
-            width: (parent.width - parent.spacing * (parent.columns - 1)) / parent.columns
-            height: Math.max(Style.space(72), implicitHeight)
-            label: root.storageCardLabel()
-            badge: root.storagePagerText()
-            value: root.storageCardValue()
-            detail: root.storageCardDetail()
-            bar: root.storageSnapshot.sample > 0 ? root.storageUsedFraction : -1
-            tone: root.pressureColor(root.storageUsedFraction * 100)
-            tall: false
-            interactive: root.canCycleStorage
-            onActivated: function(delta) { root.cycleStorage(delta) }
           }
         }
         }
@@ -2035,6 +1982,49 @@ Panel {
     }
   }
 
+  component SummaryTile: MetricCard {
+    id: summary
+    property string tile: "cpu"
+    readonly property string kind: tile.indexOf("gpu:") === 0 ? "gpu" : tile
+    readonly property var gpu: {
+      if (kind !== "gpu") return null
+      if (tile === "gpu") return root.gpus.length ? root.gpus[0] : null
+      return root.gpus.filter(function(item) { return "gpu:" + item.id === summary.tile })[0] || null
+    }
+    readonly property var gpuTemperature: activity.sensorsFresh && gpu
+      ? activity.sensorSnapshot.temperatures.filter(function(sensor) { return sensor.category === "gpu" && sensor.location === summary.gpu.id })[0] || null : null
+    label: kind === "cpu" ? root.cpuCardLabel() : kind === "ram" ? root.memoryCardLabel()
+      : kind === "gpu" && gpu ? root.compactGpuName(gpu) : root.tileTitle(kind)
+    value: kind === "cpu" ? (activity.cpuReady ? root.percentText(root.metrics.cpu) : "—")
+      : kind === "ram" ? (root.hasSnapshot ? root.percentText(root.metrics.memory) : "—")
+      : kind === "gpu" ? (gpu ? root.gpuUsageText(gpu) : "—")
+      : kind === "temperature" ? (root.cpuTemperature ? Model.formatTemperature(root.cpuTemperature.value, root.temperatureUnitSetting) : "—")
+      : kind === "fans" ? (activity.sensorsFresh && activity.sensorSnapshot.fans.length
+          ? (activity.sensorSnapshot.fans[0].unit === "percent" ? activity.sensorSnapshot.fans[0].value + "%"
+            : I18n.t("fan_rpm", root.effectiveLanguage, activity.sensorSnapshot.fans[0].value)) : "—")
+      : kind === "network" ? Model.formatBytes(root.metrics.download, "/s")
+      : kind === "disk" ? Model.formatBytes(root.diskCardRead(), "/s")
+      : root.activeStorage ? Model.formatCompactBytes(root.activeStorage.used) + " / " + Model.formatCompactBytes(root.activeStorage.total) : "—"
+    detail: kind === "cpu" ? (root.cpuTemperature ? I18n.t("temp_unit", root.effectiveLanguage) + " " + root.cpuCardDetail() : I18n.t("sampling", root.effectiveLanguage))
+      : kind === "ram" ? root.memoryBreakdownText()
+      : kind === "gpu" && gpu ? [root.gpuFrequencyText(gpu), gpuTemperature ? Model.formatTemperature(gpuTemperature.value, root.temperatureUnitSetting) : ""].filter(function(value) { return value !== "" }).join(" · ")
+        + "\n" + root.gpuMemoryLabel(gpu) + " " + root.gpuMemoryText(gpu)
+      : kind === "temperature" ? I18n.t("cpu", root.effectiveLanguage)
+      : kind === "fans" ? (activity.sensorsFresh && activity.sensorSnapshot.fans.length ? root.sensorOwner(activity.sensorSnapshot.fans[0]) : I18n.t("no_fan_sensors", root.effectiveLanguage))
+      : kind === "network" ? "\uf093 " + Model.formatBytes(root.metrics.upload, "/s")
+      : kind === "disk" ? "\uf093 " + Model.formatBytes(root.diskCardWrite(), "/s") : root.storageCardDetail()
+    paint: kind === "cpu" ? (root.expanded ? root.corePaintExpanded : root.corePaintCompact) : Model.emptyCorePaint()
+    history: kind === "cpu" ? root.metrics.cpuHistory : kind === "ram" ? root.metrics.memoryHistory
+      : kind === "network" ? root.metrics.networkHistory : kind === "disk" ? root.diskCardHistory() : []
+    badge: kind === "disk" ? root.diskPagerText() : kind === "storage" ? root.storagePagerText() : kind === "ram" ? root.swapBadgeText() : ""
+    ceiling: kind === "cpu" || kind === "ram" ? 100 : 0
+    bar: kind === "storage" && root.storageSnapshot.sample > 0 ? root.storageUsedFraction : -1
+    tone: kind === "cpu" ? root.pressureColor(root.metrics.cpu) : kind === "ram" ? root.pressureColor(root.metrics.memory) : root.accent
+    detailTone: kind === "cpu" && activity.heatAlert ? root.urgent : root.dim
+    interactive: kind === "disk" ? root.canCycleDisks : kind === "storage" ? root.canCycleStorage : false
+    onActivated: function(delta) { if (kind === "disk") root.cycleDisk(delta); else if (kind === "storage") root.cycleStorage(delta) }
+  }
+
   // --- Sub-components (Cards, Rows, Cells) ---
   component MetricCard: BorderSurface {
     id: metricCard
@@ -2054,7 +2044,6 @@ Panel {
     property color tone: root.accent
     property color badgeTone: root.dim
     readonly property bool showCores: !!(paint && Array.isArray(paint.cells) && paint.cells.length > 0)
-      && paint.width <= width / 2
     signal activated(int delta)
 
     implicitHeight: Math.max(Style.space(tall ? 104 : 72),
@@ -2072,7 +2061,7 @@ Panel {
         anchors.top: parent.top
         anchors.left: parent.left
         anchors.right: parent.right
-        height: cardLabel.implicitHeight
+        height: Math.max(cardLabel.implicitHeight, cardBadge.visible ? cardBadge.implicitHeight : 0)
 
         PanelSectionHeader {
           id: cardLabel
@@ -2083,6 +2072,8 @@ Panel {
           text: metricCard.label
           foreground: root.foreground
           fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
+          wrapMode: Text.Wrap
+          maximumLineCount: 2
           elide: Text.ElideRight
         }
 
@@ -2100,17 +2091,18 @@ Panel {
         }
       }
 
-      Row {
+      Item {
         id: cardBody
         anchors.top: cardHeader.bottom
         anchors.topMargin: 2
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.bottom: cardFooter.top
-        spacing: Style.spacing.xs
 
         Column {
-          width: metricCard.showCores ? (parent.width - coreDie.implicitWidth - parent.spacing) : parent.width
+          anchors.left: parent.left
+          anchors.right: coreDie.visible ? coreDie.left : parent.right
+          anchors.rightMargin: coreDie.visible ? Style.spacing.sm : 0
           anchors.verticalCenter: parent.verticalCenter
           spacing: 0
 
@@ -2120,7 +2112,7 @@ Panel {
             textFormat: Text.PlainText
             color: tone
             font.family: root.bar ? root.bar.fontFamily : Style.font.family
-            font.pixelSize: Style.font.heading
+            font.pixelSize: Style.font.title
             font.bold: true
             elide: Text.ElideRight
           }
@@ -2132,6 +2124,8 @@ Panel {
             color: metricCard.detailTone
             font.family: root.bar ? root.bar.fontFamily : Style.font.family
             font.pixelSize: Style.font.caption
+            wrapMode: Text.Wrap
+            maximumLineCount: 3
             elide: Text.ElideRight
           }
         }
@@ -2139,7 +2133,10 @@ Panel {
         CoreHeatGrid {
           id: coreDie
           visible: metricCard.showCores
+          anchors.right: parent.right
           anchors.verticalCenter: parent.verticalCenter
+          width: implicitWidth * Math.max(0, Math.min(1, parent.width * 0.48 / Math.max(1, implicitWidth), parent.height / Math.max(1, implicitHeight)))
+          height: implicitHeight * Math.max(0, Math.min(1, parent.width * 0.48 / Math.max(1, implicitWidth), parent.height / Math.max(1, implicitHeight)))
           paint: metricCard.paint
         }
       }
@@ -2274,10 +2271,10 @@ Panel {
       Rectangle {
         required property int index
         readonly property var frame: heat.frames[index] || ({})
-        x: Number(frame.x || 0)
-        y: Number(frame.y || 0)
-        width: Number(frame.w || 0)
-        height: Number(frame.h || 0)
+        x: Number(frame.x || 0) * heat.width / Math.max(1, heat.implicitWidth)
+        y: Number(frame.y || 0) * heat.height / Math.max(1, heat.implicitHeight)
+        width: Number(frame.w || 0) * heat.width / Math.max(1, heat.implicitWidth)
+        height: Number(frame.h || 0) * heat.height / Math.max(1, heat.implicitHeight)
         radius: 2
         color: "transparent"
         border.width: 1
@@ -2290,17 +2287,19 @@ Panel {
       CoreDieCell {
         required property int index
         readonly property var cell: heat.cells[index] || ({})
-        x: Number(cell.x || 0)
-        y: Number(cell.y || 0)
-        size: Number(cell.size || 0)
+        x: Number(cell.x || 0) * heat.width / Math.max(1, heat.implicitWidth)
+        y: Number(cell.y || 0) * heat.height / Math.max(1, heat.implicitHeight)
+        size: Math.max(1, Number(cell.size || 0) * Math.min(heat.width / Math.max(1, heat.implicitWidth), heat.height / Math.max(1, heat.implicitHeight)))
         usage: Number(cell.usage || 0)
+        tooltipText: I18n.t("core_usage", root.effectiveLanguage, String(cell.name || "cpu" + index), Math.round(usage))
       }
     }
   }
 
   component CoreDieCell: Rectangle {
-    property int size: Style.space(7)
+    property real size: Style.space(7)
     property real usage: 0
+    property string tooltipText: ""
 
     width: size
     height: size
@@ -2315,6 +2314,16 @@ Panel {
       radius: 0
       color: root.pressureColor(parent.usage)
       opacity: parent.usage < 8 ? 0 : 0.28 + 0.72 * Math.pow(parent.usage / 100, 1.35)
+    }
+    MouseArea {
+      id: cellHover
+      anchors.fill: parent
+      hoverEnabled: true
+      PanelToolTip {
+        visible: cellHover.containsMouse
+        text: cellHover.parent.tooltipText
+        fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
+      }
     }
   }
 

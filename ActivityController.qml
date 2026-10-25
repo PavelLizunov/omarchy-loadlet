@@ -21,6 +21,9 @@ Item {
   readonly property int glanceMaxAge: backgroundInterval * 2 + 5000
   property bool expanded: false
   property bool sensorsActive: false
+  property bool gpuEnabled: expanded
+  property bool storageEnabled: expanded
+  property bool sensorSummaryEnabled: false
   readonly property var sensorSnapshot: _sensorSnapshot
   property var _sensorSnapshot: Model.emptySensorSnapshot()
   property var sensorHistory: ({})
@@ -204,6 +207,11 @@ Item {
     var kinds = !active ? ["glance", "thermals"] : expanded
       ? ["resources", "processes", "thermals", "gpus", "storage"]
       : ["resources", "processes", "thermals"]
+    if (active && !sensorsActive) {
+      if (gpuEnabled && kinds.indexOf("gpus") < 0) kinds.push("gpus")
+      if (storageEnabled && kinds.indexOf("storage") < 0) kinds.push("storage")
+      if (sensorSummaryEnabled) kinds.push("sensors")
+    }
     if (active && sensorsActive) kinds = ["sensors", "glance", "thermals"]
     if (journalEnabled !== journalWriterEnabled) {
       var configurationKind=journalEnabled ? "journal-on" : "journal-off"
@@ -288,7 +296,7 @@ Item {
     } else if (kind === "sensors") {
       var sensors = Model.parseSensorSnapshot(raw)
       if (sensors.schema !== 1 || sensors.sample <= 0) return false
-      if (active && sensorsActive) {
+      if (active && (sensorsActive || sensorSummaryEnabled)) {
         sensorHistory = Model.nextSensorHistory(sensorHistory, sensors, 240)
         _sensorSnapshot = sensors
         _thermalSnapshot = sensors
@@ -299,14 +307,14 @@ Item {
     } else if (kind === "gpus") {
       var gpu = Model.parseGpuSnapshot(raw)
       if (gpu.schema !== 1 || gpu.sample <= 0) return false
-      if (expanded) {
+      if (gpuEnabled) {
         _gpus = Model.nextGpus(previousGpu, gpu)
         previousGpu = gpu; _gpuSnapshot = gpu
       }
     } else if (kind === "storage") {
       var storage = Model.parseStorageSnapshot(raw)
       if (storage.schema !== 1 || storage.sample <= 0) return false
-      if (expanded) _storageSnapshot = storage
+      if (storageEnabled) _storageSnapshot = storage
     } else if (["journal-on", "journal-off", "journal", "diagnostics"].indexOf(kind) >= 0) {
       var lines = String(raw).split("\n")
       if (lines[0] !== "schema\tactivity-journal\t1") return false
@@ -360,9 +368,13 @@ Item {
 
   onSensorsActiveChanged: {
     due.sensors = 0
+    due.thermals = 0
     if (!sensorsActive) { due.resources = 0; due.processes = 0 }
     dispatch()
   }
+  onGpuEnabledChanged: { due.gpus = 0; dispatch() }
+  onStorageEnabledChanged: { due.storage = 0; dispatch() }
+  onSensorSummaryEnabledChanged: { due.sensors = 0; dispatch() }
 
   onProfileNameChanged: if (active) refresh()
 

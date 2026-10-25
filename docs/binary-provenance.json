@@ -1,14 +1,14 @@
 {
   "schemaVersion": 1,
   "platform": "linux-x86_64",
-  "sourceBaseCommit": "223f8fe91530c920f158e7d6461f396d3ba19a52",
+  "sourceBaseCommit": "f5a2c62e353b80e5875b14b020e9e92bedd89fed",
   "sha256": {
-    "activity-sampler": "d069884da76265aad141785fb1a6cd904444fccbbac0e51bcf0d5a91b55ef51a",
-    "activity-sampler.cpp": "b7cb7e670cbd0bb94efa543df552bd087ccd086233d7aee126cf48a62ef26f30",
+    "activity-sampler": "c389ba15d3e47a04c16c366d24a6a41c3945071c584c8979c0ca7e2cef73b269",
+    "activity-sampler.cpp": "031d053c41364900b7cf1977df0dfb3457641cd0713617f8b77f771fed8a0b01",
     "DiagnosticJournal.h": "3b7643aef7c11853059100d380b833f4105503ec65a541fa014c02f7f4c0cd41",
     "Makefile": "c7c1a8bbbb409f1dd20fb940640a33cbb1dd616312d1a258027ee4ee6a66505b"
   },
-  "size": 252024,
+  "size": 256120,
   "compiler": "GCC 16.2.1 20260810",
   "buildCommand": "LC_ALL=C make -B activity-sampler",
   "buildResult": "Built successfully from the recorded source, header and Makefile; distributed executable replaced with this build",
@@ -24,7 +24,7 @@
   "runtimeBuild": false,
   "runtimeDownload": false,
   "limits": [
-    "Reproducibility and test suites were not rerun for the Cooling-tab implementation",
+    "Reproducibility and test suites were not rerun for the sensor-identity and tile-layout correction",
     "Updated packaged consumer and live GPU readings were not rechecked after this build",
     "x86_64 only; no prebuilt ARM support",
     "Maintainer listing approval is separate from source and binary evidence"

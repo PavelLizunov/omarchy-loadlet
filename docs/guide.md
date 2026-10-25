@@ -181,6 +181,27 @@ default tokens the outer cards are 480×422 and 780×592. Actual theme overrides
 screen bounds can change these dimensions. Settings uses the same frame as its
 parent page, with its header and bottom actions outside the settings viewport.
 
+## Summary tiles and sensor names
+
+The compact view has four configurable tile slots in Settings. Each slot can
+show CPU, RAM, a GPU (including a specific discovered adapter), CPU temperature,
+fans, network, disk activity or storage, or be hidden. Defaults remain CPU/RAM/
+network/disk. GPU, storage and sensor requests are admitted in compact mode only
+when their tiles need them; expanded summaries also request sensors for GPU
+temperatures. Closed-panel sampling is unchanged.
+
+All summary tiles now share one font-aware height. Core cells use the original
+Activity Monitor arrangement: values on the left, topology grid anchored on the
+right. The grid is fitted to the available card body rather than overflowing
+into its header/footer. Hovering a cell shows its logical CPU and sampled load.
+CPU temperature is a separate value/detail, never a crowded header badge.
+
+Cooling cards show a localized device category and available model name first,
+then the reading meaning; raw driver/label/location remains secondary. Identity
+comes from the driver, CPU model, NVMe model and PCI IDs, not temperature guesses.
+Memory modules are distinguished by their bus addresses; no physical DIMM slot
+is inferred. Unknown drivers retain an explicit unidentified-device heading.
+
 ## Cooling tab
 
 The pinned Overview/Cooling tabs share the same fitted panel frame. The Cooling
@@ -201,7 +222,7 @@ becomes unavailable after 15 seconds. Sleeping NVIDIA devices remain excluded.
 
 GPU summary cards now wrap each adapter name and show its load, clock and memory
 on separate lines instead of concatenating two adapters into one clipped detail.
-The CPU temperature is a visible badge in its summary card. Press `h` to switch
+The CPU temperature is visible in the CPU detail and its own temperature tile. Press `h` to switch
 the Cooling page; Escape returns to Overview before collapsing or closing.
 
 ## Sampling and limits
