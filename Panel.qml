@@ -67,7 +67,7 @@ Panel {
         journalError: activity.journalError,
         heatThreshold: activity.heatThreshold,
         productName: "Loadlet",
-        iconRevision: "2.13.0",
+        iconRevision: "2.13.1",
         rightClickAction: "none",
         iconTooltip: button.tooltipText,
         iconConsumer: String(Qt.resolvedUrl("Panel.qml")),
@@ -124,7 +124,8 @@ Panel {
     return channels.some(function(channel){return channel.id===root.focusedFanChannel}) ? focusedFanChannel : channels.length ? channels[0].id : ""
   }
   property bool sensorOptionsOpen: false
-  property bool sensorAssignmentOpen: false
+  property bool fanAssignmentOpen: false
+  property bool fanIdentificationOpen: false
   property string settingsSection: "tiles"
   property int identificationPercent: 0
   readonly property var fanPlaces: ["unknown", "fan_cpu", "fan_front", "fan_rear", "fan_top", "fan_ssd"]
@@ -157,7 +158,10 @@ Panel {
     var assignments = Object.assign({}, sensorAssignments)
     if (place === "automatic") delete assignments[root.sensorKey(sensor)]
     else assignments[root.sensorKey(sensor)] = place
+    root.selectedSensorId = sensor.id
     root.persistSettings({sensorAssignments:JSON.stringify(assignments)})
+    // Keep the edited sensor visible when its new category leaves the filter.
+    if (!root.sensorMatches(sensor, root.sensorPart)) root.sensorPart = ""
   }
   function sensorMatches(sensor, part) {
     if (!part) return true
@@ -168,7 +172,6 @@ Panel {
   }
   readonly property var filteredSensors: coolingSensors.filter(function(sensor) { return root.sensorMatches(sensor, root.sensorPart) })
   function selectPart(part) {
-    root.setExpanded(true)
     computerMapVisible = false
     sensorPart = part
     selectedSensorId = ""
@@ -188,6 +191,7 @@ Panel {
   function showFanHistory(channel) {
     var sensor = coolingSensors.filter(function(item) { return root.fanChannel(item) === channel && item.fan })[0]
     if (!sensor) return
+    computerMapVisible = false
     sensorPart = ""
     selectedSensorId = sensor.id
     fansOpen = false
@@ -213,7 +217,7 @@ Panel {
   }
   onSensorsOpenChanged: {
     if (!sensorsOpen) { fansOpen = false; sensorPart = ""; focusedFanChannel = "" }
-    else { root.setExpanded(true); if (!fansOpen) loadSensorHistory() }
+    else if (!fansOpen) loadSensorHistory()
   }
   Component.onDestruction: {
     historyDeadline.stop(); fanDeadline.stop()
@@ -432,7 +436,6 @@ Panel {
   }
 
   function setSettingsOpen(value) {
-    if (value) root.setExpanded(true)
     settingsOpen = value
     settingsControlActive = value
     languageExpanded = false
@@ -743,6 +746,10 @@ Panel {
     if (opened) {
       expanded = openExpandedByDefault
       sensorPart = ""
+      computerMapVisible = false
+      sensorOptionsOpen = false
+      fanAssignmentOpen = false
+      fanIdentificationOpen = false
       focusedFanChannel = ""
       fansOpen = false
       sensorsOpen = false
@@ -849,8 +856,7 @@ Panel {
     focusTarget: keyCatcher
     centerOnBar: false
 
-    // Stable Panel Geometry per design-review.md:
-    // 480x390 compact / 780x560 expanded. Geometry stays rock-solid when settings open!
+    // Only the explicit size control changes the preferred frame; pages scroll inside it.
     contentWidth: panel.fittedContentWidth(root.expanded ? Style.space(900) : Style.space(480))
     contentHeight: panel.fittedContentHeight(Style.space(root.expanded ? 650 : 390))
 
@@ -877,6 +883,7 @@ Panel {
         if (processActions.confirmationOpen) processActions.cancel()
         else if (root.languageExpanded) root.languageExpanded = false
         else if (root.settingsOpen) root.setSettingsOpen(false)
+        else if (root.computerMapVisible) root.computerMapVisible = false
         else if (root.sensorsOpen) root.sensorsOpen = false
         else keyCatcher.closeRequested()
       }
@@ -908,6 +915,7 @@ Panel {
         }
         if (root.languageExpanded) { root.languageExpanded = false; return }
         if (root.settingsOpen) root.setSettingsOpen(false)
+        else if (root.computerMapVisible) root.computerMapVisible = false
         else if (root.sensorsOpen) root.sensorsOpen = false
         else if (root.expanded) root.setExpanded(false)
         else root.close()
@@ -1040,6 +1048,7 @@ Panel {
             selected: root.sensorsOpen === modelData.sensors && root.fansOpen === modelData.fans
             onClicked: {
               processActions.cancel()
+              root.computerMapVisible = false
               root.sensorPart = ""
               root.focusedFanChannel = ""
               root.fansOpen = modelData.fans
@@ -1477,14 +1486,14 @@ Panel {
     spacing: Style.spacing.sm
     SvgButton {
       width: parent.width
-      text: I18n.t("computer_map", root.effectiveLanguage)
-        + (root.sensorPart ? " · " + I18n.t("map_" + root.sensorPart,root.effectiveLanguage) : "")
+      objectName: "computerMapToggle"
+      text: I18n.t(root.computerMapVisible ? "map_close" : "map_open", root.effectiveLanguage)
       iconName: "overview"
       selected: root.computerMapVisible
       foreground: root.foreground; accent: root.accent
       fontFamily: Style.font.family; fontSize: Style.font.bodySmall
       bordered: true; focusable: true
-      onClicked: { root.setExpanded(true); root.computerMapVisible = !root.computerMapVisible }
+      onClicked: root.computerMapVisible = !root.computerMapVisible
     }
     ComputerMap {
       width: parent.width
@@ -1522,8 +1531,9 @@ Panel {
     }
     Button {
       width: parent.width
-      visible: root.sensorPart !== "" || root.focusedFanChannel !== ""
-      text: I18n.t("map_all", root.effectiveLanguage)
+      objectName: "clearSensorFilter"
+      visible: !root.computerMapVisible && root.sensorPart !== ""
+      text: I18n.t("map_filter", root.effectiveLanguage, I18n.t("map_" + root.sensorPart, root.effectiveLanguage))
       foreground: root.foreground; accent: root.accent
       fontFamily: Style.font.family; fontSize: Style.font.caption
       bordered: true; focusable: true
@@ -1539,7 +1549,13 @@ Panel {
       contentWidth: width
       contentHeight: coolingBody.implicitHeight
       clip: true; boundsBehavior: Flickable.StopAtBounds
-      ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+      ScrollBar.vertical: ScrollBar {
+        policy: ScrollBar.AlwaysOn
+        visible: size < 1
+        width: Style.space(8)
+        contentItem: Rectangle { implicitWidth: Style.space(4); implicitHeight: Style.space(40); color: root.accent; opacity: 0.7 }
+      }
+      onContentHeightChanged: contentY = Math.max(0, Math.min(contentY, contentHeight - height))
       Column {
         id: coolingBody
         width: parent.width - Style.spacing.sm
@@ -1564,7 +1580,8 @@ Panel {
           }
           SvgButton {
             width: (parent.width-parent.spacing)/2
-            text: I18n.t("map_options",root.effectiveLanguage)
+            objectName: "sensorOptionsToggle"
+            text: I18n.t(root.sensorOptionsOpen ? "map_options_close" : "map_options",root.effectiveLanguage)
             iconName: "settings"; selected: root.sensorOptionsOpen
             foreground: root.foreground; accent: root.accent
             fontFamily: Style.font.family; fontSize: Style.font.caption
@@ -1574,7 +1591,7 @@ Panel {
         }
         Text {
           width: parent.width
-          visible: root.sensorOptionsOpen || activity.sensorRecordingError !== "" || root.historyReadError
+          visible: activity.sensorRecordingError !== "" || root.historyReadError
           text: activity.sensorRecordingError || root.historyReadError ? I18n.t("sensor_recording_error",root.effectiveLanguage)
             : I18n.t("sensor_recording_hint",root.effectiveLanguage)
           textFormat: Text.PlainText; wrapMode: Text.Wrap
@@ -1652,7 +1669,13 @@ Panel {
       contentWidth: width
       contentHeight: fanBody.implicitHeight
       clip: true; boundsBehavior: Flickable.StopAtBounds
-      ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+      ScrollBar.vertical: ScrollBar {
+        policy: ScrollBar.AlwaysOn
+        visible: size < 1
+        width: Style.space(8)
+        contentItem: Rectangle { implicitWidth: Style.space(4); implicitHeight: Style.space(40); color: root.accent; opacity: 0.7 }
+      }
+      onContentHeightChanged: contentY = Math.max(0, Math.min(contentY, contentHeight - height))
       Column {
         id: fanBody
         width: parent.width - Style.spacing.sm
@@ -1679,8 +1702,15 @@ Panel {
               return {value:channel.id,label:channel.id+" · "+I18n.t("map_"+root.fanPlace(channel.id),root.effectiveLanguage)+" · "+I18n.t("fan_rpm",root.effectiveLanguage,channel.rpm)}
             })
             foreground: root.foreground; accent: root.accent; fontFamily:Style.font.family
-            onChanged: function(value) { root.focusedFanChannel=value }
+            onChanged: function(value) { root.focusedFanChannel=value; root.fanIdentificationOpen=false }
           }
+        }
+        Text {
+          visible: !root.computerMapVisible && root.sensorPart.indexOf("fan_") === 0
+          width: parent.width
+          text: I18n.t("map_assignment_hint", root.effectiveLanguage)
+          textFormat: Text.PlainText; wrapMode: Text.Wrap
+          color: root.dim; font.family: Style.font.family; font.pixelSize: Style.font.caption
         }
         Repeater {
           model: root.computerMapVisible ? [] : (activity.sensorSnapshot.controls || []).filter(function(channel) {
@@ -1696,8 +1726,19 @@ Panel {
               x: Style.spacing.md; y: Style.spacing.md
               width: parent.width - Style.spacing.md * 2
               spacing: Style.spacing.sm
-              Dropdown {
+              SvgButton {
+                objectName: "fanAssignmentToggle"
                 width: parent.width
+                text: I18n.t("map_assignment", root.effectiveLanguage, fanChannelCard.modelData.id)
+                iconName: "settings"; selected: root.fanAssignmentOpen
+                foreground: root.foreground; accent: root.accent; fontFamily: Style.font.family
+                fontSize: Style.font.caption; bordered: true; focusable: true
+                onClicked: root.fanAssignmentOpen = !root.fanAssignmentOpen
+              }
+              Dropdown {
+                objectName: "fanAssignmentDropdown"
+                width: parent.width
+                visible: root.fanAssignmentOpen
                 label: I18n.t("map_assignment", root.effectiveLanguage, fanChannelCard.modelData.id)
                 value: root.fanPlace(fanChannelCard.modelData.id)
                 options: root.fanPlaces.map(function(place) { return {value:place,label:I18n.t("map_" + place,root.effectiveLanguage)} })
@@ -1728,6 +1769,7 @@ Panel {
                 SvgButton {
                   width:(parent.width-parent.spacing)/2
                   anchors.bottom:parent.bottom
+                  objectName: "fanHistoryButton"
                   text:I18n.t("map_fan_history",root.effectiveLanguage);iconName:"overview"
                   foreground:root.foreground;accent:root.accent;fontFamily:Style.font.family
                   bordered:true;focusable:true
@@ -1743,7 +1785,7 @@ Panel {
                   Button {
                     required property int modelData
                     width: (speeds.width - speeds.spacing*2)/3
-                    text: modelData + "%"
+                    text: I18n.t("fan_boost_percent", root.effectiveLanguage, modelData)
                     foreground: root.foreground; accent: root.accent
                     fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
                     focusable: true; bordered: true; enabled: !fanController.running
@@ -1751,7 +1793,17 @@ Panel {
                   }
                 }
               }
+              SvgButton {
+                objectName: "fanIdentificationToggle"
+                width: parent.width
+                text: I18n.t(root.fanIdentificationOpen ? "fan_identify_close" : "fan_identify_open", root.effectiveLanguage)
+                iconName: "fans"; selected: root.fanIdentificationOpen
+                foreground: root.foreground; accent: root.accent; fontFamily: Style.font.family
+                fontSize: Style.font.caption; bordered: true; focusable: true
+                onClicked: root.fanIdentificationOpen = !root.fanIdentificationOpen
+              }
               Row {
+                visible: root.fanIdentificationOpen
                 width:parent.width;spacing:Style.spacing.sm
                 Dropdown {
                   objectName:"identifyPercentDropdown"
@@ -1773,6 +1825,7 @@ Panel {
               }
               Text {
                 width:parent.width
+                visible: root.fanIdentificationOpen
                 text:I18n.t("fan_identify_hint",root.effectiveLanguage)
                 textFormat:Text.PlainText;wrapMode:Text.Wrap
                 color:root.dim;font.family:Style.font.family;font.pixelSize:Style.font.caption
@@ -1833,17 +1886,10 @@ Panel {
       y: Style.spacing.md
       width: parent.width - Style.spacing.md * 2
       spacing: Style.spacing.xs
-      SvgButton {
+      Dropdown {
+        objectName: "sensorAssignmentDropdown"
         width: parent.width
         visible: root.sensorOptionsOpen
-        text: I18n.t("map_sensor_assignment",root.effectiveLanguage)
-        iconName: "settings"; foreground: root.foreground; accent: root.accent
-        fontFamily: Style.font.family; fontSize: Style.font.caption; bordered: true; focusable: true
-        onClicked: root.sensorAssignmentOpen=!root.sensorAssignmentOpen
-      }
-      Dropdown {
-        width: parent.width
-        visible: root.sensorOptionsOpen && root.sensorAssignmentOpen
         label: I18n.t("map_sensor_assignment", root.effectiveLanguage)
         value: root.sensorPlace(sensorCard.sensor)
         options: root.sensorPlaces.map(function(place) { return {value:place,label:I18n.t("map_" + place,root.effectiveLanguage)} })

@@ -28,9 +28,11 @@ that change appears, use the command above from the source link.
 
 ![Loadlet compact native metrics panel with demonstration data](docs/images/compact.png)
 
-Current 2.13.0 native QML screenshots use inert demonstration data, not desktop
+Current 2.13.1 native QML screenshots use inert demonstration data, not desktop
 captures. The optional line-art computer map opens component sensors; manual
-assignments remain explicit. [Vector design references](docs/vector-design.md).
+assignments remain explicit. Page changes never resize the chosen frame; use the
+Expand button or `e` when needed. Fan location and identification are separate
+optional editors. [Vector design references](docs/vector-design.md).
 
 ## One icon, exact readings
 

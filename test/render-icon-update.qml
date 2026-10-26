@@ -24,6 +24,8 @@ Rectangle {
   property string settingsCategory: "tiles"
   property string part: ""
   property bool optionsOpen: false
+  property bool identificationOpen: false
+  property bool assignmentOpen: false
   property bool pageBottom: false
   property bool sensorDropdown: false
   property bool languageOpen: false
@@ -62,6 +64,8 @@ Rectangle {
         p.computerMapVisible=fixture.mapOpen
         p.settingsSection=fixture.settingsCategory
         p.sensorOptionsOpen=fixture.optionsOpen
+        p.fanIdentificationOpen=fixture.identificationOpen
+        p.fanAssignmentOpen=fixture.assignmentOpen
         if(fixture.part) p.selectPart(fixture.part)
         if (fixture.sampleState==='empty' || fixture.sampleState==='loading' || fixture.sampleState==='error') {
           ctrl._sensorSnapshot={schema:1,sample:270000,temperatures:[],fans:[],controls:[]}

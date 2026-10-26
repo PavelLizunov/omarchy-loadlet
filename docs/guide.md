@@ -178,8 +178,11 @@ Expanded mode keeps the process list and action buttons reachable by scrolling
 the summary cards internally when vertical space is limited.
 
 Preferred content sizes are 480×390 and 900×650 logical pixels, multiplied by the
-host spacing scale. Cooling, Fans and Settings open expanded to keep ordinary
-controls visible. The host adds popup padding and borders to the height; with
+host spacing scale. Switching pages, opening Settings or the diagram never
+changes the chosen size. Only Expand, `e`, the initial saved preference and the
+explicit details route change it. Long pages scroll internally with a persistent
+scroll thumb. Fan location and identification controls are separate disclosures;
+ordinary boost and restore actions fit the default compact Fans view. The host adds popup padding and borders to the height; with
 default tokens the outer cards are 480×422 and 900×682. Actual theme overrides and
 screen bounds can change these dimensions. Settings uses the same frame as its
 parent page, with its header and bottom actions outside the settings viewport.

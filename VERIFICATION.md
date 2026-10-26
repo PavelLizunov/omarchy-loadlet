@@ -1,5 +1,40 @@
 # Loadlet verification
 
+## 2.13.1 predictable navigation and compact fan controls — 2026-10-26
+
+User screenshots exposed clipped compact fan controls, unclear assignments and
+unexpected page expansion despite the previous expanded-only fit assertions.
+Removed implicit expansion from Cooling, Settings, schematic and part selection.
+Only explicit sizing/open preference/details routes resize the frame. Page tabs
+close the diagram; Escape closes it before leaving Cooling/Fans. New panel opens
+reset transient editors. Reassigning a filtered sensor keeps that reading selected
+and clears a now-invalid filter. Filter labels include the selected category.
+
+Fan location editing and five-second identification are separate disclosures.
+Normal compact Fans retains boost/history/restore controls, with persistent scroll
+thumbs when content overflows. Category editing no longer requires two nested
+ambiguous buttons. Labels now distinguish showing/hiding a diagram, sensor
+category, unknown physical location, boost and identification. No helper or
+actual fan duty changed in this task.
+
+Full local make check passed:68panel results, four native-bar results each DPR1/2,
+core/package/isolated native install/manifest validation. Added visible pointer
+sequences at both frame sizes, diagram/page/Escape transitions, category editor
+keyboard selection, fan disclosures and history. Prior expectations of automatic
+expansion were explicitly replaced, not treated as product requirements.
+17 final inert renders and six published crops inspected inline: compact/default,
+expanded, category editor/chart bottom, fan trial/assignment, narrow/font16,
+de/zh/DPR2 and empty/error. Strict first renders failed on local AT-SPI bridge
+warnings; final report policy retains them. No QML diagnostics were observed.
+Physical Wayland input/placement, popup overlay pixels, screen reader behavior,
+actual fan-stop/auth expiry and independent review remain unverified.
+
+Installed17byte-identical runtime files under runtime-2.13.1-navigation-20261026,
+preserving installed manifest defaults/settings/history and leaving root helper
+unchanged. Existing shared-shell rescan and read-only status confirm2.13.1/new
+consumer, ready,13temperatures/5fans/4controls and no reader error. This is loaded
+identity, not user acceptance of the repaired interaction model.
+
 ## 2.13.0 visual redesign and zero-duty identification — 2026-10-26
 
 The user rejected the previous drawing and explicitly requested vector-reference

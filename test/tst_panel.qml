@@ -129,8 +129,8 @@ Item {
       plugin.hintsVisible=false;pick('moveRequested').forceActiveFocus()
       keyClick(Qt.Key_H);wait(30);compare(plugin.sensorsOpen,true)
       var viewport=named('coolingViewport')
-      verify(viewport.contentHeight<=viewport.height+1,'Normal expanded Cooling fits without scrolling')
-      viewport.contentY=viewport.contentHeight-viewport.height;wait(10)
+      compare(plugin.expanded,false,'Cooling navigation preserves compact size')
+      viewport.contentY=Math.max(0,viewport.contentHeight-viewport.height);wait(10)
       var chart=named('sensorHistoryChart')
       verify(chart.mapToItem(viewport,0,chart.height).y<=viewport.height+1,'Chart reachable by scrolling')
       var dropdown=named('sensorDropdown');dropdown.open();wait(10)
@@ -142,6 +142,71 @@ Item {
       compare(overview.selected,true)
       plugin.sensorsOpen=true;plugin.fansOpen=true;plugin.openDetails();wait(20)
       compare(plugin.sensorsOpen,false);compare(plugin.expanded,true)
+    }
+    function clickVisible(item, viewport) {
+      verify(item.visible, 'Target must be visible')
+      if (viewport) {
+        var y=item.mapToItem(viewport,0,0).y
+        viewport.contentY=Math.max(0,Math.min(viewport.contentHeight-viewport.height,
+          viewport.contentY+y-Math.max(0,(viewport.height-item.height)/2)))
+        wait(20)
+        verify(item.mapToItem(viewport,0,0).y>=-1,'Target top inside viewport')
+        verify(item.mapToItem(viewport,0,item.height).y<=viewport.height+1,'Target bottom inside viewport')
+      }
+      mouseClick(item,item.width/2,item.height/2);wait(30)
+    }
+    function tab(key) {
+      return nodes(plugin).filter(function(n){return n.modelData&&n.modelData.key===key&&n.text!==undefined})[0]
+    }
+    function test_navigation_frame_and_recovery_data() {
+      return [false,true].map(function(expanded){return {tag:expanded?'large':'compact',expanded:expanded}})
+    }
+    function test_navigation_frame_and_recovery(data) {
+      plugin.hintsVisible=false;plugin.setExpanded(data.expanded);wait(20)
+      var panel=pick('fittedContentWidth'), width=panel.width,height=panel.height
+      function stable() { compare(panel.width,width);compare(panel.height,height);compare(plugin.expanded,data.expanded) }
+      clickVisible(tab('fans'));stable()
+      var viewport=named('fansViewport')
+      clickVisible(named('computerMapToggle'),viewport);stable();compare(plugin.computerMapVisible,true)
+      clickVisible(tab('sensors'));stable();compare(plugin.computerMapVisible,false)
+      verify(named('sensorDropdown').visible,'Switching pages restores readings, not the diagram')
+      viewport=named('coolingViewport')
+      clickVisible(named('sensorOptionsToggle'),viewport);stable()
+      verify(named('sensorAssignmentDropdown').visible,'One disclosure exposes the category editor')
+      clickVisible(named('sensorOptionsToggle'),viewport);stable()
+      clickVisible(named('computerMapToggle'),viewport);stable()
+      pick('moveRequested').forceActiveFocus();keyClick(Qt.Key_Escape);wait(20)
+      compare(plugin.computerMapVisible,false);compare(plugin.sensorsOpen,true);stable()
+      plugin.setSettingsOpen(true);wait(20);stable()
+      plugin.setSettingsOpen(false);wait(20);stable()
+      clickVisible(tab('overview'));stable()
+    }
+    function test_filter_assignment_keeps_reading() {
+      plugin.hintsVisible=false;plugin.selectPart('cpu');wait(20)
+      var sensor=plugin.selectedSensor;verify(!!sensor)
+      plugin.sensorOptionsOpen=true;wait(20)
+      var viewport=named('coolingViewport'),dropdown=named('sensorAssignmentDropdown')
+      clickVisible(dropdown,viewport);keyClick(Qt.Key_Down);keyClick(Qt.Key_Down);keyClick(Qt.Key_Return);wait(30)
+      compare(plugin.sensorPart,'','Moving a sensor out of its filter clears that filter')
+      compare(plugin.selectedSensor.id,sensor.id,'The edited sensor remains selected')
+      compare(plugin.expanded,false)
+    }
+    function test_compact_fans_disclosures_and_history() {
+      plugin.hintsVisible=false;clickVisible(tab('fans'))
+      var viewport=named('fansViewport')
+      verify(!named('identifyFanButton').visible,'Trials are separated from everyday controls')
+      clickVisible(named('fanAssignmentToggle'),viewport)
+      verify(named('fanAssignmentDropdown').visible)
+      clickVisible(named('fanAssignmentToggle'),viewport)
+      clickVisible(named('fanIdentificationToggle'),viewport)
+      verify(named('identifyFanButton').visible)
+      clickVisible(named('fanIdentificationToggle'),viewport)
+      var restore=nodes(plugin).filter(function(n){return n.iconName==='restore'&&n.text&&n.text.indexOf('Вернуть')>=0})[0]
+      verify(restore.visible,'Recovery control is retained')
+      var history=named('fanHistoryButton');clickVisible(history,viewport)
+      compare(plugin.fansOpen,false);compare(plugin.selectedSensor.label,'fan2');compare(plugin.expanded,false)
+      plugin.close();plugin.open();plugin.activityController.stop();MockData.populate(plugin.activityController);wait(20)
+      compare(plugin.computerMapVisible,false);compare(plugin.fanIdentificationOpen,false)
     }
     function test_chart_timestamp_selection() {
       plugin.sensorsOpen=true;wait(20)
@@ -155,10 +220,10 @@ Item {
       chart.points=[];keyClick(Qt.Key_Left);compare(chart.selectedIndex,-1)
     }
     function test_fan_commands_inert() {
-      plugin.sensorsOpen=true;plugin.fansOpen=true;wait(20)
+      plugin.setExpanded(true);plugin.sensorsOpen=true;plugin.fansOpen=true;wait(20)
       var proc=nodes(plugin).filter(function(n){return n.command&&n.command[0]==='/usr/local/lib/loadlet/fan-control'})[0]
       verify(!!proc)
-      var boost=nodes(plugin).filter(function(n){return n.text==='60%'})[0]
+      var boost=nodes(plugin).filter(function(n){return n.text==='Разгон 60%'})[0]
       mouseClick(boost,boost.width/2,boost.height/2);wait(10)
       compare(proc.running,true);compare(proc.command.join(' '),'/usr/local/lib/loadlet/fan-control request boost pwm2 60 10')
       proc.running=false;proc.exited(126);wait(10);compare(plugin.fanStatusKey,'fan_action_failed')
@@ -170,12 +235,16 @@ Item {
       plugin.fanAction('pwm1',100,'boost');compare(proc.running,false)
     }
     function test_identification_command_and_assignment() {
-      plugin.sensorsOpen=true;plugin.fansOpen=true;wait(30)
+      plugin.setExpanded(true);plugin.sensorsOpen=true;plugin.fansOpen=true;wait(30)
       var proc=nodes(plugin).filter(function(n){return n.command&&n.command[0]==='/usr/local/lib/loadlet/fan-control'})[0]
       plugin.identificationPercent=0
       var fansViewport=named('fansViewport')
       verify(fansViewport.contentHeight<=fansViewport.height+1,'Normal Fans view requires no scroll')
+      var disclosure=named('fanIdentificationToggle')
+      mouseClick(disclosure,disclosure.width/2,disclosure.height/2);wait(20)
+      fansViewport.contentY=Math.max(0,fansViewport.contentHeight-fansViewport.height);wait(20)
       var identify=named('identifyFanButton')
+      verify(identify.visible)
       mouseClick(identify,identify.width/2,identify.height/2);wait(10)
       compare(proc.command.join(' '),'/usr/local/lib/loadlet/fan-control request identify pwm2 0 5')
       proc.running=false;proc.exited(0);plugin.activityController.stop();MockData.populate(plugin.activityController)
@@ -192,7 +261,7 @@ Item {
       return ['tiles','icon','sampling','diagnostics'].map(function(section){return {tag:section,section:section}})
     }
     function test_settings_categories_fit(data) {
-      plugin.hintsVisible=false;plugin.setSettingsOpen(true);plugin.settingsSection=data.section;wait(30)
+      plugin.hintsVisible=false;plugin.setExpanded(true);plugin.setSettingsOpen(true);plugin.settingsSection=data.section;wait(30)
       var viewport=named('settingsViewport')
       verify(viewport.contentHeight<=viewport.height+1,'Settings category fits: '+data.section)
     }
@@ -336,7 +405,7 @@ Item {
       compare(plugin.opened,true);compare(plugin.expanded,false,'right-click must not expand the overview')
       plugin.setSettingsOpen(true);plugin.languageExpanded=true;wait(20)
       mouseClick(button,button.width/2,button.height/2,Qt.RightButton);wait(20)
-      compare(plugin.settingsOpen,true);compare(plugin.languageExpanded,true);compare(plugin.expanded,true)
+      compare(plugin.settingsOpen,true);compare(plugin.languageExpanded,true);compare(plugin.expanded,false)
       plugin.setSettingsOpen(false);plugin.setExpanded(false)
       pick('moveRequested').forceActiveFocus();keyClick(Qt.Key_E);wait(20)
       compare(plugin.expanded,true,'internal details remain available through the panel')
