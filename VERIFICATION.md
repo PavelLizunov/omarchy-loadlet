@@ -1,5 +1,29 @@
 # Loadlet verification
 
+## 2.12.0 interactive computer map — 2026-10-26
+
+Added a theme-colored SVG case schematic with CPU, GPU, RAM, storage, motherboard
+and fan-position hotspots. Cooling selections filter existing sensor data and
+reuse the chart; fan selections open mapped control channels. Each fan channel
+has a persisted manual location and RPM-history route. Each sensor can override
+its map location independently using driver/location/label identity. All defaults
+remain unassigned or driver-classified; no hardware identity is invented.
+
+Read-only discovery found DRFXI1.0, BIOS1.12 and IT8613 without fan labels. At the
+observation, fan2/3/4 were about1760/1767/1809RPM and fan5 reported0; four existing
+100-percent timed services were active. No speeds, firmware or existing service
+states were changed. A related-board public report is a hypothesis, not a mapping
+for this board. Manual assignment changes display metadata only.
+
+Tests, new test writing, preview and diagnostic probes were not requested for
+this feature and were not run. Existing fixture preparation includes the new
+component; legacy cases hide the map to preserve their original layout scope.
+New interaction, layout, persistence and localization remain unverified. Local
+translation/editorial fallback used for en/ru/de/zh; no independent review.
+Installed 17 runtime files in runtime-2.12.0-map-20261026 and updated the manifest
+entry point. Existing shared-shell rescan requested; loaded identity and pixels
+not probed. Existing settings, root helper, day grant and fan services untouched.
+
 ## 2.11.3 fan authorization and icon follow-up — 2026-10-26
 
 The user reported invisible icons and required a single password entry rather

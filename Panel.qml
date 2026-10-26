@@ -67,7 +67,7 @@ Panel {
         journalError: activity.journalError,
         heatThreshold: activity.heatThreshold,
         productName: "Loadlet",
-        iconRevision: "2.11.3",
+        iconRevision: "2.12.0",
         rightClickAction: "none",
         iconTooltip: button.tooltipText,
         iconConsumer: String(Qt.resolvedUrl("Panel.qml")),
@@ -116,6 +116,75 @@ Panel {
   Timer { id: fanDeadline; interval: 150000; onTriggered: { fanController.signal(9); root.fanStatusKey = "fan_action_failed" } }
   property int sensorWindowSeconds: 600
   property string selectedSensorId: ""
+  property string sensorPart: ""
+  property bool computerMapVisible: true
+  property string focusedFanChannel: ""
+  readonly property var fanPlaces: ["unknown", "fan_cpu", "fan_front", "fan_rear", "fan_top", "fan_ssd"]
+  function fanPlace(channel) {
+    var place = String(root.setting("fanPlace_" + channel, "unknown"))
+    return fanPlaces.indexOf(place) >= 0 ? place : "unknown"
+  }
+  function assignFan(channel, place) {
+    if (!/^pwm[2-5]$/.test(channel) || fanPlaces.indexOf(place) < 0) return
+    var change = {}; change["fanPlace_" + channel] = place
+    root.persistSettings(change)
+  }
+  function fanChannel(sensor) {
+    if (sensor.category !== "motherboard") return ""
+    var match = String(sensor.label || "").match(/^fan([2-5])$/)
+    return match ? "pwm" + match[1] : ""
+  }
+  readonly property var sensorAssignments: {
+    try { var value = JSON.parse(String(root.setting("sensorAssignments", "{}"))); return value && typeof value === "object" && !Array.isArray(value) ? value : ({}) }
+    catch (error) { return ({}) }
+  }
+  readonly property var sensorPlaces: ["automatic", "cpu", "gpu", "memory", "storage", "motherboard", "fan_cpu", "fan_front", "fan_rear", "fan_top", "fan_ssd"]
+  function sensorKey(sensor) { return JSON.stringify([sensor.chip || "", sensor.location || "", sensor.label || ""]) }
+  function sensorPlace(sensor) {
+    var place = sensorAssignments[root.sensorKey(sensor)]
+    return sensorPlaces.indexOf(place) >= 0 ? place : "automatic"
+  }
+  function assignSensor(sensor, place) {
+    if (sensorPlaces.indexOf(place) < 0) return
+    var assignments = Object.assign({}, sensorAssignments)
+    if (place === "automatic") delete assignments[root.sensorKey(sensor)]
+    else assignments[root.sensorKey(sensor)] = place
+    root.persistSettings({sensorAssignments:JSON.stringify(assignments)})
+  }
+  function sensorMatches(sensor, part) {
+    if (!part) return true
+    var manual = root.sensorPlace(sensor)
+    if (manual !== "automatic") return manual === part
+    if (part.indexOf("fan_") === 0) return sensor.fan === true && root.fanPlace(root.fanChannel(sensor)) === part
+    return sensor.category === part
+  }
+  readonly property var filteredSensors: coolingSensors.filter(function(sensor) { return root.sensorMatches(sensor, root.sensorPart) })
+  function selectPart(part) {
+    computerMapVisible = false
+    sensorPart = part
+    selectedSensorId = ""
+    focusedFanChannel = ""
+    if (part.indexOf("fan_") === 0) {
+      var channels = activity.sensorSnapshot.controls || []
+      var assigned = channels.filter(function(channel) { return root.fanPlace(channel.id) === part })
+      focusedFanChannel = assigned.length === 1 ? assigned[0].id : ""
+      fansOpen = true
+      sensorsOpen = true
+    } else {
+      fansOpen = false
+      sensorsOpen = true
+      loadSensorHistory()
+    }
+  }
+  function showFanHistory(channel) {
+    var sensor = coolingSensors.filter(function(item) { return root.fanChannel(item) === channel && item.fan })[0]
+    if (!sensor) return
+    sensorPart = ""
+    selectedSensorId = sensor.id
+    fansOpen = false
+    sensorsOpen = true
+    loadSensorHistory()
+  }
   property var savedSensors: []
   property bool historyPending: false
   property bool historyReadError: false
@@ -126,7 +195,7 @@ Panel {
     currentSensors.forEach(function(sensor) { byId[sensor.id] = sensor })
     return Object.keys(byId).map(function(id) { return byId[id] })
   }
-  readonly property var selectedSensor: coolingSensors.filter(function(sensor) { return sensor.id === root.selectedSensorId })[0] || coolingSensors[0] || null
+  readonly property var selectedSensor: filteredSensors.filter(function(sensor) { return sensor.id === root.selectedSensorId })[0] || filteredSensors[0] || null
   function loadSensorHistory() {
     if (sensorHistoryReader.running) return
     historyPending = true
@@ -134,7 +203,7 @@ Panel {
     sensorHistoryReader.running = true
   }
   onSensorsOpenChanged: {
-    if (!sensorsOpen) fansOpen = false
+    if (!sensorsOpen) { fansOpen = false; sensorPart = ""; focusedFanChannel = "" }
     else if (!fansOpen) loadSensorHistory()
   }
   Component.onDestruction: {
@@ -253,7 +322,11 @@ Panel {
     var ccd = label.match(/^Tccd(\d+)$/i)
     if (ccd) return I18n.t("sensor_ccd", effectiveLanguage, ccd[1])
     var fan = label.match(/^fan(\d+)$/i)
-    if (fan) return I18n.t("sensor_fan", effectiveLanguage, fan[1])
+    if (fan) {
+      var place = root.fanPlace(root.fanChannel(sensor))
+      return I18n.t("sensor_fan", effectiveLanguage, fan[1])
+        + (place !== "unknown" ? " · " + I18n.t("map_" + place, effectiveLanguage) : "")
+    }
     return I18n.t("sensor_reading", effectiveLanguage)
   }
   property string selectedDiskId: "all"
@@ -480,7 +553,8 @@ Panel {
       iconLoadThreshold: 50,
       iconHeatThreshold: 80,
       iconMotion: true,
-      diagnosticJournal: false,
+      diagnosticJournal: false, sensorAssignments: "{}",
+      fanPlace_pwm2: "unknown", fanPlace_pwm3: "unknown", fanPlace_pwm4: "unknown", fanPlace_pwm5: "unknown",
       compactTileCount: 2, compactTile0: "cpu", compactTile1: "ram", compactTile2: "gpu", compactRamStrip: true, sensorRecording: false
     })
   }
@@ -658,6 +732,8 @@ Panel {
   onOpenedChanged: {
     if (opened) {
       expanded = openExpandedByDefault
+      sensorPart = ""
+      focusedFanChannel = ""
       fansOpen = false
       sensorsOpen = false
       settingsOpen = false
@@ -954,6 +1030,8 @@ Panel {
             selected: root.sensorsOpen === modelData.sensors && root.fansOpen === modelData.fans
             onClicked: {
               processActions.cancel()
+              root.sensorPart = ""
+              root.focusedFanChannel = ""
               root.fansOpen = modelData.fans
               root.sensorsOpen = modelData.sensors
               if (root.sensorsOpen && !root.fansOpen) root.loadSensorHistory()
@@ -1384,6 +1462,46 @@ Panel {
     }
   }
 
+  component ComputerNavigator: Column {
+    width: parent.width
+    spacing: Style.spacing.sm
+    SvgButton {
+      width: parent.width
+      text: I18n.t("computer_map", root.effectiveLanguage)
+        + (root.sensorPart ? " · " + I18n.t("map_" + root.sensorPart,root.effectiveLanguage) : "")
+      iconName: "overview"
+      selected: root.computerMapVisible
+      foreground: root.foreground; accent: root.accent
+      fontFamily: Style.font.family; fontSize: Style.font.bodySmall
+      bordered: true; focusable: true
+      onClicked: root.computerMapVisible = !root.computerMapVisible
+    }
+    ComputerMap {
+      width: parent.width
+      height: visible ? implicitHeight : 0
+      visible: root.computerMapVisible
+      language: root.effectiveLanguage
+      selectedPart: root.sensorPart
+      onPicked: function(part) { root.selectPart(part) }
+    }
+    Text {
+      visible: root.computerMapVisible
+      width: parent.width
+      text: I18n.t("map_hint", root.effectiveLanguage)
+      textFormat: Text.PlainText; wrapMode: Text.Wrap
+      color: root.dim; font.family: Style.font.family; font.pixelSize: Style.font.caption
+    }
+    Button {
+      width: parent.width
+      visible: root.sensorPart !== "" || root.focusedFanChannel !== ""
+      text: I18n.t("map_all", root.effectiveLanguage)
+      foreground: root.foreground; accent: root.accent
+      fontFamily: Style.font.family; fontSize: Style.font.caption
+      bordered: true; focusable: true
+      onClicked: { root.sensorPart = ""; root.focusedFanChannel = "" }
+    }
+  }
+
   Component {
     id: sensorsContent
     Flickable {
@@ -1397,6 +1515,7 @@ Panel {
         id: coolingBody
         width: parent.width - Style.spacing.sm
         spacing: Style.spacing.sm
+        ComputerNavigator {}
       Column {
         id: coolingControls
         width: parent.width
@@ -1425,7 +1544,7 @@ Panel {
           objectName: "sensorDropdown"
           label: I18n.t("sensor_device", root.effectiveLanguage)
           value: root.selectedSensor ? root.selectedSensor.id : ""
-          options: root.coolingSensors.map(function(sensor) {
+          options: root.filteredSensors.map(function(sensor) {
             return {value:sensor.id,label:root.sensorOwner(sensor) + " · " + root.sensorLabel(sensor)}
           })
           foreground: root.foreground; accent: root.accent
@@ -1464,7 +1583,8 @@ Panel {
         Text {
           visible: !root.selectedSensor
           width: parent.width
-          text: root.historyPending ? I18n.t("sampling",root.effectiveLanguage) : I18n.t("no_temperature_sensors",root.effectiveLanguage)
+          text: root.historyPending ? I18n.t("sampling",root.effectiveLanguage)
+            : I18n.t(root.sensorPart ? "map_no_sensors" : "no_temperature_sensors",root.effectiveLanguage)
           textFormat: Text.PlainText; wrapMode: Text.Wrap
           color: root.dim
           font.family: root.bar ? root.bar.fontFamily : Style.font.family
@@ -1487,6 +1607,33 @@ Panel {
         id: fanBody
         width: parent.width - Style.spacing.sm
         spacing: Style.spacing.sm
+        ComputerNavigator {}
+        Text {
+          width: parent.width
+          visible: root.sensorPart.indexOf("fan_") === 0
+          text: I18n.t("map_assignment_hint", root.effectiveLanguage)
+          textFormat: Text.PlainText; wrapMode: Text.Wrap
+          color: root.accent; font.family: Style.font.family; font.pixelSize: Style.font.caption
+        }
+        Repeater {
+          model: root.sensorPart.indexOf("fan_") === 0 ? root.filteredSensors : []
+          SvgButton {
+            required property var modelData
+            width: fanBody.width
+            text: root.sensorOwner(modelData) + " · " + root.sensorLabel(modelData)
+            iconName: "fans"
+            foreground: root.foreground; accent: root.accent
+            fontFamily: Style.font.family; fontSize: Style.font.caption
+            bordered: true; focusable: true
+            onClicked: {
+              var id = modelData.id
+              root.sensorPart = ""
+              root.selectedSensorId = id
+              root.fansOpen = false
+              root.loadSensorHistory()
+            }
+          }
+        }
         Text {
           width: parent.width
           text: I18n.t("fan_control_hint",root.effectiveLanguage)
@@ -1514,8 +1661,11 @@ Panel {
           font.pixelSize: Style.font.caption
         }
         Repeater {
-          model: activity.sensorSnapshot.controls || []
+          model: (activity.sensorSnapshot.controls || []).filter(function(channel) {
+            return !root.focusedFanChannel || channel.id === root.focusedFanChannel
+          })
           DetailSurface {
+            id: fanChannelCard
             required property var modelData
             width: fanBody.width
             height: channelBody.implicitHeight + Style.spacing.md * 2
@@ -1524,6 +1674,23 @@ Panel {
               x: Style.spacing.md; y: Style.spacing.md
               width: parent.width - Style.spacing.md * 2
               spacing: Style.spacing.sm
+              Dropdown {
+                width: parent.width
+                label: I18n.t("map_assignment", root.effectiveLanguage, fanChannelCard.modelData.id)
+                value: root.fanPlace(fanChannelCard.modelData.id)
+                options: root.fanPlaces.map(function(place) { return {value:place,label:I18n.t("map_" + place,root.effectiveLanguage)} })
+                foreground: root.foreground; accent: root.accent
+                fontFamily: Style.font.family
+                onChanged: function(place) { root.assignFan(fanChannelCard.modelData.id, place) }
+              }
+              SvgButton {
+                width: parent.width
+                text: I18n.t("map_fan_history", root.effectiveLanguage)
+                iconName: "overview"
+                foreground: root.foreground; accent: root.accent
+                fontFamily: Style.font.family; bordered: true; focusable: true
+                onClicked: root.showFanHistory(fanChannelCard.modelData.id)
+              }
               Text {
                 width: parent.width
                 text: modelData.id + " · " + I18n.t("fan_rpm",root.effectiveLanguage,modelData.rpm)
@@ -1607,6 +1774,15 @@ Panel {
       y: Style.spacing.md
       width: parent.width - Style.spacing.md * 2
       spacing: Style.spacing.xs
+      Dropdown {
+        width: parent.width
+        label: I18n.t("map_sensor_assignment", root.effectiveLanguage)
+        value: root.sensorPlace(sensorCard.sensor)
+        options: root.sensorPlaces.map(function(place) { return {value:place,label:I18n.t("map_" + place,root.effectiveLanguage)} })
+        foreground: root.foreground; accent: root.accent
+        fontFamily: Style.font.family
+        onChanged: function(place) { root.assignSensor(sensorCard.sensor, place) }
+      }
       Text {
         width: parent.width
         text: root.sensorOwner(sensorCard.sensor)

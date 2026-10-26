@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "slovn.activity-lite",
   "name": "Loadlet",
-  "version": "2.11.3",
+  "version": "2.12.0",
   "author": "slovn; based on Kristoffer Haugland's Activity Monitor",
   "license": "MIT",
   "description": "A calm, low-overhead glance at CPU, memory, GPU, storage, and processes — with a die that matches your chip",
@@ -42,7 +42,12 @@
       "iconLoadThreshold": 50,
       "iconHeatThreshold": 80,
       "iconMotion": true,
-      "diagnosticJournal": false
+      "diagnosticJournal": false,
+      "sensorAssignments": "{}",
+      "fanPlace_pwm2": "unknown",
+      "fanPlace_pwm3": "unknown",
+      "fanPlace_pwm4": "unknown",
+      "fanPlace_pwm5": "unknown"
     },
     "schema": [
       {
@@ -142,7 +147,11 @@
         "key": "samplingSpeed",
         "type": "enum",
         "label": "Update speed",
-        "options": ["Efficient", "Balanced", "Fast"],
+        "options": [
+          "Efficient",
+          "Balanced",
+          "Fast"
+        ],
         "defaultValue": "Efficient",
         "description": "Efficient uses fewer samples; Fast makes the graphs react sooner."
       },
@@ -159,7 +168,10 @@
         "key": "temperatureUnit",
         "type": "enum",
         "label": "Temperature unit",
-        "options": ["Celsius", "Fahrenheit"],
+        "options": [
+          "Celsius",
+          "Fahrenheit"
+        ],
         "defaultValue": "Celsius"
       },
       {
@@ -173,6 +185,36 @@
         "type": "boolean",
         "label": "Open detailed view",
         "defaultValue": false
+      },
+      {
+        "key": "sensorAssignments",
+        "type": "string",
+        "label": "Manual sensor locations (JSON)",
+        "defaultValue": "{}"
+      },
+      {
+        "key": "fanPlace_pwm2",
+        "type": "string",
+        "label": "Manual location for pwm2",
+        "defaultValue": "unknown"
+      },
+      {
+        "key": "fanPlace_pwm3",
+        "type": "string",
+        "label": "Manual location for pwm3",
+        "defaultValue": "unknown"
+      },
+      {
+        "key": "fanPlace_pwm4",
+        "type": "string",
+        "label": "Manual location for pwm4",
+        "defaultValue": "unknown"
+      },
+      {
+        "key": "fanPlace_pwm5",
+        "type": "string",
+        "label": "Manual location for pwm5",
+        "defaultValue": "unknown"
       }
     ]
   }

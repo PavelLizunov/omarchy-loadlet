@@ -252,6 +252,30 @@ on separate lines instead of concatenating two adapters into one clipped detail.
 The CPU temperature is visible in the CPU detail and its own temperature tile. Press `h` to switch
 the Cooling page; Escape returns to Overview before collapsing or closing.
 
+## Interactive computer map
+
+Cooling and Fans provide a collapsible SVG computer schematic. Select CPU, GPU,
+RAM, drives or the motherboard to filter existing temperature/fan sensors and
+reuse their history charts. The schematic collapses after selection to leave
+room for data; its heading reopens it. Show all removes the filter. Multiple
+devices in one category remain selectable by model in the sensor dropdown.
+Missing telemetry is explicitly unavailable, not a fabricated reading.
+
+CPU/front/rear/top/SSD fan points open the control page. Assign a channel location
+with the dropdown on that channel card; assignments are saved in plugin settings
+and do not change fan duty or require authentication. With one assigned channel,
+the corresponding point focuses it; without a unique match all channels remain
+accessible. RPM history opens the existing chart. Sensor cards also offer manual
+map locations, keyed by driver/location/reading identity rather than hwmon index.
+Choosing Driver category removes that sensor override. Reset defaults clears
+assignments. No connector identity is inferred from RPM, temperature or proximity.
+
+The diagram is symbolic, not a measured replica of the actual case. Linux exposes
+IT8613 fan2-fan5 without physical header labels on DRFXI. A related-board report
+identifies fan4 as CPU, but is not sufficient evidence for this machine; it is
+not applied automatically. A zero tachometer reading is not proof of an unused
+connector. Observe physical wiring or BIOS labels before assigning CPU_FAN.
+
 ## Motherboard fan control
 
 The Fans tab supports the DRFXI board with the actual IT8613E hwmon driver.

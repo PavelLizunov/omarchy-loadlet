@@ -6,12 +6,12 @@
     "activity-sampler": "614c0aefd9f1cd0c2003dc82c8695d87dd95cb4e20ed0affbdddb11f14d1687c",
     "activity-sampler.cpp": "8076a72d0d76e550116d59d2a5f497b8b1939c5fd7aabb60f097a21ac8792db1",
     "DiagnosticJournal.h": "c0b2c5606ff36dc7bf5d27cc1b037721afb79dfc6709ebcef8e924f888b4d90d",
-    "Makefile": "38ff29c720f6e9434d700fc5ec8d9a39822ba362489a6569f5f7124a44ac0074"
+    "Makefile": "6b3111926c9218664abfa8d98348ab3836f5d96c14a1f90699b41f4c163ad56c"
   },
   "size": 260216,
   "compiler": "GCC 16.2.1 20260810",
   "buildCommand": "LC_ALL=C make -B activity-sampler",
-  "buildResult": "Executable unchanged from the locally reproduced 2.11.1 build; only the install file list changed in Makefile for 2.11.2",
+  "buildResult": "Native executable unchanged from 2.11.1 reproduction; only the install file list changed for the 2.12.0 QML map",
   "dynamicRequirements": {
     "glibc": "2.34",
     "libstdc++": "GLIBCXX_3.4.32",

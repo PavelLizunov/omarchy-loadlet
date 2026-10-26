@@ -59,7 +59,7 @@ Item {
       plugin.close(); host.width=1600; host.height=1200
       Style.fontBaseSize=12; Style.spacingScaleWithFont=true
       plugin.settings={locale:"ru",iconIndicator:false}; plugin.sortKey="cpu";plugin.sortAscending=false
-      plugin.open();plugin.activityController.stop()
+      plugin.open();plugin.activityController.stop();plugin.computerMapVisible=false
       // Previous icon tests may replace bindings on this persistent consumer.
       var ctrl=plugin.activityController
       var icons=nodes(plugin).filter(function(n){return n.shapeIndex!==undefined})
