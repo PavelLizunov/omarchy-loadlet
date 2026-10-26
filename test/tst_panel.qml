@@ -162,7 +162,7 @@ Item {
       mouseClick(boost,boost.width/2,boost.height/2);wait(10)
       compare(proc.running,true);compare(proc.command.join(' '),'pkexec /usr/local/lib/loadlet/fan-control boost pwm2 60 10')
       proc.running=false;proc.exited(126);wait(10);compare(plugin.fanStatusKey,'fan_action_failed')
-      var restore=nodes(plugin).filter(function(n){return n.iconText==='\uf2ea'&&n.text&&n.text.indexOf('Вернуть')>=0})[0]
+      var restore=nodes(plugin).filter(function(n){return n.iconName==='restore'&&n.text&&n.text.indexOf('Вернуть')>=0})[0]
       mouseClick(restore,restore.width/2,restore.height/2);wait(10)
       compare(proc.command.join(' '),'pkexec /usr/local/lib/loadlet/fan-control restore pwm2')
       proc.running=false;proc.exited(0);compare(plugin.fanStatusKey,'fan_action_sent')
@@ -335,8 +335,8 @@ Item {
     }
     function test_header_sizes() {
       var all=nodes(plugin)
-      var lang=all.filter(function(n){return n.iconText==='文' && n.text!==undefined})[0]
-      var icons=all.filter(function(n){return n.iconText==='\uf128'||n.iconText==='\uf013'||n.iconText==='\uf065'})
+      var lang=all.filter(function(n){return n.iconName==='language' && n.text!==undefined})[0]
+      var icons=all.filter(function(n){return n.iconName==='help'||n.iconName==='settings'||n.iconName==='expand'})
       for(var i=0;i<icons.length;i++) compare(icons[i].height,lang.height)
     }
     function test_fixture_topology() {

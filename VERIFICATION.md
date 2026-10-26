@@ -1,5 +1,24 @@
 # Loadlet verification
 
+## 2.11.2 SVG icon update — 2026-10-26
+
+Added original theme-colored SVG symbols to navigation, header controls, metric
+headings, process actions, restore/done, export and copy. Native host buttons
+still own sizing, focus, tooltips and interaction; labels are retained. The bar
+character and telemetry are unchanged. SVG raster size follows logical size and
+DPR without decoded-size feedback. SvgIcon.qml ships in local installs and inert
+fixture preparation. Existing icon-selection tests were adapted, not executed.
+
+This implementation-only request did not include tests or visual verification.
+No preview, test suite, lint or runtime diagnostic probe was run. Existing PNGs
+remain explicitly 2.11.1 and are source-pinned, not current-icon evidence. The
+previous audit results below do not establish acceptance of this update.
+
+Installed 16 runtime files in runtime-2.11.2-svg-20261026, updated the installed
+manifest entry point and requested rescanPlugins in the existing shared shell.
+Saved settings and the privileged fan adapter were not changed. Loaded identity
+and actual icon appearance were not probed for this implementation-only request.
+
 ## 2.11.1 page audit — 2026-10-26
 
 The user explicitly requested visual inspection of every page and comprehensive

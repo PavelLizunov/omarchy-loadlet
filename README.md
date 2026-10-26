@@ -28,8 +28,9 @@ that change appears, use the command above from the source link.
 
 ![Loadlet compact native metrics panel with demonstration data](docs/images/compact.png)
 
-Actual native QML, rendered offscreen with inert demonstration data. These images
-are not desktop captures or measurements of a machine.
+These 2.11.1 native QML screenshots use inert demonstration data, not desktop
+captures. Version 2.11.2 replaces action/navigation glyphs and adds metric-heading
+icons using theme-colored SVG. Screenshots predate that icon update.
 
 ## One icon, exact readings
 

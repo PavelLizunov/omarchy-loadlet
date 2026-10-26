@@ -2,6 +2,7 @@
   "schema": 1,
   "productName": "Loadlet",
   "runtimeVersion": "2.11.1",
+  "sourceCommit": "f6738917c45520cc6f77558a9df05b2bc967ad0f",
   "date": "2026-10-26",
   "captureKind": "actual-native-QML/inert-demo",
   "sourceHashes": {

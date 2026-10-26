@@ -1,8 +1,10 @@
-# Current Loadlet visuals
+# Loadlet 2.11.1 visuals
 
 The five PNGs show Loadlet 2.11.1 through its actual native Panel consumer with
 inert demonstration data. Compact, expanded, settings, Cooling and Fans were
 read inline after rendering. No desktop capture or production input was used.
+They predate the 2.11.2 SVG icon update; no new preview was requested for that
+change. The manifest pins their actual 2.11.1 source commit without relabeling.
 
 Compact/settings/Fans are 480x422; expanded/Cooling are 780x592 logical pixels.
 Only empty outer fixture space was cropped. No resizing or reconstruction.

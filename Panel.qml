@@ -67,7 +67,7 @@ Panel {
         journalError: activity.journalError,
         heatThreshold: activity.heatThreshold,
         productName: "Loadlet",
-        iconRevision: "2.11.1",
+        iconRevision: "2.11.2",
         rightClickAction: "none",
         iconTooltip: button.tooltipText,
         iconConsumer: String(Qt.resolvedUrl("Panel.qml")),
@@ -935,16 +935,16 @@ Panel {
         spacing: Style.spacing.sm
         Repeater {
           model: [
-            { key: "overview", icon: "\uf080", sensors: false, fans:false },
-            { key: "sensors", icon: "\uf2c9", sensors: true, fans:false },
-            { key: "fans", icon: "\uf021", sensors: true, fans:true }
+            { key: "overview", icon: "overview", sensors: false, fans:false },
+            { key: "sensors", icon: "temperature", sensors: true, fans:false },
+            { key: "fans", icon: "fans", sensors: true, fans:true }
           ]
-          Button {
+          SvgButton {
             required property var modelData
             width: (pageTabs.width - pageTabs.spacing * 2) / 3
             height: Style.space(30)
             text: I18n.t(modelData.key, root.effectiveLanguage)
-            iconText: modelData.icon
+            iconName: modelData.icon
             fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
             fontSize: Style.font.bodySmall
             foreground: root.foreground
@@ -1005,6 +1005,35 @@ Panel {
         onConfirmed: processActions.confirm()
       }
     }
+  }
+
+  component SvgButton: Button {
+    id: svgButton
+    property string iconName: ""
+    iconText: iconName ? "\u2003" : ""
+    SvgIcon {
+      name: svgButton.iconName
+      width: svgButton.iconSize
+      height: width
+      x: (svgButton.width - svgButton._contentNaturalWidth) / 2
+        + (svgButton._iconRoom - (svgButton.text ? Style.spacing.controlGap : 0) - width) / 2
+      anchors.verticalCenter: parent.verticalCenter
+      tint: svgButton.selected ? svgButton._selectedColor : svgButton.foreground
+    }
+  }
+
+  component SvgActionButton: PanelActionButton {
+    id: svgAction
+    property string iconName: ""
+    SvgIcon {
+      anchors.centerIn: parent
+      name: svgAction.iconName
+      width: Math.min(Style.space(14), svgAction.width - Style.spacing.sm)
+      height: width
+      tint: svgAction.enabled ? (svgAction._hot ? svgAction.hoverColor : svgAction.foreground)
+        : Qt.darker(svgAction.foreground, 2)
+    }
+    Accessible.name: tooltipText
   }
 
   // --- Header Component: Permanent, outside scrolling, uniform 24px button height ---
@@ -1078,13 +1107,13 @@ Panel {
       anchors.verticalCenter: parent.verticalCenter
       spacing: Style.spacing.xs
 
-      // Standard Omarchy Language Button: [ 文 RU ] / [ 文 EN ] — exact 24px height
-      Button {
+      // Native language control keeps the same height with a font-independent icon.
+      SvgButton {
         id: headerLanguageButton
         height: parent.parent.headerControlHeight
         anchors.verticalCenter: parent.verticalCenter
         text: root.effectiveLanguage.toUpperCase()
-        iconText: "文"
+        iconName: "language"
         iconSize: Style.font.bodySmall
         fontSize: Style.font.caption
         fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
@@ -1101,11 +1130,11 @@ Panel {
         }
       }
 
-      PanelActionButton {
+      SvgActionButton {
         visible: !root.settingsOpen
         size: parent.parent.headerControlHeight
         anchors.verticalCenter: parent.verticalCenter
-        iconText: "\uf128"
+        iconName: "help"
         tooltipText: I18n.t("shortcuts", root.effectiveLanguage)
         foreground: root.hintsVisible ? root.accent : root.foreground
         hoverColor: root.accent
@@ -1115,11 +1144,11 @@ Panel {
         onClicked: root.hintsVisible = !root.hintsVisible
       }
 
-      PanelActionButton {
+      SvgActionButton {
         id: settingsButton
         size: parent.parent.headerControlHeight
         anchors.verticalCenter: parent.verticalCenter
-        iconText: "\uf013"
+        iconName: "settings"
         tooltipText: I18n.t("settings", root.effectiveLanguage)
         foreground: root.settingsOpen ? root.accent : root.foreground
         hoverColor: root.accent
@@ -1129,12 +1158,12 @@ Panel {
         onClicked: root.setSettingsOpen(!root.settingsOpen)
       }
 
-      PanelActionButton {
+      SvgActionButton {
         id: expandButton
         objectName: "expandButton"
         size: parent.parent.headerControlHeight
         anchors.verticalCenter: parent.verticalCenter
-        iconText: root.expanded ? "\uf066" : "\uf065"
+        iconName: root.expanded ? "collapse" : "expand"
         tooltipText: root.expanded ? I18n.t("collapse", root.effectiveLanguage) : I18n.t("expand", root.effectiveLanguage)
         foreground: root.foreground
         fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
@@ -1160,10 +1189,11 @@ Panel {
         height: Style.space(28)
         spacing: Style.spacing.md
 
-        Button {
+        SvgButton {
           width: (parent.width - parent.spacing) / 2
           height: parent.height
-          text: "󰅙 " + I18n.t("btn_terminate", root.effectiveLanguage)
+          text: I18n.t("btn_terminate", root.effectiveLanguage)
+          iconName: "stop"
           focusable: true
           bordered: true
           foreground: root.foreground
@@ -1173,10 +1203,11 @@ Panel {
           onClicked: processActions.request(root.selectedProcess, false)
         }
 
-        Button {
+        SvgButton {
           width: (parent.width - parent.spacing) / 2
           height: parent.height
-          text: "󰚌 " + I18n.t("btn_kill", root.effectiveLanguage)
+          text: I18n.t("btn_kill", root.effectiveLanguage)
+          iconName: "kill"
           focusable: true
           bordered: true
           foreground: root.urgent
@@ -1511,10 +1542,10 @@ Panel {
                   }
                 }
               }
-              Button {
+              SvgButton {
                 width: parent.width
                 text: I18n.t("fan_restore",root.effectiveLanguage)
-                iconText: "\uf2ea"
+                iconName: "restore"
                 foreground: root.foreground; accent: root.accent
                 fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
                 focusable: true; bordered: true; enabled: !fanController.running
@@ -1648,11 +1679,11 @@ Panel {
         height: Style.space(32)
         spacing: Style.spacing.md
 
-        Button {
+        SvgButton {
           width: (parent.width - parent.spacing) / 2
           height: parent.height
           text: I18n.t("reset_defaults", root.effectiveLanguage)
-          iconText: "\uf2ea"
+          iconName: "restore"
           foreground: root.dim
           accent: root.accent
           fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
@@ -1661,11 +1692,11 @@ Panel {
           onClicked: root.resetPreferences()
         }
 
-        Button {
+        SvgButton {
           width: (parent.width - parent.spacing) / 2
           height: parent.height
           text: I18n.t("done", root.effectiveLanguage)
-          iconText: "\uf00c"
+          iconName: "check"
           foreground: root.foreground
           accent: root.accent
           fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
@@ -1969,8 +2000,9 @@ Panel {
                 fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
                 onChanged: function(n){diagnosticExport.hours=Number(n)}
               }
-              Button {
+              SvgButton {
                 objectName: "diagnosticExportButton"
+                iconName: "export"
                 width: parent.width
                 text: I18n.t(diagnosticExport.running ? "diagnostic_exporting" : "diagnostic_export",root.effectiveLanguage)
                 enabled: !diagnosticExport.running
@@ -1988,8 +2020,9 @@ Panel {
                 font.family: root.bar ? root.bar.fontFamily : Style.font.family
                 font.pixelSize: Style.font.caption;wrapMode: Text.WrapAnywhere
               }
-              Button {
+              SvgButton {
                 objectName: "diagnosticCopyPromptButton"
+                iconName: "copy"
                 width: parent.width
                 visible: diagnosticExport.resultPath!==""
                 text: I18n.t("diagnostic_copy_prompt",root.effectiveLanguage)
@@ -2021,10 +2054,11 @@ Panel {
         height: Style.space(30)
         spacing: Style.spacing.md
 
-        Button {
+        SvgButton {
           width: (parent.width - parent.spacing) / 2
           height: parent.height
-          text: "󰅙 " + I18n.t("btn_terminate", root.effectiveLanguage)
+          text: I18n.t("btn_terminate", root.effectiveLanguage)
+          iconName: "stop"
           focusable: true
           bordered: true
           foreground: root.foreground
@@ -2034,10 +2068,11 @@ Panel {
           onClicked: processActions.request(root.selectedProcess, false)
         }
 
-        Button {
+        SvgButton {
           width: (parent.width - parent.spacing) / 2
           height: parent.height
-          text: "󰚌 " + I18n.t("btn_kill", root.effectiveLanguage)
+          text: I18n.t("btn_kill", root.effectiveLanguage)
+          iconName: "kill"
           focusable: true
           bordered: true
           foreground: root.urgent
@@ -2238,6 +2273,7 @@ Panel {
     }
     readonly property var gpuTemperature: activity.sensorsFresh && gpu
       ? activity.sensorSnapshot.temperatures.filter(function(sensor) { return sensor.category === "gpu" && sensor.location === summary.gpu.id })[0] || null : null
+    iconName: kind
     label: kind === "cpu" ? (!root.expanded && root.compactTileCount === 3 ? "CPU" : root.cpuCardLabel())
       : kind === "ram" ? (!root.expanded && root.compactTileCount === 3 ? I18n.t("ram",root.effectiveLanguage) : root.memoryCardLabel())
       : kind === "gpu" && gpu ? root.compactGpuName(gpu) : root.tileTitle(kind)
@@ -2276,6 +2312,7 @@ Panel {
     id: metricCard
 
     property string label: ""
+    property string iconName: ""
     property string badge: ""
     property string value: ""
     property string detail: ""
@@ -2309,9 +2346,20 @@ Panel {
         anchors.right: parent.right
         height: Math.max(cardLabel.implicitHeight, cardBadge.visible ? cardBadge.implicitHeight : 0)
 
+        SvgIcon {
+          id: metricIcon
+          visible: metricCard.iconName !== ""
+          name: metricCard.iconName
+          width: Style.font.caption
+          height: width
+          anchors.left: parent.left
+          anchors.verticalCenter: parent.verticalCenter
+          tint: root.dim
+        }
         PanelSectionHeader {
           id: cardLabel
-          anchors.left: parent.left
+          anchors.left: metricIcon.visible ? metricIcon.right : parent.left
+          anchors.leftMargin: metricIcon.visible ? Style.spacing.xs : 0
           anchors.right: cardBadge.visible ? cardBadge.left : parent.right
           anchors.verticalCenter: parent.verticalCenter
           anchors.rightMargin: cardBadge.visible ? Style.spacing.xs : 0
@@ -2753,12 +2801,12 @@ Panel {
           border.color: killMouse.containsMouse ? root.urgent : "transparent"
           border.width: 1
 
-          Text {
+          SvgIcon {
             anchors.centerIn: parent
-            text: "✕"
-            color: killMouse.containsMouse ? root.urgent : Util.alpha(root.foreground, 0.45)
-            font.pixelSize: Style.font.caption
-            font.bold: true
+            name: "close"
+            width: Style.font.caption
+            height: width
+            tint: killMouse.containsMouse ? root.urgent : Util.alpha(root.foreground, 0.45)
           }
         }
 

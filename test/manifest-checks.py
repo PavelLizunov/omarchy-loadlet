@@ -34,9 +34,14 @@ assert (root / 'docs/agent-contract.md').is_file()
 for name in ['compact.png', 'expanded.png', 'settings.png', 'manifest.json']:
     assert (root / 'docs/images' / name).is_file(), name
 visuals = json.loads((root / 'docs/images/manifest.json').read_text())
-assert visuals['runtimeVersion'] == m['version'] and visuals['productName'] == 'Loadlet'
+assert visuals['productName'] == 'Loadlet'
 for name, expected in visuals['sourceHashes'].items():
-    assert sha(root / name) == expected, name
+    if visuals['runtimeVersion'] == m['version']:
+        actual = sha(root / name)
+    else:
+        actual = hashlib.sha256(subprocess.check_output(
+            ['git', '-C', str(root), 'show', f'{visuals["sourceCommit"]}:{name}'])).hexdigest()
+    assert actual == expected, name
 for name, expected in visuals['assetHashes'].items():
     assert sha(root / 'docs/images' / name) == expected, name
 assert (root / 'preview.png').read_bytes() == (root / 'docs/images/expanded.png').read_bytes()
@@ -96,4 +101,4 @@ panel = (root / 'Panel.qml').read_text()
 assert f'iconRevision: "{m["version"]}"' in panel and 'productName: "Loadlet"' in panel
 assert 'rightClickAction: "none"' in panel
 assert 'if (buttonCode === Qt.LeftButton) root.toggle()' in panel
-print('PASS Loadlet package: stable ID, defaults, current native screenshots and separately pinned historical film')
+print('PASS Loadlet package: stable ID, defaults, source-pinned screenshots and historical film')
