@@ -80,6 +80,111 @@ Item {
       wait(60)
     }
     function cleanup() { plugin.close(); plugin.bar=null; wait(60) }
+    function named(name) {
+      var item=nodes(plugin).filter(function(n){return n.objectName===name})[0]
+      verify(!!item,'Missing '+name)
+      return item
+    }
+    function test_all_pages_expand_data() {
+      return ['overview','cooling','fans','settings'].map(function(page){return {tag:page,page:page}})
+    }
+    function test_all_pages_expand(data) {
+      plugin.hintsVisible=false
+      plugin.sensorsOpen=data.page==='cooling'||data.page==='fans'
+      plugin.fansOpen=data.page==='fans'
+      plugin.setSettingsOpen(data.page==='settings');wait(20)
+      var button=named('expandButton'), panel=pick('fittedContentWidth')
+      verify(button.visible);var small=panel.width
+      mouseClick(button,button.width/2,button.height/2);wait(30)
+      compare(plugin.expanded,true);verify(panel.width>small)
+      compare(plugin.settingsOpen,data.page==='settings')
+      compare(plugin.sensorsOpen,data.page==='cooling'||data.page==='fans')
+      pick('moveRequested').forceActiveFocus();keyClick(Qt.Key_E);wait(30)
+      compare(plugin.expanded,false,'E works on every page')
+    }
+    function test_page_geometry_data() {
+      var result=[]
+      ;['cooling','fans','settings'].forEach(function(page){
+        ;[{font:12,width:340,height:360},{font:16,width:760,height:680},{font:24,width:960,height:660}].forEach(function(size){
+          result.push({tag:page+'-'+size.font,page:page,font:size.font,width:size.width,height:size.height})
+        })
+      })
+      return result
+    }
+    function test_page_geometry(data) {
+      host.width=data.width;host.height=data.height;Style.fontBaseSize=data.font
+      plugin.hintsVisible=false;plugin.sensorsOpen=data.page!=='settings';plugin.fansOpen=data.page==='fans'
+      plugin.setSettingsOpen(data.page==='settings');wait(30)
+      var panel=pick('fittedContentWidth'),button=named('expandButton')
+      verify(button.mapToItem(panel,button.width,button.height).x<=panel.width+1)
+      var viewport=named(data.page==='settings'?'settingsViewport':data.page==='fans'?'fansViewport':'coolingViewport')
+      verify(viewport.height>0);verify(viewport.contentHeight>0)
+      viewport.contentY=Math.max(0,viewport.contentHeight-viewport.height);wait(10)
+      if(data.page==='cooling') {
+        var chart=named('sensorHistoryChart')
+        verify(chart.mapToItem(viewport,0,chart.height).y<=viewport.height+1)
+      }
+    }
+    function test_cooling_navigation_and_scroll() {
+      plugin.hintsVisible=false;pick('moveRequested').forceActiveFocus()
+      keyClick(Qt.Key_H);wait(30);compare(plugin.sensorsOpen,true)
+      var viewport=named('coolingViewport')
+      verify(viewport.contentHeight>viewport.height,'The whole cooling page scrolls')
+      viewport.contentY=viewport.contentHeight-viewport.height;wait(10)
+      var chart=named('sensorHistoryChart')
+      verify(chart.mapToItem(viewport,0,chart.height).y<=viewport.height+1,'Chart reachable by scrolling')
+      var dropdown=named('sensorDropdown');dropdown.open();wait(10)
+      keyClick(Qt.Key_Down);keyClick(Qt.Key_Return);wait(20)
+      verify(plugin.selectedSensorId!=='')
+      plugin.fansOpen=true;pick('moveRequested').forceActiveFocus();keyClick(Qt.Key_Escape);wait(10)
+      compare(plugin.sensorsOpen,false);compare(plugin.fansOpen,false)
+      var overview=nodes(plugin).filter(function(n){return n.modelData&&n.modelData.key==='overview'})[0]
+      compare(overview.selected,true)
+      plugin.sensorsOpen=true;plugin.fansOpen=true;plugin.openDetails();wait(20)
+      compare(plugin.sensorsOpen,false);compare(plugin.expanded,true)
+    }
+    function test_chart_timestamp_selection() {
+      plugin.sensorsOpen=true;wait(20)
+      var chart=named('sensorHistoryChart')
+      chart.points=[{time:100,value:40},{time:110,value:50},{time:200,value:60}]
+      chart.selectAt(chart.width*0.12);compare(chart.selectedIndex,1)
+      chart.forceActiveFocus();keyClick(Qt.Key_Right);compare(chart.selectedIndex,2)
+      keyClick(Qt.Key_Left);compare(chart.selectedIndex,1)
+      chart.points=[{time:110,value:50},{time:200,value:60},{time:210,value:61}]
+      compare(chart.selectedPoint.time,110,'Selection follows the timestamp, not a shifting index')
+      chart.points=[];keyClick(Qt.Key_Left);compare(chart.selectedIndex,-1)
+    }
+    function test_fan_commands_inert() {
+      plugin.sensorsOpen=true;plugin.fansOpen=true;wait(20)
+      var proc=nodes(plugin).filter(function(n){return n.command&&n.command[0]==='pkexec'})[0]
+      verify(!!proc)
+      var boost=nodes(plugin).filter(function(n){return n.text==='60%'})[0]
+      mouseClick(boost,boost.width/2,boost.height/2);wait(10)
+      compare(proc.running,true);compare(proc.command.join(' '),'pkexec /usr/local/lib/loadlet/fan-control boost pwm2 60 10')
+      proc.running=false;proc.exited(126);wait(10);compare(plugin.fanStatusKey,'fan_action_failed')
+      var restore=nodes(plugin).filter(function(n){return n.iconText==='\uf2ea'&&n.text&&n.text.indexOf('Вернуть')>=0})[0]
+      mouseClick(restore,restore.width/2,restore.height/2);wait(10)
+      compare(proc.command.join(' '),'pkexec /usr/local/lib/loadlet/fan-control restore pwm2')
+      proc.running=false;proc.exited(0);compare(plugin.fanStatusKey,'fan_action_sent')
+      plugin.fanAction('pwm1',100,'boost');compare(proc.running,false)
+    }
+    function test_sensor_history_parse_failure() {
+      var proc=nodes(plugin).filter(function(n){return n.command&&n.command.indexOf('--sensor-history')>=0})[0]
+      verify(!!proc);plugin.historyReadError=false
+      proc.stdout.text='not-json';proc.stdout.streamFinished();proc.running=false;proc.exited(0)
+      compare(plugin.historyReadError,true,'Malformed success output remains an error')
+      plugin.loadSensorHistory();compare(plugin.historyReadError,false)
+      proc.stdout.text='{"sensors":{}}';proc.stdout.streamFinished();compare(plugin.historyReadError,true)
+      proc.running=false
+    }
+    function test_compact_gpu_survives_collapse() {
+      plugin.settings={locale:'ru',iconIndicator:false,compactTile0:'cpu',compactTile1:'gpu'}
+      plugin.setExpanded(true);MockData.populate(plugin.activityController)
+      plugin.setExpanded(false);wait(10)
+      compare(plugin.gpus.length,1,'Collapsing preserves a GPU used by a compact tile')
+      compare(plugin.compactRamStrip,true)
+      plugin.persistSettings({compactTile1:'ram'});compare(plugin.compactRamStrip,false)
+    }
     function test_geometry_data() {
       return [
         {tag:"normal",font:12,width:1600,height:1200,fontOnly:false},
@@ -104,6 +209,10 @@ Item {
       var right=0
       for(var i=0;i<cols.children.length;i++) if(cols.children[i].visible) right=Math.max(right,cols.children[i].x+cols.children[i].width)
       verify(cols.x+right<=row.width,"Columns exceed row")
+    }
+    function test_expanded_process_budget() {
+      plugin.hintsVisible=false;plugin.setExpanded(true);wait(30)
+      verify(pick("ensureSelected").height>=plugin.processRowHeight*4,"Expanded summaries reserve four process rows")
     }
     function test_expanded_clamped() {
       Style.fontBaseSize=24;host.width=960;host.height=660

@@ -7,6 +7,9 @@ const source = fs.readFileSync(path.join(__dirname, '../ActivityController.qml')
 const timer = () => ({started: 0, stopped: 0, interval: 0,
   start() { this.started++; }, restart() { this.started++; }, stop() { this.stopped++; }});
 const context = vm.createContext({
+  sensorRecording: false, sensorWriterEnabled: false, sensorRecordingError: "", sensorsActive: false,
+  gpuEnabled: false, storageEnabled: false, sensorSummaryEnabled: false,
+  sensorHistory: {}, sensorsUpdatedAt: 0,
   Heat: {}, journalEnabled: false, journalWriterEnabled: false, journalError: '', heatLevel: 0,
   Model: require('../Model.js'), I18n: {t: x => x}, language: 'ru', active: true, collectionEnabled: true,
   state: 'stopped', pending: '', buffer: [], bufferSize: 0, failures: 0,
@@ -118,3 +121,16 @@ context.journalWriterEnabled=false;context.journalEnabled=true;context.pending='
 context.due={'journal-on':Date.now()+60000,glance:Date.now()+15000,thermals:Date.now()+15000};
 context.reader.writes=[];vm.runInContext('dispatch()',context);assert.equal(context.reader.writes.length,0,'failed writer retries bounded, no detail sampling until enabled');
 console.log('PASS journal admission: writer configuration first, process cadence 30s, stop and bounded failure retry');
+context.journalEnabled=false;context.journalWriterEnabled=false;context.sensorRecording=true;
+context.sensorWriterEnabled=false;context.pending='';context.due={};context.reader.writes=[];
+vm.runInContext('dispatch()',context);assert.equal(context.reader.writes[0],'sensors-on\n');
+context.pending='';context.raw='schema\tactivity-sensor-recording\t1\nenabled\t1';
+vm.runInContext('accept("sensors-on",raw)',context);assert.equal(context.sensorWriterEnabled,true);
+context.raw='schema\tactivity-sensors\t1\nsample\t100\ntemperature\tcpu\tk10temp\tTctl\t54000\tcpu\tAMD\tpackage0';
+vm.runInContext('accept("sensors",raw)',context);assert.equal(context.sensorHistory.cpu.length,1);
+assert.equal(context._sensorSnapshot.temperatures[0].value,54);
+vm.runInContext('resetData()',context);assert.equal(context.sensorHistory.cpu.length,1,'Recording history survives panel close');
+context.sensorRecording=false;context.pending='';context.reader.writes=[];context.due={};
+vm.runInContext('dispatch()',context);assert.equal(context.reader.writes[0],'sensors-off\n');
+vm.runInContext('resetData()',context);assert.equal(Object.keys(context.sensorHistory).length,0);
+console.log('PASS sensor recording: configuration-first admission, units, retained background history, explicit stop');

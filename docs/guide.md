@@ -151,7 +151,9 @@ work, exact energy use or the physical cause of heat by itself.
 - Left-click the bar icon to toggle the panel, honoring the saved detailed-view
   preference. Right-click has no action. Expand inside the panel or press `e` for
   the built-in process view; the existing details IPC route remains available.
-- `e`: expand/collapse details, `/`: search, `j`/`k`: select, `s`: settings.
+- Expand and `e` resize every page without leaving it, including Cooling, Fans
+  and Settings. This is a fitted larger panel, not compositor full-screen.
+- `h`: toggle Cooling; `/`: search, `j`/`k`: select, `s`: settings.
 - Click a process to select it. Terminate sends SIGTERM to that exact PID and
   sampled start time. Force terminate sends SIGKILL only after a separate confirmation.
 - No automatic escalation or promotion to a same-name parent process.
@@ -211,12 +213,14 @@ is inferred. Unknown drivers retain an explicit unidentified-device heading.
 
 ## Cooling tab
 
-The pinned Overview/Cooling tabs share the same fitted panel frame. The Cooling
+The pinned Overview/Cooling/Fans tabs share the same fitted panel frame. The Cooling
 page uses a device/sensor selector and one detailed chart, rather than a tall
 stack of graphs. It reads hwmon temperature and fan inputs, plus
 active NVIDIA temperatures and per-fan percentages from the existing NVML provider.
 RPM is displayed only for a sensor that actually supplies RPM. Missing fan data
-is unavailable, not zero. No fan-control or driver-configuration writes are made.
+is unavailable, not zero. Cooling is read-only; the separate Fans page requires
+the optional authenticated adapter for timed overrides. The entire Cooling page
+scrolls, including recording controls, so charts stay reachable in small frames.
 
 Cooling uses the existing serial native reader. Without background recording,
 open-page sampling targets 3 seconds and retains up to 240 volatile samples.

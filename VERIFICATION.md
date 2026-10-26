@@ -1,5 +1,50 @@
 # Loadlet verification
 
+## 2.11.1 page audit — 2026-10-26
+
+The user explicitly requested visual inspection of every page and comprehensive
+bug checks after noticing expansion was restricted to Overview. Expand and E now
+resize Overview, Cooling, Fans and Settings without changing page. This is the
+existing fitted expanded panel, not compositor full-screen.
+
+Corrected Cooling's nearly hidden compact chart by scrolling the whole page;
+fixed stale Fans selection after Escape and the details IPC destination. Compact
+GPU samples survive collapse when their tile still needs them. Expanded summaries
+reserve four process rows. Chart selection follows timestamps as history rolls;
+isolated points paint, empty navigation stays unselected, duplicate timestamps
+are merged and missing current sensors cannot display historical values as live.
+Malformed/oversized history and deadline failures retain an error state.
+The unsupported Fans glyph was replaced with an available refresh glyph.
+
+Baseline make check failed on obsolete 2.8.1 media provenance. The isolated
+controller gate also lacked new sensor properties. Both were corrected. Five
+fresh current-source screenshots were inspected inline; the archived film is
+explicitly labeled 2.8.1 and checked against its pinned historical source, not
+relabeled as current. Additional inspected states include expansion, scroll,
+empty/loading/error, languages en/ru/de/zh, font16, narrow Fans and DPR2.
+Popup overlays lie outside the rendered subtree; dropdown pixels are not proven.
+AT-SPI desktop-bridge warnings remain in renderer logs; no QML diagnostics.
+
+Full local make check passed: package/core gates, 59 actual-panel QtTest results,
+four native-bar results at each DPR1/2, isolated native add/enable/update and
+manifest validation. This includes page geometry at fonts12/16/24, button/E,
+Escape, chart selection, dropdown keys, malformed history, GPU persistence and
+inert fan argv/failure handling. A real bounded JSONL history fixture passed.
+Fan helper expiry, exception rollback and unit recovery were simulated with
+temporary files only. A discovered mode0 issue now preserves full speed instead
+of lowering it to a requested percentage. No real fan duty was changed during
+this audit. The local native rebuild reproduced the distributed executable.
+
+Independent review was not performed under the direct-work contract. Physical
+Wayland interaction, real authentication, actual timed hardware recovery,
+connector identity, every theme and multi-hour behavior remain unverified.
+Applied through a fresh versioned runtime directory, preserving saved settings.
+All 15 runtime files match source. Read-only existing-shell status reports
+iconRevision 2.11.1, the new entry point, ready state, 13 temperatures, 5 fans,
+4 control channels and no reader error. The adapter is root-owned mode755 and
+matches source. No fan override unit was active at replacement. Publication
+and remote CI remain distinct from these installed/loaded observations.
+
 ## 2.8.1 release candidate — 2026-10-20
 
 This patch combines bounded HiDPI image dimensions with restoration of the

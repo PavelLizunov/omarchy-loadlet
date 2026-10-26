@@ -8,10 +8,12 @@ with the QML and Python helpers from this public repository.
 The distributed executable was rebuilt from `activity-sampler.cpp`,
 `DiagnosticJournal.h` and Makefile using GCC 16.2.1 20260810 on Linux x86_64
 for motherboard sensor/control discovery, background history and NVIDIA fixes.
-The executable and source bytes changed.
-The exact build-input and executable hashes and size are recorded in the
-machine-readable provenance. No separate reproducibility check or test suite
-was run for this fix.
+The 2.11.1 audit changes only a test target in Makefile, not native build flags
+or C++ inputs. A fresh local build reproduced the distributed 260216-byte binary
+with SHA256 `614c0aefd9f1cd0c2003dc82c8695d87dd95cb4e20ed0affbdddb11f14d1687c`.
+Full local `make check` passed, including current UI and simulated fan controls.
+The exact build-input hashes are recorded in the machine-readable provenance.
+Remote CI reproduction remains separate from this local result.
 
 [Machine-readable provenance](binary-provenance.json) binds source, header,
 Makefile and executable SHA256 values. Build hardening and source-path mapping

@@ -96,7 +96,7 @@ def worker(channel, percent, minutes):
         # Full speed during takeover avoids the driver's automatic-mode EBUSY.
         mode.write_text('0')
         mode.write_text('1')
-        target = max(previous['pwm'], target)
+        target = 255 if previous['mode'] == 0 else max(previous['pwm'], target)
         pwm.write_text(str(cooling_floor(target)))
         end = time.monotonic() + minutes*60
         while not stopped and time.monotonic() < end:

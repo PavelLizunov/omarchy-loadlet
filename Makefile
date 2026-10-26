@@ -44,6 +44,7 @@ check-core: activity-sampler
 	node test/math-checks.js
 	node test/catalog-checks.js
 	PYTHONDONTWRITEBYTECODE=1 python3 test/diagnostic-checks.py
+	PYTHONDONTWRITEBYTECODE=1 python3 test/sensor-controls.py
 	PYTHONDONTWRITEBYTECODE=1 python3 test/nvidia-check.py
 
 check-ui:

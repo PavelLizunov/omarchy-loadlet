@@ -385,7 +385,7 @@ Item {
   Component.onCompleted: if (collectionEnabled) start()
 
   onExpandedChanged: {
-    if (!expanded) {
+    if (!expanded && !gpuEnabled) {
       previousGpu = Model.emptyGpuSnapshot()
       _gpus = []; _gpuSnapshot = Model.emptyGpuSnapshot()
     } else {

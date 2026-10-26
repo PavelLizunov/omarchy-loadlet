@@ -1,17 +1,17 @@
 {
   "schemaVersion": 1,
   "platform": "linux-x86_64",
-  "sourceBaseCommit": "3506412a58a2a3798d1e6d0eb74a02516dd533c4",
+  "sourceBaseCommit": "523cd5ec1400eff855ad2c1429f0853856203e21",
   "sha256": {
     "activity-sampler": "614c0aefd9f1cd0c2003dc82c8695d87dd95cb4e20ed0affbdddb11f14d1687c",
     "activity-sampler.cpp": "8076a72d0d76e550116d59d2a5f497b8b1939c5fd7aabb60f097a21ac8792db1",
     "DiagnosticJournal.h": "c0b2c5606ff36dc7bf5d27cc1b037721afb79dfc6709ebcef8e924f888b4d90d",
-    "Makefile": "ff7b9bdcc71f52ab98026602c367f3f51bf73b6a759fd4a4a03546569c524f71"
+    "Makefile": "4e4065f4dfd847792506c8201ea4f1116b1145f995f6d762aba009ffd3a84f6b"
   },
   "size": 260216,
   "compiler": "GCC 16.2.1 20260810",
   "buildCommand": "LC_ALL=C make -B activity-sampler",
-  "buildResult": "Built successfully from the recorded source, header and Makefile; distributed executable replaced with this build",
+  "buildResult": "Rebuilt after audit test-target changes; executable is byte-identical to the 2.11.0 package",
   "dynamicRequirements": {
     "glibc": "2.34",
     "libstdc++": "GLIBCXX_3.4.32",
@@ -24,8 +24,7 @@
   "runtimeBuild": false,
   "runtimeDownload": false,
   "limits": [
-    "Reproducibility and test suites were not rerun for the chart/IT8613/compact-RAM implementation",
-    "Native fan-channel discovery and one manual boost/restore were observed separately; UI interaction and timed restoration remain unverified",
+    "Fan helper expiry and rollback tested on temporary files, not hardware; real authentication remains unverified",
     "x86_64 only; no prebuilt ARM support",
     "Maintainer listing approval is separate from source and binary evidence"
   ]

@@ -75,6 +75,23 @@ function populate(ctrl) {
     }]
   }
 
+  var now = Date.now()/1000
+  var temperatures = [
+    {id:'cpu-tctl',chip:'k10temp',label:'Tctl',category:'cpu',owner:'AMD Ryzen 9 7945HX3D',value:54,location:'package0'},
+    {id:'gpu-temp',chip:'nvidia',label:'edge',category:'gpu',owner:'NVIDIA GeForce RTX 5060 Ti',value:48,location:'0000:01:00.0'},
+    {id:'board-temp1',chip:'it8613',label:'temp1',category:'motherboard',owner:'ITE IT8613E',value:42,location:'isa0a30'}
+  ]
+  var fans = [{id:'fan2',chip:'it8613',label:'fan2',category:'motherboard',owner:'ITE IT8613E',unit:'rpm',value:700,location:'isa0a30'}]
+  ctrl._sensorSnapshot = {schema:1,sample:270000,temperatures:temperatures,fans:fans,
+    controls:[2,3,4,5].map(function(n){return {id:'pwm'+n,rpm:700+n*50,duty:40,mode:2}})}
+  var history = {}
+  temperatures.concat(fans).forEach(function(sensor){
+    history[sensor.id] = Array.from({length:120},function(_,i){return {time:270000-(119-i)*3,wallTime:now-(119-i)*3,value:sensor.value+Math.sin(i/7)*3}})
+  })
+  ctrl.sensorHistory=history
+  ctrl.sensorsUpdatedAt=Date.now()
+  ctrl.freshnessClock=Date.now()
+
   ctrl._processes = [
     { pid: 41820, startTicks: 1000, name: "firefox", user: "demo", cpu: 18.4, rss: 2548039680, memory: 7.4, elapsed: 48210 },
     { pid: 30334, startTicks: 2000, name: "quickshell", user: "demo", cpu: 6.2, rss: 442499072, memory: 1.3, elapsed: 11240 },

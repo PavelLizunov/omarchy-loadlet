@@ -67,7 +67,7 @@ Panel {
         journalError: activity.journalError,
         heatThreshold: activity.heatThreshold,
         productName: "Loadlet",
-        iconRevision: "2.8.1",
+        iconRevision: "2.11.1",
         rightClickAction: "none",
         iconTooltip: button.tooltipText,
         iconConsumer: String(Qt.resolvedUrl("Panel.qml")),
@@ -127,8 +127,16 @@ Panel {
     return Object.keys(byId).map(function(id) { return byId[id] })
   }
   readonly property var selectedSensor: coolingSensors.filter(function(sensor) { return sensor.id === root.selectedSensorId })[0] || coolingSensors[0] || null
-  function loadSensorHistory() { if (!sensorHistoryReader.running) { historyPending = true; sensorHistoryReader.running = true } }
-  onSensorsOpenChanged: if (sensorsOpen && !fansOpen) loadSensorHistory()
+  function loadSensorHistory() {
+    if (sensorHistoryReader.running) return
+    historyPending = true
+    historyReadError = false
+    sensorHistoryReader.running = true
+  }
+  onSensorsOpenChanged: {
+    if (!sensorsOpen) fansOpen = false
+    else if (!fansOpen) loadSensorHistory()
+  }
   Component.onDestruction: {
     historyDeadline.stop(); fanDeadline.stop()
     if (sensorHistoryReader.running) sensorHistoryReader.signal(9)
@@ -138,12 +146,23 @@ Panel {
     id: sensorHistoryReader
     command: ["python3", "-I", decodeURIComponent(String(Qt.resolvedUrl("activity-report")).replace("file://", "")), "--sensor-history"]
     stdout: StdioCollector { waitForEnd: true; onStreamFinished: {
-      if (text.length <= 240000) { try { root.savedSensors = JSON.parse(text).sensors || [] } catch (error) {} }
+      try {
+        if (text.length > 240000) throw new Error("History output exceeds budget")
+        var sensors = JSON.parse(text).sensors
+        if (!Array.isArray(sensors) || sensors.length > 128 || sensors.some(function(sensor) {
+          return !sensor || typeof sensor.id !== "string" || !Array.isArray(sensor.history)
+            || sensor.history.length > 3001 || sensor.history.some(function(point) {
+              return !point || typeof point.time !== "number" || !isFinite(point.time)
+                || typeof point.value !== "number" || !isFinite(point.value)
+            })
+        })) throw new Error("Invalid sensor history")
+        root.savedSensors = sensors
+      } catch (error) { root.historyReadError = true }
     } }
     onStarted: historyDeadline.restart()
-    onExited: function(code) { historyDeadline.stop(); root.historyPending = false; root.historyReadError = code !== 0 }
+    onExited: function(code) { historyDeadline.stop(); root.historyPending = false; root.historyReadError = root.historyReadError || code !== 0 }
   }
-  Timer { id: historyDeadline; interval: 5000; onTriggered: { sensorHistoryReader.signal(9); root.historyPending = false } }
+  Timer { id: historyDeadline; interval: 5000; onTriggered: { sensorHistoryReader.signal(9); root.historyPending = false; root.historyReadError = true } }
   property bool settingsControlActive: false
   property bool hintsVisible: false
   property bool languageExpanded: false
@@ -325,6 +344,7 @@ Panel {
   function openDetails() {
     root.open()
     root.setSettingsOpen(false)
+    root.sensorsOpen = false
     if (!root.expanded) root.setExpanded(true)
     else root.languageExpanded = false
   }
@@ -754,6 +774,19 @@ Panel {
       // The real KeyboardPanel lives in a separate window. Handle fallback keys
       // here, inside that window, rather than on the bar widget's root item.
       Keys.priority: root.settingsOpen || root.languageExpanded || root.sensorsOpen ? Keys.AfterItem : Keys.BeforeItem
+      Keys.forwardTo: [pageShortcuts]
+      Item {
+        id: pageShortcuts
+        Keys.onPressed: function(event) {
+          if (processActions.confirmationOpen || (root.searchField && root.searchField.activeFocus)) return
+          var key = String(event.text || "").toLowerCase()
+          if (key === "e") { root.setExpanded(!root.expanded); event.accepted = true }
+          else if (key === "h" && !root.settingsOpen && !root.languageExpanded) {
+            processActions.cancel(); root.fansOpen = false; root.sensorsOpen = !root.sensorsOpen
+            event.accepted = true
+          }
+        }
+      }
       Keys.onEscapePressed: {
         if (processActions.confirmationOpen) processActions.cancel()
         else if (root.languageExpanded) root.languageExpanded = false
@@ -809,12 +842,12 @@ Panel {
         if (processActions.confirmationOpen) return
         var raw = String(text || "")
         var key = raw.toLowerCase()
-        if (key === "s") root.setSettingsOpen(!root.settingsOpen)
+        if (key === "e") root.setExpanded(!root.expanded)
+        else if (key === "s") root.setSettingsOpen(!root.settingsOpen)
         else if (key === "?") root.hintsVisible = !root.hintsVisible
         else if (root.settingsOpen || root.languageExpanded) return
         else if (key === "h") { processActions.cancel(); root.fansOpen = false; root.sensorsOpen = !root.sensorsOpen }
         else if (root.sensorsOpen) return
-        else if (key === "e") root.setExpanded(!root.expanded)
         else if (key === "r") root.refresh()
         else if (key === "x" && root.selectedProcess) processActions.request(root.selectedProcess, false)
         else if (key === "/" && root.expanded) root.focusSearch()
@@ -904,7 +937,7 @@ Panel {
           model: [
             { key: "overview", icon: "\uf080", sensors: false, fans:false },
             { key: "sensors", icon: "\uf2c9", sensors: true, fans:false },
-            { key: "fans", icon: "\uf863", sensors: true, fans:true }
+            { key: "fans", icon: "\uf021", sensors: true, fans:true }
           ]
           Button {
             required property var modelData
@@ -1098,7 +1131,7 @@ Panel {
 
       PanelActionButton {
         id: expandButton
-        visible: !root.settingsOpen && !root.sensorsOpen
+        objectName: "expandButton"
         size: parent.parent.headerControlHeight
         anchors.verticalCenter: parent.verticalCenter
         iconText: root.expanded ? "\uf066" : "\uf065"
@@ -1313,8 +1346,17 @@ Panel {
 
   Component {
     id: sensorsContent
-    Item {
+    Flickable {
+      objectName: "coolingViewport"
       anchors.fill: parent
+      contentWidth: width
+      contentHeight: coolingBody.implicitHeight
+      clip: true; boundsBehavior: Flickable.StopAtBounds
+      ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+      Column {
+        id: coolingBody
+        width: parent.width - Style.spacing.sm
+        spacing: Style.spacing.sm
       Column {
         id: coolingControls
         width: parent.width
@@ -1340,6 +1382,7 @@ Panel {
         }
         Dropdown {
           width: parent.width
+          objectName: "sensorDropdown"
           label: I18n.t("sensor_device", root.effectiveLanguage)
           value: root.selectedSensor ? root.selectedSensor.id : ""
           options: root.coolingSensors.map(function(sensor) {
@@ -1370,19 +1413,11 @@ Panel {
           }
         }
       }
-      Flickable {
-        anchors.top: coolingControls.bottom
-        anchors.topMargin: Style.spacing.sm
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left; anchors.right: parent.right
-        contentWidth: width
-        contentHeight: selectedSensorCard.height
-        clip: true; boundsBehavior: Flickable.StopAtBounds
-        ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
         SensorCard {
           id: selectedSensorCard
           visible: !!root.selectedSensor
-          width: parent.width - Style.spacing.sm
+          width: parent.width
+          height: visible ? implicitHeight : 0
           sensor: root.selectedSensor || ({})
           fan: sensor.fan === true
         }
@@ -1402,6 +1437,7 @@ Panel {
   Component {
     id: fansContent
     Flickable {
+      objectName: "fansViewport"
       anchors.fill: parent
       contentWidth: width
       contentHeight: fanBody.implicitHeight
@@ -1509,6 +1545,9 @@ Panel {
       var live = sensor.id ? activity.sensorHistory[sensor.id] || [] : []
       var offset = Date.now()/1000 - activity.sensorSnapshot.sample
       var all = (saved ? saved.history : []).concat(live.map(function(point) { return {time:point.wallTime || point.time + offset,value:point.value} }))
+      var byTime = {}
+      all.forEach(function(point) { byTime[point.time] = point })
+      all = Object.keys(byTime).map(function(time) { return byTime[time] })
       var cutoff = Date.now()/1000 - root.sensorWindowSeconds
       return all.filter(function(point) { return point.time >= cutoff }).sort(function(a,b) { return a.time-b.time })
     }
@@ -1520,7 +1559,8 @@ Panel {
       return sensor.unit === "percent" ? Math.round(value) + "%"
         : I18n.t("fan_rpm", root.effectiveLanguage, Math.round(value))
     }
-    height: sensorCardBody.implicitHeight + Style.spacing.md * 2
+    implicitHeight: sensorCardBody.implicitHeight + Style.spacing.md * 2
+    height: implicitHeight
     Column {
       id: sensorCardBody
       x: Style.spacing.md
@@ -1557,7 +1597,8 @@ Panel {
       }
       Text {
         width: parent.width
-        text: activity.sensorsFresh && sensorCard.sensor.value !== undefined ? sensorCard.valueText(sensorCard.sensor.value) : "—"
+        text: activity.sensorsFresh && root.currentSensors.some(function(item) { return item.id === sensorCard.sensor.id })
+          && sensorCard.sensor.value !== undefined ? sensorCard.valueText(sensorCard.sensor.value) : "—"
         textFormat: Text.PlainText
         color: !sensorCard.fan && sensorCard.sensor.value >= activity.heatThreshold ? root.urgent : root.accent
         font.family: root.bar ? root.bar.fontFamily : Style.font.family
@@ -2041,14 +2082,14 @@ Panel {
         anchors.right: parent.right
         spacing: Style.spacing.xs
 
-        // 6 Summary Cards in 3 columns
+        // Scroll summaries separately so processes retain useful vertical space.
         Flickable {
           id: summaryViewport
           width: parent.width
           height: Math.min(summaryGrid.implicitHeight, Math.max(Style.space(72),
             parent.parent.height - expandedActions.height
               - (expandedHintBar.visible ? expandedHintBar.height + Style.spacing.xs : 0)
-              - Style.space(130)))
+              - Math.max(Style.space(130), root.processRowHeight * 4 + Style.space(74))))
           contentWidth: width
           contentHeight: summaryGrid.implicitHeight
           clip: true

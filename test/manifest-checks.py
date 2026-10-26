@@ -2,6 +2,7 @@
 from pathlib import Path, PurePosixPath
 import hashlib
 import json
+import subprocess
 
 root = Path(__file__).resolve().parents[1]
 sha = lambda path: hashlib.sha256(path.read_bytes()).hexdigest()
@@ -42,7 +43,11 @@ assert (root / 'preview.png').read_bytes() == (root / 'docs/images/expanded.png'
 video = json.loads((root / 'docs/video/qa.json').read_text())
 assert video['durationSeconds'] == 16 and video['fps'] == 30 and video['frames'] == 480
 assert video['silent'] and video['fullDecode'] == 'PASS' and video['fastStart'] == 'PASS'
-assert video['productName'] == 'Loadlet' and video['runtimeVersion'] == m['version']
+assert video['productName'] == 'Loadlet' and video['runtimeVersion'] == '2.8.1'
+# The film remains a labeled historical release, never current-source evidence.
+film_revision = '84ede6bbd8354d5e718f6700f95202e73c4e85d7'
+def film_sha(name):
+    return hashlib.sha256(subprocess.check_output(['git', '-C', str(root), 'show', f'{film_revision}:{name}'])).hexdigest()
 for name, item in video['outputs'].items():
     data = (root / 'docs/video' / name).read_bytes()
     assert len(data) == item['bytes'] and hashlib.sha256(data).hexdigest() == item['sha256'], name
@@ -81,13 +86,14 @@ while offset < len(animation):
 assert offset == len(animation) and loop == 0 and frames == inline['encodedFrames']
 assert frames > 1 and duration == inline['durationMs'] and abs(duration - 16000) <= 1
 assets = json.loads((root / 'docs/video/assets/manifest.json').read_text())
-assert assets['runtimeVersion'] == m['version'] and assets['productName'] == 'Loadlet'
+assert assets['runtimeVersion'] == video['runtimeVersion'] and assets['productName'] == 'Loadlet'
 for name, item in assets['assets'].items():
     assert sha(root / 'docs/video/assets' / name) == item['sha256'], name
 for name, expected in assets['sourceHashes'].items():
-    assert sha(root / name) == expected, name
+    assert film_sha(name) == expected, name
+assert 'Historical 2.8.1 walkthrough' in readme
 panel = (root / 'Panel.qml').read_text()
 assert f'iconRevision: "{m["version"]}"' in panel and 'productName: "Loadlet"' in panel
 assert 'rightClickAction: "none"' in panel
 assert 'if (buttonCode === Qt.LeftButton) root.toggle()' in panel
-print('PASS clean Loadlet package: stable ID, brand, defaults, paths, current native assets and complete inline film')
+print('PASS Loadlet package: stable ID, defaults, current native screenshots and separately pinned historical film')

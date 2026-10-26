@@ -4,6 +4,7 @@ import qs.Commons as Host
 
 Item {
   id: root
+  objectName: "sensorHistoryChart"
   property var points: []
   property color lineColor: Host.Color.accent
   property real ceiling: 120
@@ -22,7 +23,13 @@ Item {
       if (Math.abs(points[i].time - target) < Math.abs(points[nearest].time - target)) nearest = i
     selectedIndex = nearest
   }
-  onPointsChanged: { selectedIndex = Math.min(selectedIndex, points.length - 1); plot.requestPaint() }
+  onPointsChanged: {
+    var time = selectedTime
+    selectedIndex = time < 0 ? -1 : points.findIndex(function(point) { return point.time === time })
+    plot.requestPaint()
+  }
+  property double selectedTime: -1
+  onSelectedIndexChanged: selectedTime = selectedIndex >= 0 && selectedIndex < points.length ? points[selectedIndex].time : -1
   onCeilingChanged: plot.requestPaint()
   onLineColorChanged: plot.requestPaint()
   Text {
@@ -61,6 +68,15 @@ Item {
       context.strokeStyle = root.lineColor
       context.lineWidth = Math.max(1, Style.spaceReal(1.5))
       context.stroke()
+      root.points.forEach(function(point, index) {
+        if ((index === 0 || point.time - root.points[index - 1].time > 60)
+            && (index === root.points.length - 1 || root.points[index + 1].time - point.time > 60)) {
+          context.beginPath()
+          context.arc(root.xFor(point), height - Math.max(0, Math.min(1, point.value / maximum)) * (height - 1), 2, 0, Math.PI * 2)
+          context.fillStyle = root.lineColor
+          context.fill()
+        }
+      })
     }
     Rectangle {
       visible: !!root.selectedPoint
@@ -94,6 +110,6 @@ Item {
     }
   }
   activeFocusOnTab: true
-  Keys.onLeftPressed: selectedIndex = Math.max(0, selectedIndex - 1)
+  Keys.onLeftPressed: selectedIndex = points.length ? Math.max(0, selectedIndex - 1) : -1
   Keys.onRightPressed: selectedIndex = Math.min(points.length - 1, selectedIndex + 1)
 }

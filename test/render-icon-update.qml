@@ -19,6 +19,11 @@ Rectangle {
   property int loadThreshold: 50
   property bool motionPreview: false
   property bool settingsBottom: false
+  property bool expandedView: false
+  property bool pageBottom: false
+  property bool sensorDropdown: false
+  property bool languageOpen: false
+  property int tileCount: 2
   property int shapePage: 0
   property int demoHeatLevel: 1
   property string diagnosticDemo: ""
@@ -48,6 +53,15 @@ Rectangle {
         p.activityController.stop()
         if (fixture.sampleState!=='loading' && fixture.sampleState!=='error') MockData.populate(p.activityController)
         var ctrl=p.activityController, high=fixture.sampleState==='hot'
+        p.sensorsOpen=fixture.mode==='cooling' || fixture.mode==='fans'
+        p.fansOpen=fixture.mode==='fans'
+        if (fixture.sampleState==='empty' || fixture.sampleState==='loading' || fixture.sampleState==='error') {
+          ctrl._sensorSnapshot={schema:1,sample:270000,temperatures:[],fans:[],controls:[]}
+          ctrl.sensorHistory={}
+        }
+        if (fixture.sampleState==='error') p.historyReadError=true
+        p.historyPending=fixture.sampleState==='loading'
+        p.languageExpanded=fixture.languageOpen
         if (high) ctrl._metrics=Object.assign({},ctrl.metrics,{cpu:85,memory:92})
         ctrl.glanceCpu=ctrl.cpuReady ? ctrl.metrics.cpu : -1
         ctrl.glanceMemory=ctrl.snapshot.memory.total ? ctrl.metrics.memory : -1
@@ -77,6 +91,19 @@ Rectangle {
         fixture.settingsBottom=false
         return
       }
+      if (fixture.pageBottom) {
+        var viewport=all.filter(function(n){return n.objectName==='fansViewport' || n.objectName==='coolingViewport'})[0]
+        if (!viewport) return
+        viewport.contentY=Math.max(0,viewport.contentHeight-viewport.height)
+        fixture.pageBottom=false
+        return
+      }
+      if (fixture.sensorDropdown) {
+        var selector=all.filter(function(n){return n.objectName==='sensorDropdown'})[0]
+        if (!selector) return
+        selector.open();fixture.sensorDropdown=false
+        return
+      }
       if (fixture.dropdownOpen) {
         var dropdown=all.filter(function(n){return n.objectName==='iconShapeDropdown'})[0]
         if (!dropdown) return
@@ -96,13 +123,13 @@ Rectangle {
         id: plugin
         objectName: "previewPanel"
         anchors.fill: parent
-        settings: ({locale:fixture.language, iconIndicator:false, iconShape:fixture.selectedShape, iconLoadThreshold:fixture.loadThreshold,iconHeatThreshold:80,iconMotion:fixture.motionPreview})
+        settings: ({locale:fixture.language, iconIndicator:false, iconShape:fixture.selectedShape, iconLoadThreshold:fixture.loadThreshold,iconHeatThreshold:80,iconMotion:fixture.motionPreview,compactTile0:'cpu',compactTile1:'gpu',compactTileCount:fixture.tileCount})
         Component.onCompleted: {
           open()
           activityController.stop()
           MockData.populate(activityController)
           setSettingsOpen(fixture.mode==='settings')
-          setExpanded(fixture.mode==='expanded')
+          setExpanded(fixture.mode==='expanded' || fixture.expandedView)
           activityController.glanceCpu=30
           activityController.glanceMemory=44
           activityController.glanceUpdatedAt=Date.now()

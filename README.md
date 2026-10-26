@@ -45,7 +45,7 @@ Manager application is launched or required. Each GPU has its own wrapping card.
 
 The **Cooling** tab shows available hwmon temperatures and fan readings plus
 NVIDIA temperature/fan telemetry through the existing NVML provider. It reuses
-the native sampler and Sparkline component, without a new service or dependency.
+the native sampler and timestamp-based chart component, without a new service or dependency.
 Choose a device and a 10-minute, 1-hour or 6-hour graph window. Live-only sampling
 updates about every 3 seconds. Enable **Record temperatures in the background**
 to keep collecting every 15 seconds during games with the panel closed. History
@@ -68,6 +68,10 @@ executed as root. The normal monitor installation does not require it.
 
 ![Loadlet expanded native panel with GPU, storage and processes](docs/images/expanded.png)
 
+![Loadlet Cooling with an interactive sensor chart](docs/images/cooling.png)
+
+![Loadlet Fans with model-gated timed controls](docs/images/fans.png)
+
 Process actions use sampled PID/start time and ownership guards. Force kill needs
 separate confirmation. There is no automatic escalation or privileged helper.
 Diagnostic history is local, opt-in and off by default; exports prepare evidence
@@ -76,11 +80,12 @@ without running an AI or changing system settings.
 ![Loadlet icon and sampling preferences](docs/images/settings.png)
 
 <p align="center">
-  <img src="docs/video/loadlet.webp" width="640" alt="Complete16-second Loadlet tour: current icon, metrics, processes and preferences"/>
+  <img src="docs/video/loadlet.webp" width="640" alt="Historical 2.8.1 Loadlet tour: icon, metrics, processes and preferences"/>
 </p>
 
-A newly rendered silent16-second walkthrough of the current Loadlet interface.
-The complete animated film plays here. Cuts/camera moves are presentation, not
+Historical 2.8.1 walkthrough: this silent 16-second film predates Cooling, Fans
+and configurable tiles. The current interface is shown in the screenshots above.
+The complete archived film plays here. Cuts/camera moves are presentation, not
 native transitions or a live recording.
 
 [Master MP4](docs/video/loadlet.mp4) · [Messenger MP4](docs/video/loadlet-web.mp4) ·
