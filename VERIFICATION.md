@@ -10,7 +10,9 @@ channel is guessed or reassigned automatically.
 
 No tests, new tests, visual previews, fan writes or helper changes were requested
 or run. Retained images remain pinned to historical2.14.0; new symbol geometry,
-click behavior and loaded identity are unverified. Installed17runtime files in\nruntime-2.14.3-bottom-fan-20261026 and requested existing-shell rescan. Deployment\ndid not write shell.json, fan helper or fan state; previous assignments retained.
+click behavior and loaded identity are unverified. Installed17runtime files in
+runtime-2.14.3-bottom-fan-20261026 and requested existing-shell rescan. Deployment
+did not write shell.json, fan helper or fan state; previous assignments retained.
 
 ## 2.14.2 keep Category open after selection — 2026-10-26
 
