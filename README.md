@@ -32,9 +32,10 @@ Historical 2.14.0 native QML screenshots use inert demonstration data, not deskt
 captures. The optional line-art computer map opens component sensors; manual
 assignments remain explicit. Page changes never resize the chosen frame; use the
 Expand button or `e` when needed. Fan location and identification are separate
-optional editors. Version2.14.1 adds a direct header Close button and closes
-assignment editors after selection. The retained screenshots predate those small
-controls/copy changes. [Vector design references](docs/vector-design.md).
+optional editors. Version2.14.1 added a direct header Close button. Version2.14.2
+keeps Category open after a choice, with the sensor and choice retained. Fan
+location choices still close their separate editor. The retained screenshots
+predate those small controls/copy changes. [Vector design references](docs/vector-design.md).
 
 ## One icon, exact readings
 

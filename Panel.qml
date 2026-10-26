@@ -68,7 +68,7 @@ Panel {
         journalError: activity.journalError,
         heatThreshold: activity.heatThreshold,
         productName: "Loadlet",
-        iconRevision: "2.14.1",
+        iconRevision: "2.14.2",
         rightClickAction: "none",
         iconTooltip: button.tooltipText,
         iconConsumer: String(Qt.resolvedUrl("Panel.qml")),
@@ -167,10 +167,6 @@ Panel {
     root.persistSettings({sensorAssignments:JSON.stringify(assignments)})
     // Keep the edited sensor visible when its new category leaves the filter.
     if (!root.sensorMatches(sensor, root.sensorPart)) root.sensorPart = ""
-    Qt.callLater(function() {
-      root.sensorOptionsOpen = false
-      if (root.opened) keyCatcher.forceActiveFocus()
-    })
   }
   function sensorMatches(sensor, part) {
     if (!part) return true

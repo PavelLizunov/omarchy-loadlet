@@ -1,8 +1,9 @@
 # Loadlet 2.14.0 historical visuals
 
 These retained images are pinned to f7f9dbf4030f7603d52270a05f10efbda0ede359.
-Version2.14.1 adds header Close and fan-trial/assignment copy changes. No new
-previews were requested or captured for that follow-up; these are not its pixels.
+Version2.14.1 adds header Close and fan-trial/assignment copy changes.
+Version2.14.2 keeps Category open after selection. No new previews were requested
+or captured for those follow-ups; these images do not depict their full changes.
 
 Six source-pinned PNGs show compact, expanded, Cooling, Fans, Settings and the
 computer map through the actual native Panel consumer with inert demonstration

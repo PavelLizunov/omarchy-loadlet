@@ -152,9 +152,11 @@ work, exact energy use or the physical cause of heat by itself.
   preference. Right-click has no action. Expand inside the panel or press `e` for
   the built-in process view; the existing details IPC route remains available.
 - The header Close button dismisses the entire panel from any page, without
-  stepping through editors or collapsing its frame. Selecting a fan location or
-  sensor category saves the choice and closes that editor; it does not close
-  the whole panel. Nested dropdowns and Escape retain their normal local dismissal.
+  stepping through editors or collapsing its frame. Selecting a fan location
+  saves it and closes that location editor. Selecting a sensor category saves it
+  while keeping Category open and the same sensor selected; only the dropdown
+  menu closes. Neither choice closes the whole panel. Nested dropdowns and Escape
+  retain their normal local dismissal.
 - Expand and `e` resize every page without leaving it, including Cooling, Fans
   and Settings. This is a fitted larger panel, not compositor full-screen.
 - `h`: toggle Cooling; `/`: search, `j`/`k`: select, `s`: settings.
@@ -366,7 +368,8 @@ saving a location label.
 
 Settings is split into Tiles, Icon, Sampling and History. The normal preferred
 frame fits each category without scrolling; constrained screens retain scrolling.
-Sensor assignment is under Category; choosing a category closes the editor.
+Sensor assignment is under Category; choosing a category keeps the editor open.
+The Category button itself hides it when finished.
 
 A channel boost snapshots its original duty/mode,
 starts one owned transient system service, and restores the snapshot on expiry,

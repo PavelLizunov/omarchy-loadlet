@@ -1,5 +1,27 @@
 # Loadlet verification
 
+## 2.14.2 keep Category open after selection — 2026-10-26
+
+The user reported that selecting a category ejected them from its editor and
+required reopening Category for every choice. The owning2.14.1 assignSensor
+handler explicitly scheduled sensorOptionsOpen=false and forced focus onto the
+page key catcher. Removed both operations from sensor assignment, retaining the
+selected sensor, automatic persistence and invalid-filter recovery. The native
+dropdown still closes its own menu. Fan-location editor behavior is unchanged.
+
+Current installed settings were read before application: fanPlace_pwm2=fan_top
+is present on disk. The user also reports the five-second trial now works. That
+observation does not establish persistent speed control or timed recovery in
+other circumstances. Saved location/category metadata is separate from temporary
+fan duty; the historical slowdown's cause was not established in this follow-up.
+
+No tests, new tests, previews, actual fan writes, helper/grant changes or reboot
+were requested/run. Existing media remains pinned to historical2.14.0. The fix
+is source-backed; current physical selection behavior and loaded identity remain
+unverified until observed separately. Installed17runtime files through a fresh
+runtime-2.14.2-category-20261026 entry point; existing-shell rescan requested.
+The deployment did not write shell.json, the fan helper or fan override state.
+
 ## 2.14.1 direct close and explicit five-second trials — 2026-10-26
 
 The user saved the top fan location and reported confusing trial controls,
