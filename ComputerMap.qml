@@ -21,7 +21,8 @@ Item {
     {key:"memory",x:0.65,y:0.29}, {key:"fan_cpu",x:0.43,y:0.43},
     {key:"gpu",x:0.43,y:0.64}, {key:"storage",x:0.65,y:0.48},
     {key:"motherboard",x:0.27,y:0.48}, {key:"fan_front",x:0.85,y:0.51},
-    {key:"fan_top",x:0.44,y:0.09}, {key:"fan_ssd",x:0.65,y:0.80}
+    {key:"fan_top",x:0.44,y:0.09}, {key:"fan_ssd",x:0.65,y:0.80},
+    {key:"fan_bottom",x:0.492,y:0.825}
   ]
   Item {
     id: drawing
@@ -57,6 +58,7 @@ Item {
         +'<rect x="57" y="65" width="38" height="63" rx="3"/><circle cx="76" cy="96" r="14"/><path d="m66 86 20 20m-20 0 20-20"/>'
         +'<path d="M151 40h161m-161 7h161m-161 7h161" stroke-opacity=".55"/>'
         +'<rect x="58" y="293" width="126" height="15" rx="2"/><path d="M69 296v9m8-9v9m8-9v9m8-9v9m8-9v9" stroke-opacity=".4"/>'
+        +'<rect x="205" y="286" width="82" height="23" rx="3"/><ellipse cx="246" cy="297" rx="27" ry="9"/><path d="m225 292 42 10m-42 0 42-10" stroke-opacity=".5"/>'
         +'</svg>')
     }
     Repeater {

@@ -68,7 +68,7 @@ Panel {
         journalError: activity.journalError,
         heatThreshold: activity.heatThreshold,
         productName: "Loadlet",
-        iconRevision: "2.14.2",
+        iconRevision: "2.14.3",
         rightClickAction: "none",
         iconTooltip: button.tooltipText,
         iconConsumer: String(Qt.resolvedUrl("Panel.qml")),
@@ -129,7 +129,7 @@ Panel {
   property bool fanIdentificationOpen: false
   property string settingsSection: "tiles"
   property int identificationPercent: 0
-  readonly property var fanPlaces: ["unknown", "fan_cpu", "fan_front", "fan_rear", "fan_top", "fan_ssd"]
+  readonly property var fanPlaces: ["unknown", "fan_cpu", "fan_front", "fan_rear", "fan_top", "fan_ssd", "fan_bottom"]
   function fanPlace(channel) {
     var place = String(root.setting("fanPlace_" + channel, "unknown"))
     return fanPlaces.indexOf(place) >= 0 ? place : "unknown"
@@ -152,7 +152,7 @@ Panel {
     try { var value = JSON.parse(String(root.setting("sensorAssignments", "{}"))); return value && typeof value === "object" && !Array.isArray(value) ? value : ({}) }
     catch (error) { return ({}) }
   }
-  readonly property var sensorPlaces: ["automatic", "cpu", "gpu", "memory", "storage", "motherboard", "fan_cpu", "fan_front", "fan_rear", "fan_top", "fan_ssd"]
+  readonly property var sensorPlaces: ["automatic", "cpu", "gpu", "memory", "storage", "motherboard", "fan_cpu", "fan_front", "fan_rear", "fan_top", "fan_ssd", "fan_bottom"]
   function sensorKey(sensor) { return JSON.stringify([sensor.chip || "", sensor.location || "", sensor.label || ""]) }
   function sensorPlace(sensor) {
     var place = sensorAssignments[root.sensorKey(sensor)]
@@ -1544,7 +1544,7 @@ Panel {
       columns: width >= Style.space(600) ? 3 : 2
       spacing: Style.spacing.xs
       Repeater {
-        model: ["fan_rear","cpu","memory","fan_cpu","gpu","storage","motherboard","fan_front","fan_top","fan_ssd"]
+        model: ["fan_rear","cpu","memory","fan_cpu","gpu","storage","motherboard","fan_front","fan_top","fan_ssd","fan_bottom"]
         Button {
           required property string modelData
           required property int index

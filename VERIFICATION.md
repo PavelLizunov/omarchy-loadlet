@@ -1,5 +1,17 @@
 # Loadlet verification
 
+## 2.14.3 bottom fan position — 2026-10-26
+
+Added the missing bottom fan as a separate floor-mounted symbol and point11 in
+the computer map, plus its legend item and channel/sensor assignment choices.
+Existing point numbers and saved position keys are unchanged. Labels are supplied
+in en/ru/de/zh. Selection reuses the existing fan-position route; no physical
+channel is guessed or reassigned automatically.
+
+No tests, new tests, visual previews, fan writes or helper changes were requested
+or run. Retained images remain pinned to historical2.14.0; new symbol geometry,
+click behavior and loaded identity are unverified. Installed17runtime files in\nruntime-2.14.3-bottom-fan-20261026 and requested existing-shell rescan. Deployment\ndid not write shell.json, fan helper or fan state; previous assignments retained.
+
 ## 2.14.2 keep Category open after selection — 2026-10-26
 
 The user reported that selecting a category ejected them from its editor and

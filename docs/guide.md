@@ -300,7 +300,10 @@ room for data; its heading reopens it. Show all removes the filter. Multiple
 devices in one category remain selectable by model in the sensor dropdown.
 Missing telemetry is explicitly unavailable, not a fabricated reading.
 
-CPU/front/rear/top/SSD fan points open the control page. A channel selector
+CPU/front/rear/top/SSD/bottom fan points open the control page. Bottom fan is
+a separate floor-mounted symbol and point11; points1-10 retain their numbers.
+Choose Bottom fan in a channel location or sensor category to assign it manually.
+No channel is assigned to this new position automatically. A channel selector
 replaces the repeated tall card list. Assign a channel location
 with the dropdown on that channel card; assignments are saved in plugin settings
 and do not change fan duty or require authentication. With one assigned channel,

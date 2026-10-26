@@ -34,8 +34,9 @@ assignments remain explicit. Page changes never resize the chosen frame; use the
 Expand button or `e` when needed. Fan location and identification are separate
 optional editors. Version2.14.1 added a direct header Close button. Version2.14.2
 keeps Category open after a choice, with the sensor and choice retained. Fan
-location choices still close their separate editor. The retained screenshots
-predate those small controls/copy changes. [Vector design references](docs/vector-design.md).
+location choices still close their separate editor. Version2.14.3 adds a bottom
+fan point and manual assignment option. The retained screenshots predate these
+controls and diagram changes. [Vector design references](docs/vector-design.md).
 
 ## One icon, exact readings
 
