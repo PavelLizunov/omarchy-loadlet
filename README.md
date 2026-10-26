@@ -28,11 +28,13 @@ that change appears, use the command above from the source link.
 
 ![Loadlet compact native metrics panel with demonstration data](docs/images/compact.png)
 
-Current 2.14.0 native QML screenshots use inert demonstration data, not desktop
+Historical 2.14.0 native QML screenshots use inert demonstration data, not desktop
 captures. The optional line-art computer map opens component sensors; manual
 assignments remain explicit. Page changes never resize the chosen frame; use the
 Expand button or `e` when needed. Fan location and identification are separate
-optional editors. [Vector design references](docs/vector-design.md).
+optional editors. Version2.14.1 adds a direct header Close button and closes
+assignment editors after selection. The retained screenshots predate those small
+controls/copy changes. [Vector design references](docs/vector-design.md).
 
 ## One icon, exact readings
 
@@ -82,7 +84,10 @@ executed as root. The normal monitor installation does not require it.
 ![Loadlet optional computer cutaway with numbered sensor hotspots](docs/images/computer-map.png)
 
 Fans includes a separate 5-second identification trial from 0 to 100% duty, with
-restoration afterward. A 0% request may not physically stop every fan. Hot or
+restoration afterward. Choose0% then **Stop for5s** to request a brief stop;
+choosing the percentage alone does not apply it. Percent is controller output,
+not a target RPM. Exact RPM, permanent stop and reboot-persistent speed profiles
+are not supported; manually assigned location labels are saved. A 0% request may not physically stop every fan. Hot or
 missing CPU readings reject or cancel the trial. Ordinary timed boosts still
 never reduce the previous duty. Only one identification trial runs at a time.
 

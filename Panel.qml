@@ -68,7 +68,7 @@ Panel {
         journalError: activity.journalError,
         heatThreshold: activity.heatThreshold,
         productName: "Loadlet",
-        iconRevision: "2.14.0",
+        iconRevision: "2.14.1",
         rightClickAction: "none",
         iconTooltip: button.tooltipText,
         iconConsumer: String(Qt.resolvedUrl("Panel.qml")),
@@ -138,6 +138,10 @@ Panel {
     if (!/^pwm[2-5]$/.test(channel) || fanPlaces.indexOf(place) < 0) return
     var change = {}; change["fanPlace_" + channel] = place
     root.persistSettings(change)
+    Qt.callLater(function() {
+      root.fanAssignmentOpen = false
+      if (root.opened) keyCatcher.forceActiveFocus()
+    })
   }
   function fanChannel(sensor) {
     if (sensor.category !== "motherboard") return ""
@@ -163,6 +167,10 @@ Panel {
     root.persistSettings({sensorAssignments:JSON.stringify(assignments)})
     // Keep the edited sensor visible when its new category leaves the filter.
     if (!root.sensorMatches(sensor, root.sensorPart)) root.sensorPart = ""
+    Qt.callLater(function() {
+      root.sensorOptionsOpen = false
+      if (root.opened) keyCatcher.forceActiveFocus()
+    })
   }
   function sensorMatches(sensor, part) {
     if (!part) return true
@@ -1291,6 +1299,18 @@ Panel {
         bordered: true
         onClicked: root.setExpanded(!root.expanded)
       }
+
+      SvgActionButton {
+        objectName: "closePanelButton"
+        size: parent.parent.headerControlHeight
+        anchors.verticalCenter: parent.verticalCenter
+        iconName: "close"
+        tooltipText: I18n.t("close_panel", root.effectiveLanguage)
+        foreground: root.foreground; hoverColor: root.accent
+        fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
+        bordered: true; focusable: true
+        onClicked: root.close()
+      }
     }
   }
 
@@ -1882,6 +1902,14 @@ Panel {
                 fontSize: Style.font.caption; bordered: true; focusable: true
                 onClicked: root.fanIdentificationOpen = !root.fanIdentificationOpen
               }
+              Text {
+                visible: root.fanIdentificationOpen
+                width: parent.width
+                text: I18n.t("fan_trial_target", root.effectiveLanguage,
+                  fanChannelCard.modelData.id, I18n.t("map_" + root.fanPlace(fanChannelCard.modelData.id), root.effectiveLanguage))
+                textFormat: Text.PlainText; wrapMode: Text.Wrap
+                color: root.foreground; font.family: Style.font.family; font.pixelSize: Style.font.caption
+              }
               Row {
                 visible: root.fanIdentificationOpen
                 width:parent.width;spacing:Style.spacing.sm
@@ -1899,7 +1927,7 @@ Panel {
                   objectName:"identifyFanButton"
                   height: identifyPercentDropdown.rowHeight
                   width:(parent.width-parent.spacing)/2;anchors.bottom:parent.bottom
-                  text:I18n.t("fan_identify",root.effectiveLanguage);iconName:"fans"
+                  text:I18n.t(root.identificationPercent === 0 ? "fan_stop_trial" : "fan_run_trial",root.effectiveLanguage,root.identificationPercent);iconName:"fans"
                   foreground:root.urgent;accent:root.urgent;fontFamily:Style.font.family
                   bordered:true;focusable:true;enabled:!fanController.running
                   onClicked:root.fanAction(fanChannelCard.modelData.id,root.identificationPercent,"identify")
@@ -1921,6 +1949,13 @@ Panel {
                 fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
                 focusable: true; bordered: true; enabled: !fanController.running
                 onClicked: root.fanAction(modelData.id,100,"restore")
+              }
+              Text {
+                visible: root.fanAssignmentOpen || root.fanIdentificationOpen
+                width: parent.width
+                text: I18n.t("fan_control_limits", root.effectiveLanguage)
+                textFormat: Text.PlainText; wrapMode: Text.Wrap
+                color: root.dim; font.family: Style.font.family; font.pixelSize: Style.font.caption
               }
             }
           }

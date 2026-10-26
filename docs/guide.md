@@ -151,6 +151,10 @@ work, exact energy use or the physical cause of heat by itself.
 - Left-click the bar icon to toggle the panel, honoring the saved detailed-view
   preference. Right-click has no action. Expand inside the panel or press `e` for
   the built-in process view; the existing details IPC route remains available.
+- The header Close button dismisses the entire panel from any page, without
+  stepping through editors or collapsing its frame. Selecting a fan location or
+  sensor category saves the choice and closes that editor; it does not close
+  the whole panel. Nested dropdowns and Escape retain their normal local dismissal.
 - Expand and `e` resize every page without leaving it, including Cooling, Fans
   and Settings. This is a fitted larger panel, not compositor full-screen.
 - `h`: toggle Cooling; `/`: search, `j`/`k`: select, `s`: settings.
@@ -345,9 +349,24 @@ are application limits, not a hardware cooling guarantee. Some fans do not stop
 at 0% PWM; observe the physical fan rather than inferring identity from RPM alone.
 No actual fan-stop trial was executed during development.
 
+To request zero duty, select the intended channel, open the five-second fan
+trial, choose0% and press Stop for5s. The button requests a stop for exactly five
+seconds, then restores the saved duty and mode; the physical fan may continue
+spinning if its controller does not support stopping. Selecting a percentage
+alone does not apply it. Closing the trial editor or the entire Loadlet panel
+does not cancel an already-started service timer. Restore ends the override early.
+
+There is no exact-RPM setpoint, arbitrary permanent low-speed mode or persistent
+fan-stop setting. The percent controls request controller duty, not a measured
+RPM target. Ordinary boosts retain the prior-duty floor, so60% does not mean the
+fan must slow down to60% if it was already faster. Assigned locations persist in
+shell.json; transient trials and boosts are not reapplied after reboot. Actual
+post-reboot hardware behavior remains firmware/driver-owned, not established by
+saving a location label.
+
 Settings is split into Tiles, Icon, Sampling and History. The normal preferred
 frame fits each category without scrolling; constrained screens retain scrolling.
-Rare sensor assignment controls are under More options.
+Sensor assignment is under Category; choosing a category closes the editor.
 
 A channel boost snapshots its original duty/mode,
 starts one owned transient system service, and restores the snapshot on expiry,

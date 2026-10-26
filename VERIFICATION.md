@@ -1,5 +1,34 @@
 # Loadlet verification
 
+## 2.14.1 direct close and explicit five-second trials — 2026-10-26
+
+The user saved the top fan location and reported confusing trial controls,
+setpoints/persistence and dismissal after selecting controls. Source inspection
+confirmed shell.json retains fanPlace_pwm2=fan_top. Fan location/category choices
+now close their assignment editor on the next event-loop turn, after the native
+dropdown has closed. A keyboard-focusable header Close button calls the panel's
+own close lifecycle directly, independently of page/back/resize state.
+
+The zero-duty action explicitly says Stop for5s; nonzero trial actions include
+the requested percent and5s duration. The trial identifies its channel/location.
+Expanded help distinguishes duty from RPM, saved labels from transient overrides,
+and closing the UI from canceling a service timer. Exact RPM and persistent stop
+were not implemented or represented as available.
+
+Installed host sources route repeat bar clicks through WidgetButton.triggerPress
+to root.toggle, and outside clicks through KeyboardPanel.close to its owner.
+Neither route was reproduced as failing in this follow-up; no host-source change
+or confirmed repair of compositor-level outside-click behavior is claimed.
+Escape/back behavior and nested popup dismissal remain unchanged.
+
+No tests, new test cases, visual previews, desktop interaction, hardware writes,
+helper changes or privilege-grant renewal were requested/run in this follow-up.
+The retained screenshots stay explicitly historical2.14.0 and commit-pinned.
+The new close button's live geometry/input and dismissal behavior remain unverified.
+Installed17runtime files under runtime-2.14.1-dismissal-20261026, retaining installed
+manifest settings/defaults and user history. Existing-shell rescan requested;
+loaded identity was not probed, so installed is not a confirmed loaded result.
+
 ## 2.14.0 symmetric layouts, usability and sensor charts — 2026-10-26
 
 The supplied2.13.1 Fans screenshot showed unequal content margins, the scroll

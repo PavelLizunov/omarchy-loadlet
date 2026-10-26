@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "slovn.activity-lite",
   "name": "Loadlet",
-  "version": "2.14.0",
+  "version": "2.14.1",
   "author": "slovn; based on Kristoffer Haugland's Activity Monitor",
   "license": "MIT",
   "description": "A calm, low-overhead glance at CPU, memory, GPU, storage, and processes — with a die that matches your chip",
