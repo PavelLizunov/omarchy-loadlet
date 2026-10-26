@@ -79,7 +79,8 @@ std::string DiagnosticContext(const Paths &paths) {
 
 class DiagnosticJournal {
 public:
-  explicit DiagnosticJournal(Paths paths) : paths_(std::move(paths)) {
+  explicit DiagnosticJournal(Paths paths, std::string folder = "journal")
+      : paths_(std::move(paths)), folder_(std::move(folder)) {
     boot_ = ReadLine(Join(paths_.proc, "sys/kernel/random/boot_id")).value_or("");
   }
   ~DiagnosticJournal() { Disable(); }
@@ -94,8 +95,8 @@ public:
     const auto target = base.empty() ? Join(home, ".local/state") : base;
     dir_ = OpenDirectory(target);
     if (dir_ < 0) return Fail("unsafe_or_unavailable_state_directory");
-    for (const auto &name : {"omarchy", "activity-lite", "journal"}) {
-      const int child = ChildDirectory(dir_, name);
+    for (const auto &name : {std::string("omarchy"), std::string("activity-lite"), folder_}) {
+      const int child = ChildDirectory(dir_, name.c_str());
       close(dir_); dir_ = child;
       if (dir_ < 0) return Fail("unsafe_or_unavailable_journal_directory");
     }
@@ -143,6 +144,20 @@ public:
       ParseProcesses(frame); process_at_ = now;
     }
   }
+  void SaveSensors(const std::string &frame) {
+    if (!enabled || !StartsWith(frame, "schema\tactivity-sensors\t1\n")) return;
+    const auto stamp = std::time(nullptr);
+    if (last_sensor_write_ && stamp - last_sensor_write_ < 15) return;
+    last_sensor_write_ = stamp;
+    const auto record = "{\"schema\":1,\"time\":" + std::to_string(stamp)
+      + ",\"boot_id\":" + JsonString(boot_) + ",\"sensors_tsv\":" + JsonString(frame) + "}\n";
+    if (record.size() > 32768 || buffer_.size() + record.size() > 131072) {
+      error = "sensor_record_capacity"; return;
+    }
+    buffer_ += record;
+    if (Clock::now() - last_flush_ >= std::chrono::seconds(60)) Flush();
+  }
+
   std::string Context() {
     if(context_at_!=Clock::time_point{} && Clock::now()-context_at_<std::chrono::seconds(60)) return context_;
     context_ = DiagnosticContext(paths_); context_at_ = Clock::now();
@@ -179,6 +194,8 @@ public:
 private:
   friend struct DiagnosticJournalChecks;
   Paths paths_;
+  std::string folder_;
+  time_t last_sensor_write_ = 0;
   std::string boot_, buffer_, file_name_, collection_error_, cpu_window_="null", memory_ = "null", cpu_ = "null", temperature_ = "null", processes_ = "null", context_ = "null";
   int dir_ = -1, lock_ = -1, file_ = -1;
   std::size_t file_size_ = 0;

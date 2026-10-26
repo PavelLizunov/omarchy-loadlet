@@ -299,7 +299,60 @@ def export(directory, hours, output):
     return output
 
 
+def sensor_history():
+    state = Path(os.environ.get('XDG_STATE_HOME') or Path.home()/'.local/state')
+    folder = state/'omarchy/activity-lite/sensors'
+    end = time.time()
+    sensors = {}
+    if folder.exists():
+        for record in records(folder, end - 6*3600, end):
+            frame = record.get('sensors_tsv')
+            if not isinstance(frame, str) or len(frame) > 32768:
+                continue
+            frame = frame.encode('latin1', errors='replace').decode('utf-8', errors='replace')
+            for line in frame.splitlines():
+                fields = line.split('\t')
+                if len(fields) < 8 or fields[0] not in ('temperature', 'fan'):
+                    continue
+                fan = fields[0] == 'fan'
+                offset = 6 if fan else 5
+                if len(fields) < offset + 3:
+                    continue
+                try:
+                    value = float(fields[4]) / (1 if fan else 1000)
+                except ValueError:
+                    continue
+                if not math.isfinite(value):
+                    continue
+                if fields[1] not in sensors and len(sensors) >= 128:
+                    continue
+                entry = sensors.setdefault(fields[1], dict(id=fields[1], chip=fields[2], label=fields[3],
+                    unit=fields[5] if fan else '', category=fields[offset], owner=fields[offset+1],
+                    location=fields[offset+2], fan=fan, history=[]))
+                entry['history'].append(dict(time=record['time'], value=value))
+                entry['history'] = entry['history'][-1440:]
+    budget = max(2, 3000 // max(1, len(sensors)))
+    for entry in sensors.values():
+        points = entry['history']
+        step = max(1, math.ceil(len(points)/max(1, budget//2)))
+        compact = []
+        for begin in range(0, len(points), step):
+            bucket = points[begin:begin+step]
+            low, high = min(bucket,key=lambda p:p['value']), max(bucket,key=lambda p:p['value'])
+            compact.extend(sorted([low,high] if low != high else [low], key=lambda p:p['time']))
+        entry['history'] = compact
+        if points and entry['history'][-1] != points[-1]:
+            entry['history'].append(points[-1])
+    output = json.dumps(dict(sensors=list(sensors.values())), ensure_ascii=True, separators=(',', ':'))
+    if len(output) > 240000:
+        raise ValueError('Sensor history output budget exceeded')
+    print(output)
+
+
 def main():
+    if os.sys.argv[1:] == ['--sensor-history']:
+        sensor_history()
+        return
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--hours', type=int, choices=(1, 2, 6, 24, 168), default=2)
     parser.add_argument('--output', type=Path)

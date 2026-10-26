@@ -183,12 +183,16 @@ parent page, with its header and bottom actions outside the settings viewport.
 
 ## Summary tiles and sensor names
 
-The compact view has four configurable tile slots in Settings. Each slot can
+The compact view defaults to two configurable tile slots in one row. Settings
+can select three slots in the same row for CPU/GPU/RAM, reserving space for
+processes. Each slot can
 show CPU, RAM, a GPU (including a specific discovered adapter), CPU temperature,
-fans, network, disk activity or storage, or be hidden. Defaults remain CPU/RAM/
-network/disk. GPU, storage and sensor requests are admitted in compact mode only
+fans, network, disk activity or storage, or be hidden. Defaults are CPU/RAM;
+the optional third slot defaults to GPU. Existing slot choices remain saved.
+GPU, storage and sensor requests are admitted in compact mode only
 when their tiles need them; expanded summaries also request sensors for GPU
-temperatures. Closed-panel sampling is unchanged.
+temperatures. Closed-panel sampling is unchanged unless background sensor
+recording is explicitly enabled.
 
 All summary tiles now share one font-aware height. Core cells use the original
 Activity Monitor arrangement: values on the left, topology grid anchored on the
@@ -205,20 +209,33 @@ is inferred. Unknown drivers retain an explicit unidentified-device heading.
 ## Cooling tab
 
 The pinned Overview/Cooling tabs share the same fitted panel frame. The Cooling
-page scrolls internally and lists readable hwmon temperature and fan inputs, plus
+page uses a device/sensor selector and one detailed chart, rather than a tall
+stack of graphs. It reads hwmon temperature and fan inputs, plus
 active NVIDIA temperatures and per-fan percentages from the existing NVML provider.
 RPM is displayed only for a sensor that actually supplies RPM. Missing fan data
 is unavailable, not zero. No fan-control or driver-configuration writes are made.
 
-Cooling uses the existing serial native reader at approximately 3-second cadence
-only while this page is open. Sensor discovery is cached for 30 seconds and
-bounded to 128 hwmon inputs, with at most 8 fan readings per NVIDIA adapter.
-Graphs reuse Sparkline, keep at most 240 samples per sensor in memory, and offer
-1/3/10-minute windows with observed duration and min/max. Samples are not stored
-in the diagnostic journal. Closing the panel, reader failure or suspend resets
-history; a sampling gap over 15 seconds starts a new line instead of bridging it.
-Previously collected curves can remain visible when stale, but the current value
-becomes unavailable after 15 seconds. Sleeping NVIDIA devices remain excluded.
+Cooling uses the existing serial native reader. Without background recording,
+open-page sampling targets 3 seconds and retains up to 240 volatile samples.
+The separate Background recording toggle is off by default. When enabled, it
+keeps collecting temperatures and fan readings with the panel closed, targeting
+15 seconds, and retains up to 1440 in-memory samples per sensor. It reuses the
+existing bounded journal writer in a separate sensors folder; no new daemon or
+process inventory is enabled. Records are retained up to 7 days or 20 MiB,
+flushed about once per minute and at graceful shutdown. The buffered minute
+can be lost on forced termination. The setting persists until turned off.
+
+The chart offers 10-minute, 1-hour and 6-hour windows with min/max and observed
+duration. Opening Cooling loads recent persisted history through the existing
+report helper, with a 5-second deadline and bounded output. Long histories are
+reduced using min/max buckets to retain peaks; missing or reduced-resolution
+intervals are labeled. Sparkline is a sample-order trend, not a precision time
+axis or continuous measurement. A 15-second sample can miss shorter peaks and
+a hot reading is not proof of hardware throttling. Recording requires the shared
+shell to remain running; it is not a system-level service. Sleeping NVIDIA
+devices remain excluded. Sensor discovery stays cached for 30 seconds.
+Data lives in ~/.local/state/omarchy/activity-lite/sensors, or under XDG_STATE_HOME.
+The diagnostic CPU/process journal and its exports remain separate.
 
 GPU summary cards now wrap each adapter name and show its load, clock and memory
 on separate lines instead of concatenating two adapters into one clipped detail.

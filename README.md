@@ -46,12 +46,16 @@ Manager application is launched or required. Each GPU has its own wrapping card.
 The **Cooling** tab shows available hwmon temperatures and fan readings plus
 NVIDIA temperature/fan telemetry through the existing NVML provider. It reuses
 the native sampler and Sparkline component, without a new service or dependency.
-Choose a 1/3/10-minute graph window. Up to 240 samples are kept in memory while
-the tab is open, updating about every 3 seconds. Missing driver sensors are
+Choose a device and a 10-minute, 1-hour or 6-hour graph window. Live-only sampling
+updates about every 3 seconds. Enable **Record temperatures in the background**
+to keep collecting every 15 seconds during games with the panel closed. History
+is local, bounded to 7 days / 20 MiB, and can be viewed after reopening the panel.
+Missing driver sensors are
 reported explicitly; NVIDIA percentages are not mislabeled as physical RPM.
 Device categories/models and reading meanings replace driver-only sensor headings.
-Settings offers four compact tile slots, including CPU temperature and individual
-GPUs. Uniform tile sizing keeps CPU core grids inside their cards.
+Settings offers two compact tiles by default, or three in one row, including
+CPU temperature and individual GPUs. Three-tile mode omits the tiny core grid
+to preserve readable values; the expanded CPU tile retains it.
 
 ![Loadlet expanded native panel with GPU, storage and processes](docs/images/expanded.png)
 

@@ -90,7 +90,32 @@ Panel {
   property bool expanded: false
   property bool settingsOpen: false
   property bool sensorsOpen: false
-  property int sensorWindowSeconds: 180
+  property int sensorWindowSeconds: 600
+  property string selectedSensorId: ""
+  property var savedSensors: []
+  property bool historyPending: false
+  property bool historyReadError: false
+  readonly property var currentSensors: activity.sensorSnapshot.temperatures.concat(activity.sensorSnapshot.fans.map(function(sensor) { return Object.assign({}, sensor, {fan:true}) }))
+  readonly property var coolingSensors: {
+    var byId = {}
+    savedSensors.forEach(function(sensor) { byId[sensor.id] = sensor })
+    currentSensors.forEach(function(sensor) { byId[sensor.id] = sensor })
+    return Object.keys(byId).map(function(id) { return byId[id] })
+  }
+  readonly property var selectedSensor: coolingSensors.filter(function(sensor) { return sensor.id === root.selectedSensorId })[0] || coolingSensors[0] || null
+  function loadSensorHistory() { if (!sensorHistoryReader.running) { historyPending = true; sensorHistoryReader.running = true } }
+  onSensorsOpenChanged: if (sensorsOpen) loadSensorHistory()
+  Component.onDestruction: { historyDeadline.stop(); if (sensorHistoryReader.running) sensorHistoryReader.signal(9) }
+  Process {
+    id: sensorHistoryReader
+    command: ["python3", "-I", decodeURIComponent(String(Qt.resolvedUrl("activity-report")).replace("file://", "")), "--sensor-history"]
+    stdout: StdioCollector { waitForEnd: true; onStreamFinished: {
+      if (text.length <= 240000) { try { root.savedSensors = JSON.parse(text).sensors || [] } catch (error) {} }
+    } }
+    onStarted: historyDeadline.restart()
+    onExited: function(code) { historyDeadline.stop(); root.historyPending = false; root.historyReadError = code !== 0 }
+  }
+  Timer { id: historyDeadline; interval: 5000; onTriggered: { sensorHistoryReader.signal(9); root.historyPending = false } }
   property bool settingsControlActive: false
   property bool hintsVisible: false
   property bool languageExpanded: false
@@ -146,8 +171,9 @@ Panel {
   }
 
   readonly property var cpuTemperature: activity.thermalFresh ? { value: activity.iconTemperature } : null
-  readonly property var compactTiles: [0, 1, 2, 3].map(function(index) {
-    var defaults = ["cpu", "ram", "network", "disk"]
+  readonly property int compactTileCount: Number(root.setting("compactTileCount", 2)) === 3 ? 3 : 2
+  readonly property var compactTiles: Array.from({length: compactTileCount}, function(_, index) {
+    var defaults = ["cpu", "ram", "gpu"]
     var key = String(root.setting("compactTile" + index, defaults[index]))
     return root.tileOptions.indexOf(key) >= 0 || key.indexOf("gpu:") === 0 ? key : defaults[index]
   }).filter(function(key) { return key !== "none" })
@@ -403,7 +429,7 @@ Panel {
       iconHeatThreshold: 80,
       iconMotion: true,
       diagnosticJournal: false,
-      compactTile0: "cpu", compactTile1: "ram", compactTile2: "network", compactTile3: "disk"
+      compactTileCount: 2, compactTile0: "cpu", compactTile1: "ram", compactTile2: "gpu", sensorRecording: false
     })
   }
 
@@ -1129,7 +1155,7 @@ Panel {
 
         Flickable {
           width: parent.width
-          height: Math.min(compactGrid.implicitHeight, Math.max(Style.space(80), compactBody.height - Style.space(45)))
+          height: Math.min(root.tileHeight, Math.max(Style.space(80), compactBody.height - Style.space(100)))
           contentWidth: width
           contentHeight: compactGrid.implicitHeight
           clip: true
@@ -1138,7 +1164,7 @@ Panel {
         Grid {
           id: compactGrid
           width: parent.width - Style.spacing.xs
-          columns: width >= Style.space(360) ? 2 : 1
+          columns: Math.max(1, root.compactTiles.length)
           spacing: Style.spacing.sm
           Repeater {
             model: root.compactTiles
@@ -1207,115 +1233,84 @@ Panel {
     Item {
       anchors.fill: parent
       Column {
-        id: sensorControls
+        id: coolingControls
         width: parent.width
-        spacing: Style.spacing.xs
+        spacing: Style.spacing.sm
+        Toggle {
+          width: parent.width
+          label: I18n.t("sensor_recording", root.effectiveLanguage)
+          description: I18n.t("sensor_recording_hint", root.effectiveLanguage)
+          checked: activity.sensorRecording
+          foreground: root.foreground; accent: root.accent
+          fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
+          onClicked: root.persistSettings({sensorRecording:!activity.sensorRecording})
+        }
+        Text {
+          width: parent.width
+          text: activity.sensorRecordingError || root.historyReadError ? I18n.t("sensor_recording_error", root.effectiveLanguage)
+            : I18n.t(activity.sensorRecording && activity.sensorWriterEnabled ? "sensor_recording_on" : "sensor_recording_off", root.effectiveLanguage)
+          textFormat: Text.PlainText
+          wrapMode: Text.Wrap
+          color: activity.sensorRecordingError || root.historyReadError ? root.urgent : root.dim
+          font.family: root.bar ? root.bar.fontFamily : Style.font.family
+          font.pixelSize: Style.font.caption
+        }
+        Dropdown {
+          width: parent.width
+          label: I18n.t("sensor_device", root.effectiveLanguage)
+          value: root.selectedSensor ? root.selectedSensor.id : ""
+          options: root.coolingSensors.map(function(sensor) {
+            return {value:sensor.id,label:root.sensorOwner(sensor) + " · " + root.sensorLabel(sensor)}
+          })
+          foreground: root.foreground; accent: root.accent
+          fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
+          onChanged: function(value) { root.selectedSensorId = value }
+        }
         Row {
           width: parent.width
           spacing: Style.spacing.xs
           Repeater {
-            model: [60, 180, 600]
+            model: [600, 3600, 21600]
             Button {
               required property int modelData
-              width: (sensorControls.width - Style.spacing.xs * 2) / 3
-              height: Style.space(28)
-              text: I18n.t("sensor_minutes", root.effectiveLanguage, modelData / 60)
-              fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
-              fontSize: Style.font.caption
-              foreground: root.foreground
-              accent: root.accent
+              width: (coolingControls.width - Style.spacing.xs * 2) / 3
+              height: Style.space(26)
+              text: modelData < 3600 ? I18n.t("sensor_minutes",root.effectiveLanguage,modelData/60)
+                : I18n.t("sensor_hours",root.effectiveLanguage,modelData/3600)
               selected: root.sensorWindowSeconds === modelData
-              bordered: true
-              focusable: true
-              onClicked: root.sensorWindowSeconds = modelData
+              foreground: root.foreground; accent: root.accent
+              fontSize: Style.font.caption
+              fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
+              bordered: true; focusable: true
+              onClicked: { root.sensorWindowSeconds = modelData; root.loadSensorHistory() }
             }
           }
-        }
-        Text {
-          width: parent.width
-          text: I18n.t("sensor_history_hint", root.effectiveLanguage)
-          textFormat: Text.PlainText
-          wrapMode: Text.Wrap
-          color: root.dim
-          font.family: root.bar ? root.bar.fontFamily : Style.font.family
-          font.pixelSize: Style.font.caption
         }
       }
       Flickable {
-        objectName: "sensorsViewport"
-        anchors.top: sensorControls.bottom
+        anchors.top: coolingControls.bottom
         anchors.topMargin: Style.spacing.sm
         anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.right: parent.right
+        anchors.left: parent.left; anchors.right: parent.right
         contentWidth: width
-        contentHeight: sensorBody.implicitHeight
-        clip: true
-        boundsBehavior: Flickable.StopAtBounds
+        contentHeight: selectedSensorCard.height
+        clip: true; boundsBehavior: Flickable.StopAtBounds
         ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
-        Column {
-          id: sensorBody
+        SensorCard {
+          id: selectedSensorCard
+          visible: !!root.selectedSensor
           width: parent.width - Style.spacing.sm
-          spacing: Style.spacing.sm
-          Text {
-            width: parent.width
-            visible: activity.errorText !== "" || !activity.sensorsFresh
-            text: activity.errorText || I18n.t("sampling", root.effectiveLanguage)
-            textFormat: Text.PlainText
-            wrapMode: Text.Wrap
-            color: activity.errorText ? root.urgent : root.dim
-            font.family: root.bar ? root.bar.fontFamily : Style.font.family
-            font.pixelSize: Style.font.caption
-          }
-          PanelSectionHeader {
-            width: parent.width
-            text: "\uf2c9 " + I18n.t("temperatures", root.effectiveLanguage)
-            foreground: root.foreground
-            fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
-          }
-          Repeater {
-            model: activity.sensorSnapshot.temperatures
-            SensorCard {
-              required property var modelData
-              width: sensorBody.width
-              sensor: modelData
-            }
-          }
-          Text {
-            visible: activity.sensorsFresh && activity.sensorSnapshot.temperatures.length === 0
-            width: parent.width
-            text: I18n.t("no_temperature_sensors", root.effectiveLanguage)
-            textFormat: Text.PlainText
-            wrapMode: Text.Wrap
-            color: root.dim
-            font.family: root.bar ? root.bar.fontFamily : Style.font.family
-            font.pixelSize: Style.font.caption
-          }
-          PanelSectionHeader {
-            width: parent.width
-            text: "\uf863 " + I18n.t("fans", root.effectiveLanguage)
-            foreground: root.foreground
-            fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
-          }
-          Repeater {
-            model: activity.sensorSnapshot.fans
-            SensorCard {
-              required property var modelData
-              width: sensorBody.width
-              sensor: modelData
-              fan: true
-            }
-          }
-          Text {
-            width: parent.width
-            text: I18n.t(activity.sensorsFresh && activity.sensorSnapshot.fans.length === 0
-              ? "no_fan_sensors" : "fan_units_hint", root.effectiveLanguage)
-            textFormat: Text.PlainText
-            wrapMode: Text.Wrap
-            color: root.dim
-            font.family: root.bar ? root.bar.fontFamily : Style.font.family
-            font.pixelSize: Style.font.caption
-          }
+          sensor: root.selectedSensor || ({})
+          fan: sensor.fan === true
+        }
+        Text {
+          visible: !root.selectedSensor
+          width: parent.width
+          text: root.historyPending ? I18n.t("sampling",root.effectiveLanguage) : I18n.t("no_temperature_sensors",root.effectiveLanguage)
+          textFormat: Text.PlainText; wrapMode: Text.Wrap
+          color: root.dim
+          font.family: root.bar ? root.bar.fontFamily : Style.font.family
+          font.pixelSize: Style.font.caption
         }
       }
     }
@@ -1326,11 +1321,15 @@ Panel {
     property var sensor: ({})
     property bool fan: false
     readonly property var points: {
-      var all = sensor.id ? activity.sensorHistory[sensor.id] || [] : []
-      var cutoff = activity.sensorSnapshot.sample - root.sensorWindowSeconds
-      return all.filter(function(point) { return point.time >= cutoff })
+      var saved = root.savedSensors.filter(function(item) { return item.id === sensor.id })[0]
+      var live = sensor.id ? activity.sensorHistory[sensor.id] || [] : []
+      var offset = Date.now()/1000 - activity.sensorSnapshot.sample
+      var all = (saved ? saved.history : []).concat(live.map(function(point) { return {time:point.time + offset,value:point.value} }))
+      var cutoff = Date.now()/1000 - root.sensorWindowSeconds
+      return all.filter(function(point) { return point.time >= cutoff }).sort(function(a,b) { return a.time-b.time })
     }
     readonly property var readings: points.map(function(point) { return point.value })
+    readonly property bool historyGaps: points.some(function(point,index) { return index > 0 && point.time - points[index-1].time > 60 })
     readonly property real span: points.length > 1 ? points[points.length - 1].time - points[0].time : 0
     function valueText(value) {
       if (!fan) return Model.formatTemperature(value, root.temperatureUnitSetting)
@@ -1374,7 +1373,7 @@ Panel {
       }
       Text {
         width: parent.width
-        text: activity.sensorsFresh ? sensorCard.valueText(sensorCard.sensor.value) : "—"
+        text: activity.sensorsFresh && sensorCard.sensor.value !== undefined ? sensorCard.valueText(sensorCard.sensor.value) : "—"
         textFormat: Text.PlainText
         color: !sensorCard.fan && sensorCard.sensor.value >= activity.heatThreshold ? root.urgent : root.accent
         font.family: root.bar ? root.bar.fontFamily : Style.font.family
@@ -1395,6 +1394,7 @@ Panel {
               sensorCard.valueText(Math.min.apply(null, sensorCard.readings)),
               sensorCard.valueText(Math.max.apply(null, sensorCard.readings)))
             + " · " + I18n.t("sensor_duration", root.effectiveLanguage, Math.round(sensorCard.span))
+            + (sensorCard.historyGaps ? " · " + I18n.t("sensor_gaps",root.effectiveLanguage) : "")
           : I18n.t("sensor_wait_history", root.effectiveLanguage)
         textFormat: Text.PlainText
         wrapMode: Text.Wrap
@@ -1499,13 +1499,22 @@ Panel {
                 foreground: root.foreground
                 fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
               }
+              Dropdown {
+                width: parent.width
+                label: I18n.t("compact_tile_count", root.effectiveLanguage)
+                value: String(root.compactTileCount)
+                options: [{value:"2",label:"2"},{value:"3",label:"3"}]
+                foreground: root.foreground; accent: root.accent
+                fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
+                onChanged: function(value) { root.persistSettings({compactTileCount:Number(value)}) }
+              }
               Repeater {
-                model: 4
+                model: root.compactTileCount
                 Dropdown {
                   required property int index
                   width: parent.width
                   label: I18n.t("compact_tile_slot", root.effectiveLanguage, index + 1)
-                  value: String(root.setting("compactTile" + index, ["cpu", "ram", "network", "disk"][index]))
+                  value: String(root.setting("compactTile" + index, ["cpu", "ram", "gpu"][index]))
                   options: root.tileOptions.map(function(key) { return { value: key, label: root.tileTitle(key) } })
                   foreground: root.foreground
                   accent: root.accent
@@ -1993,7 +2002,8 @@ Panel {
     }
     readonly property var gpuTemperature: activity.sensorsFresh && gpu
       ? activity.sensorSnapshot.temperatures.filter(function(sensor) { return sensor.category === "gpu" && sensor.location === summary.gpu.id })[0] || null : null
-    label: kind === "cpu" ? root.cpuCardLabel() : kind === "ram" ? root.memoryCardLabel()
+    label: kind === "cpu" ? (!root.expanded && root.compactTileCount === 3 ? "CPU" : root.cpuCardLabel())
+      : kind === "ram" ? (!root.expanded && root.compactTileCount === 3 ? I18n.t("ram",root.effectiveLanguage) : root.memoryCardLabel())
       : kind === "gpu" && gpu ? root.compactGpuName(gpu) : root.tileTitle(kind)
     value: kind === "cpu" ? (activity.cpuReady ? root.percentText(root.metrics.cpu) : "—")
       : kind === "ram" ? (root.hasSnapshot ? root.percentText(root.metrics.memory) : "—")
@@ -2013,7 +2023,7 @@ Panel {
       : kind === "fans" ? (activity.sensorsFresh && activity.sensorSnapshot.fans.length ? root.sensorOwner(activity.sensorSnapshot.fans[0]) : I18n.t("no_fan_sensors", root.effectiveLanguage))
       : kind === "network" ? "\uf093 " + Model.formatBytes(root.metrics.upload, "/s")
       : kind === "disk" ? "\uf093 " + Model.formatBytes(root.diskCardWrite(), "/s") : root.storageCardDetail()
-    paint: kind === "cpu" ? (root.expanded ? root.corePaintExpanded : root.corePaintCompact) : Model.emptyCorePaint()
+    paint: kind === "cpu" && (root.expanded || root.compactTileCount === 2) ? (root.expanded ? root.corePaintExpanded : root.corePaintCompact) : Model.emptyCorePaint()
     history: kind === "cpu" ? root.metrics.cpuHistory : kind === "ram" ? root.metrics.memoryHistory
       : kind === "network" ? root.metrics.networkHistory : kind === "disk" ? root.diskCardHistory() : []
     badge: kind === "disk" ? root.diskPagerText() : kind === "storage" ? root.storagePagerText() : kind === "ram" ? root.swapBadgeText() : ""

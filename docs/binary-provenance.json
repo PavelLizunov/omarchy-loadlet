@@ -1,14 +1,14 @@
 {
   "schemaVersion": 1,
   "platform": "linux-x86_64",
-  "sourceBaseCommit": "f5a2c62e353b80e5875b14b020e9e92bedd89fed",
+  "sourceBaseCommit": "16a8e0ddf38d8ef6be9ef00d82dbdec050b41c60",
   "sha256": {
-    "activity-sampler": "c389ba15d3e47a04c16c366d24a6a41c3945071c584c8979c0ca7e2cef73b269",
-    "activity-sampler.cpp": "031d053c41364900b7cf1977df0dfb3457641cd0713617f8b77f771fed8a0b01",
-    "DiagnosticJournal.h": "3b7643aef7c11853059100d380b833f4105503ec65a541fa014c02f7f4c0cd41",
+    "activity-sampler": "a4e2e04c6b0ed8c00839452b571ab18df4c1672e85e4f02e94499b3863265c58",
+    "activity-sampler.cpp": "3ada96d545d9c92eeac9bae24b944a7fb6492bb1165159c58db28470de6e0733",
+    "DiagnosticJournal.h": "c0b2c5606ff36dc7bf5d27cc1b037721afb79dfc6709ebcef8e924f888b4d90d",
     "Makefile": "c7c1a8bbbb409f1dd20fb940640a33cbb1dd616312d1a258027ee4ee6a66505b"
   },
-  "size": 256120,
+  "size": 260216,
   "compiler": "GCC 16.2.1 20260810",
   "buildCommand": "LC_ALL=C make -B activity-sampler",
   "buildResult": "Built successfully from the recorded source, header and Makefile; distributed executable replaced with this build",
@@ -24,7 +24,7 @@
   "runtimeBuild": false,
   "runtimeDownload": false,
   "limits": [
-    "Reproducibility and test suites were not rerun for the sensor-identity and tile-layout correction",
+    "Reproducibility and test suites were not rerun for the compact-row and background-recording implementation",
     "Updated packaged consumer and live GPU readings were not rechecked after this build",
     "x86_64 only; no prebuilt ARM support",
     "Maintainer listing approval is separate from source and binary evidence"

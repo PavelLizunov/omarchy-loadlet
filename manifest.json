@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "slovn.activity-lite",
   "name": "Loadlet",
-  "version": "2.9.1",
+  "version": "2.10.0",
   "author": "slovn; based on Kristoffer Haugland's Activity Monitor",
   "license": "MIT",
   "description": "A calm, low-overhead glance at CPU, memory, GPU, storage, and processes — with a die that matches your chip",
@@ -33,8 +33,9 @@
       "openExpanded": false,
       "compactTile0": "cpu",
       "compactTile1": "ram",
-      "compactTile2": "network",
-      "compactTile3": "disk",
+      "compactTile2": "gpu",
+      "compactTileCount": 2,
+      "sensorRecording": false,
       "iconIndicator": true,
       "iconShape": 10,
       "iconLoadThreshold": 50,
@@ -59,13 +60,21 @@
         "key": "compactTile2",
         "type": "string",
         "label": "Compact tile 3",
-        "defaultValue": "network"
+        "defaultValue": "gpu"
       },
       {
-        "key": "compactTile3",
-        "type": "string",
-        "label": "Compact tile 4",
-        "defaultValue": "disk"
+        "key": "compactTileCount",
+        "type": "integer",
+        "label": "Compact tile count",
+        "defaultValue": 2,
+        "min": 2,
+        "max": 3
+      },
+      {
+        "key": "sensorRecording",
+        "type": "boolean",
+        "label": "Background sensor recording",
+        "defaultValue": false
       },
       {
         "key": "diagnosticJournal",

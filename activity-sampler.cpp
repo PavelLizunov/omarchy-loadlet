@@ -2066,13 +2066,19 @@ class Sampler {
 public:
   explicit Sampler(Paths paths)
       : resources_(paths), processes_(paths), thermals_(paths), storage_(paths),
-        gpus_(paths), journal_(paths) {}
+        gpus_(paths), journal_(paths), sensor_journal_(paths, "sensors") {}
 
   void Collect(const std::string &kind, std::ostream &destination) {
     FrameBuffer frame;
     std::ostream output(&frame);
     input_overflow = false;
-    if (kind == "journal-on" || kind == "journal-off" || kind == "journal" || kind == "diagnostics") {
+    if (kind == "sensors-on" || kind == "sensors-off") {
+      if (kind == "sensors-on") sensor_journal_.Enable();
+      else sensor_journal_.Disable();
+      output << "schema\tactivity-sensor-recording\t1\n"
+             << "enabled\t" << (sensor_journal_.enabled ? 1 : 0) << '\n'
+             << "error\t" << sensor_journal_.error << '\n';
+    } else if (kind == "journal-on" || kind == "journal-off" || kind == "journal" || kind == "diagnostics") {
       if(kind=="journal-on") journal_.Enable();
       else if(kind=="journal-off") journal_.Disable();
       else if(kind=="journal") journal_.Sample();
@@ -2101,6 +2107,10 @@ public:
       return;
     }
     journal_.Observe(kind,frame.data);
+    if (kind == "sensors") {
+      sensor_journal_.SaveSensors(frame.data);
+      if (!sensor_journal_.error.empty()) frame.data += "recording-error\t" + sensor_journal_.error + "\n";
+    }
     destination << frame.data;
   }
 
@@ -2113,6 +2123,7 @@ private:
   StorageCollector storage_;
   GpuCollector gpus_;
   DiagnosticJournal journal_;
+  DiagnosticJournal sensor_journal_;
 };
 
 volatile sig_atomic_t reader_stopping = 0;
@@ -2135,7 +2146,7 @@ void Reader(Sampler &sampler) {
     if(ch!='\n') { if(request.size()>=31) break;request+=ch;continue; }
     request=Trim(request);
     if (request != "glance" && request != "resources" && request != "processes" &&
-        request != "thermals" && request != "sensors" && request != "gpus" && request != "storage" &&
+        request != "thermals" && request != "sensors" && request != "sensors-on" && request != "sensors-off" && request != "gpus" && request != "storage" &&
         request != "journal-on" && request != "journal-off" && request != "journal" && request != "diagnostics") {
       request.clear();
       continue;

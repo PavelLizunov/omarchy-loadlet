@@ -14,7 +14,10 @@ Item {
   property bool active: false
   property bool backgroundEnabled: false
   readonly property bool journalEnabled: settings && settings.diagnosticJournal === true
-  readonly property bool collectionEnabled: active || backgroundEnabled || journalEnabled
+  readonly property bool sensorRecording: settings && settings.sensorRecording === true
+  property bool sensorWriterEnabled: false
+  property string sensorRecordingError: ""
+  readonly property bool collectionEnabled: active || backgroundEnabled || journalEnabled || sensorRecording
   property bool journalWriterEnabled: false
   property string journalError: ""
   readonly property int backgroundInterval: 15000
@@ -29,7 +32,7 @@ Item {
   property var sensorHistory: ({})
   property double sensorsUpdatedAt: 0
   readonly property bool sensorsFresh: sensorsUpdatedAt > 0 && freshnessClock >= sensorsUpdatedAt
-    && freshnessClock - sensorsUpdatedAt < 15000
+    && freshnessClock - sensorsUpdatedAt < (sensorRecording ? 45000 : 15000)
   property string errorText: ""
   property string state: "stopped" // stopped, starting, ready, stopping, backoff
   property string pending: ""
@@ -140,9 +143,11 @@ Item {
     _thermalSnapshot = Model.emptyThermalSnapshot()
     _storageSnapshot = Model.emptyStorageSnapshot()
     _gpuSnapshot = Model.emptyGpuSnapshot()
-    _sensorSnapshot = Model.emptySensorSnapshot()
-    sensorsUpdatedAt = 0
-    sensorHistory = ({})
+    if (!sensorRecording) {
+      _sensorSnapshot = Model.emptySensorSnapshot()
+      sensorsUpdatedAt = 0
+      sensorHistory = ({})
+    }
     _gpus = []; _processes = []; _processMetricsReady = false
     cpuReady = false
     _metrics = Model.emptyMetrics()
@@ -152,6 +157,7 @@ Item {
   function start() {
     if (!collectionEnabled || reader.running || state === "starting" || state === "stopping" || state === "backoff") return
     journalWriterEnabled = false
+    sensorWriterEnabled = false
     resetData()
     clearGlance()
     pending = ""; buffer = []; bufferSize = 0
@@ -213,6 +219,15 @@ Item {
       if (sensorSummaryEnabled) kinds.push("sensors")
     }
     if (active && sensorsActive) kinds = ["sensors", "glance", "thermals"]
+    if (sensorRecording && kinds.indexOf("sensors") < 0) kinds.push("sensors")
+    if (sensorRecording !== sensorWriterEnabled) {
+      var recordingKind = sensorRecording ? "sensors-on" : "sensors-off"
+      if ((due[recordingKind] || 0) <= now) {
+        pending = recordingKind; buffer = []; bufferSize = 0; watchdog.restart()
+        reader.write(recordingKind + "\n")
+        return
+      }
+    }
     if (journalEnabled !== journalWriterEnabled) {
       var configurationKind=journalEnabled ? "journal-on" : "journal-off"
       if ((due[configurationKind] || 0) <= now || !journalEnabled) {
@@ -255,7 +270,8 @@ Item {
     errorText = ""
 
     var interval = kind === "journal-on" || kind === "journal-off" ? 60000
-      : kind === "sensors" ? 3000
+      : kind === "sensors-on" || kind === "sensors-off" ? 60000
+      : kind === "sensors" ? (sensorRecording ? 15000 : 3000)
       : kind === "journal" ? 15000 : kind === "diagnostics" ? 60000
       : kind === "processes" && !active ? 30000
       : kind === "glance" || !active ? backgroundInterval : kind === "processes" && !_processMetricsReady ? 600
@@ -296,14 +312,23 @@ Item {
     } else if (kind === "sensors") {
       var sensors = Model.parseSensorSnapshot(raw)
       if (sensors.schema !== 1 || sensors.sample <= 0) return false
-      if (active && (sensorsActive || sensorSummaryEnabled)) {
-        sensorHistory = Model.nextSensorHistory(sensorHistory, sensors, 240)
+      if (sensorRecording || (active && (sensorsActive || sensorSummaryEnabled))) {
+        sensorRecordingError = sensors.recordingError || ""
+        sensorHistory = Model.nextSensorHistory(sensorHistory, sensors, sensorRecording ? 1440 : 240, sensorRecording ? 60 : 15)
         _sensorSnapshot = sensors
         _thermalSnapshot = sensors
         sensorsUpdatedAt = Date.now()
         freshnessClock = sensorsUpdatedAt
         updateThermal(sensors)
       }
+    } else if (kind === "sensors-on" || kind === "sensors-off") {
+      var recordingLines = String(raw).split("\n")
+      if (recordingLines[0] !== "schema\tactivity-sensor-recording\t1") return false
+      sensorWriterEnabled = recordingLines.indexOf("enabled\t1") >= 0
+      sensorRecordingError = ""
+      for (var row = 0; row < recordingLines.length; row++)
+        if (recordingLines[row].indexOf("error\t") === 0) sensorRecordingError = recordingLines[row].slice(6)
+      due.sensors = 0
     } else if (kind === "gpus") {
       var gpu = Model.parseGpuSnapshot(raw)
       if (gpu.schema !== 1 || gpu.sample <= 0) return false
@@ -353,6 +378,10 @@ Item {
     if (collectionEnabled) { start();dispatch() }
     else { stop();clearGlance() }
   }
+  onSensorRecordingChanged: {
+    due["sensors-on"] = 0; due["sensors-off"] = 0; due.sensors = 0
+    if (collectionEnabled) { start(); dispatch() } else stop()
+  }
   Component.onCompleted: if (collectionEnabled) start()
 
   onExpandedChanged: {
@@ -400,6 +429,7 @@ Item {
     }
     onExited: {
       root.journalWriterEnabled = false
+      root.sensorWriterEnabled = false
       var expected = root.state === "stopping"
       shutdown.stop(); scheduler.stop(); watchdog.stop(); warmup.stop(); processWarmup.stop()
       root.pending = ""; root.buffer = []; root.bufferSize = 0

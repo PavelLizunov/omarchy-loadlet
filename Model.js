@@ -79,6 +79,7 @@ function parseSensorSnapshot(raw) {
     var fields = lines[i].split("\t")
     if (fields[0] === "schema") snapshot.schema = fields[1] === "activity-sensors" ? number(fields[2]) : 0
     else if (fields[0] === "sample") snapshot.sample = number(fields[1])
+    else if (fields[0] === "recording-error") snapshot.recordingError = String(fields[1] || "")
     else if (fields[0] === "temperature" && fields.length >= 5) {
       var temperature = temperatureFromFields(fields)
       temperature.value = fields[4] === "" ? NaN : Number(fields[4]) / 1000
@@ -108,7 +109,7 @@ function parseSensorSnapshot(raw) {
   return snapshot
 }
 
-function nextSensorHistory(previous, snapshot, limit) {
+function nextSensorHistory(previous, snapshot, limit, maxGap) {
   var result = {}
   var values = snapshot.temperatures.concat(snapshot.fans)
   for (var i = 0; i < values.length; i++) {
@@ -116,9 +117,9 @@ function nextSensorHistory(previous, snapshot, limit) {
     var old = previous[sensor.id] || []
     // Do not bridge a closed-panel/suspend gap with an invented continuous line.
     if (old.length && (snapshot.sample <= old[old.length - 1].time
-        || snapshot.sample - old[old.length - 1].time > 15)) old = []
+        || snapshot.sample - old[old.length - 1].time > (maxGap || 15))) old = []
     result[sensor.id] = old.concat([{time: snapshot.sample, value: sensor.value}])
-      .slice(-Math.max(20, Math.min(240, limit)))
+      .slice(-Math.max(20, Math.min(1440, limit)))
   }
   return result
 }
