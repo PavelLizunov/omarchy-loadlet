@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "slovn.activity-lite",
   "name": "Loadlet",
-  "version": "2.10.0",
+  "version": "2.11.0",
   "author": "slovn; based on Kristoffer Haugland's Activity Monitor",
   "license": "MIT",
   "description": "A calm, low-overhead glance at CPU, memory, GPU, storage, and processes — with a die that matches your chip",
@@ -35,6 +35,7 @@
       "compactTile1": "ram",
       "compactTile2": "gpu",
       "compactTileCount": 2,
+      "compactRamStrip": true,
       "sensorRecording": false,
       "iconIndicator": true,
       "iconShape": 10,
@@ -44,6 +45,12 @@
       "diagnosticJournal": false
     },
     "schema": [
+      {
+        "key": "compactRamStrip",
+        "type": "boolean",
+        "label": "Slim RAM strip",
+        "defaultValue": true
+      },
       {
         "key": "compactTile0",
         "type": "string",

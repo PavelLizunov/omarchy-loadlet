@@ -189,6 +189,9 @@ processes. Each slot can
 show CPU, RAM, a GPU (including a specific discovered adapter), CPU temperature,
 fans, network, disk activity or storage, or be hidden. Defaults are CPU/RAM;
 the optional third slot defaults to GPU. Existing slot choices remain saved.
+If none of the main slots shows RAM, an enabled-by-default narrow memory strip
+appears below them with percentage, used/total capacity and a fill bar. It uses
+existing resource samples, not an extra poller, and can be disabled in Settings.
 GPU, storage and sensor requests are admitted in compact mode only
 when their tiles need them; expanded summaries also request sensors for GPU
 temperatures. Closed-panel sampling is unchanged unless background sensor
@@ -229,8 +232,11 @@ The chart offers 10-minute, 1-hour and 6-hour windows with min/max and observed
 duration. Opening Cooling loads recent persisted history through the existing
 report helper, with a 5-second deadline and bounded output. Long histories are
 reduced using min/max buckets to retain peaks; missing or reduced-resolution
-intervals are labeled. Sparkline is a sample-order trend, not a precision time
-axis or continuous measurement. A 15-second sample can miss shorter peaks and
+intervals are labeled. The cooling chart positions samples on their actual
+wall-clock timestamps. Hover/click/drag selects the nearest recorded point;
+left/right keys select neighboring points. Time and value appear above the
+chart. Gaps over 60 seconds break the line. Reduced-resolution saved history
+can therefore appear as separate line segments. A 15-second sample can miss shorter peaks and
 a hot reading is not proof of hardware throttling. Recording requires the shared
 shell to remain running; it is not a system-level service. Sleeping NVIDIA
 devices remain excluded. Sensor discovery stays cached for 30 seconds.
@@ -241,6 +247,50 @@ GPU summary cards now wrap each adapter name and show its load, clock and memory
 on separate lines instead of concatenating two adapters into one clipped detail.
 The CPU temperature is visible in the CPU detail and its own temperature tile. Press `h` to switch
 the Cooling page; Escape returns to Overview before collapsing or closing.
+
+## Motherboard fan control
+
+The Fans tab supports the DRFXI board with the actual IT8613E hwmon driver.
+Generic channel numbers pwm2-pwm5 are retained until their physical CPU/case/SSD
+connectors have been identified. A nonzero RPM does not establish that identity.
+The driver also exposes temp1-temp3; these are motherboard-controller inputs,
+not guessed CPU/VRM/chipset temperatures. Other controllers remain unsupported
+by this adapter instead of being operated through fabricated register mappings.
+
+The system adapter is the root-owned /usr/local/lib/loadlet/fan-control. Install
+it separately after reviewing the source and a driver that genuinely supports
+IT8613E; the normal plugin installer does not deploy privileged executables:
+
+~~~sh
+sudo install -Dm755 fan-control /usr/local/lib/loadlet/fan-control
+~~~
+
+The UI invokes this fixed path through Polkit's pkexec, never a password field
+or sudoers permission. Requests allow only the four exposed channels, 60/80/100%
+and a 5/10/30-minute hold. A channel boost snapshots its original duty/mode,
+starts one owned transient system service, and restores the snapshot on expiry,
+stop, or worker exit. Root-only state lives in /run/loadlet-fans. ExecStopPost
+attempts restoration if the worker is killed. The override can outlive the UI
+so closing the panel does not cancel post-game cooldown. There is no automatic
+end-of-game detector or automatic channel-to-connector assignment.
+
+IT8613 rejects duty writes in automatic mode. Takeover goes through full speed
+before setting manual duty, without a fan-stop calibration. Requests never
+reduce an already-higher sampled duty. While held, missing CPU temperatures or
+any observed CPU reading at/above 80 C requests full duty. This is an application
+fallback, not a hardware-critical limit, thermal guarantee, or replacement for
+firmware protection. No voltage, PWM polarity or hardware temperature offsets
+are changed. The Restore button restores the actual prior mode, including a
+prior manual setting; it does not invent a firmware default.
+
+One driver-level check on DRFXI found IT8613E revision12 at0xa30. The in-tree
+it87 module did not bind. The separately packaged frankcrawford/it87 revision
+bd7a566c8a60fe0308d67e26761e16260368191a bound without force_id, resource-conflict
+bypass or a global ACPI override. It exposed three temperature inputs and four
+fan/PWM channels. A bounded pwm2 full-duty request changed reported RPM from
+about695 to1534, then duty40/mode2 were restored. Physical connector identity,
+acoustic/airflow change and automatic timed restoration remain unverified.
+This observation is not generic board compatibility or a driver safety audit.
 
 ## Sampling and limits
 

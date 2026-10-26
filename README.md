@@ -55,7 +55,16 @@ reported explicitly; NVIDIA percentages are not mislabeled as physical RPM.
 Device categories/models and reading meanings replace driver-only sensor headings.
 Settings offers two compact tiles by default, or three in one row, including
 CPU temperature and individual GPUs. Three-tile mode omits the tiny core grid
-to preserve readable values; the expanded CPU tile retains it.
+to preserve readable values; the expanded CPU tile retains it. If RAM is not
+one of the main tiles, a narrow RAM strip shows its percentage, used/total
+capacity and fill below them. The strip can be disabled in Settings.
+
+Cooling charts use actual sample timestamps. Hover, click, drag, or use the
+left/right keys to inspect the selected time and temperature. Gaps are not
+painted as continuous measurements. The Fans tab exposes timed boosts only
+for the model-gated motherboard controller described in the guide; its
+privileged adapter is a separate explicit system installation, not plugin code
+executed as root. The normal monitor installation does not require it.
 
 ![Loadlet expanded native panel with GPU, storage and processes](docs/images/expanded.png)
 

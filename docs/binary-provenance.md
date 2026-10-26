@@ -7,7 +7,7 @@ with the QML and Python helpers from this public repository.
 
 The distributed executable was rebuilt from `activity-sampler.cpp`,
 `DiagnosticJournal.h` and Makefile using GCC 16.2.1 20260810 on Linux x86_64
-for background sensor recording, device identities and NVIDIA initialization fixes.
+for motherboard sensor/control discovery, background history and NVIDIA fixes.
 The executable and source bytes changed.
 The exact build-input and executable hashes and size are recorded in the
 machine-readable provenance. No separate reproducibility check or test suite

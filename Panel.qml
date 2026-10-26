@@ -32,6 +32,9 @@ Panel {
         sensorSample: activity.sensorSnapshot.sample,
         temperatureSensors: activity.sensorSnapshot.temperatures.length,
         fanSensors: activity.sensorSnapshot.fans.length,
+        fanControlChannels: activity.sensorSnapshot.controls ? activity.sensorSnapshot.controls.length : 0,
+        ramStrip: root.compactRamStrip,
+        fanTab: root.fansOpen,
         sensorsFresh: activity.sensorsFresh,
         state: activity.state,
         sampling: activity.sampling,
@@ -90,6 +93,27 @@ Panel {
   property bool expanded: false
   property bool settingsOpen: false
   property bool sensorsOpen: false
+  property bool fansOpen: false
+  property string fanStatusKey: ""
+  property int fanDuration: 10
+  property string pendingFanChannel: ""
+  property int pendingFanSpeed: 100
+  property string pendingFanAction: "boost"
+  function fanAction(channel, speed, action) {
+    if (fanController.running || !/^pwm[2-5]$/.test(channel)) return
+    pendingFanChannel = channel; pendingFanSpeed = speed; pendingFanAction = action
+    fanStatusKey = "fan_action_pending"
+    fanController.running = true
+  }
+  Process {
+    id: fanController
+    command: root.pendingFanAction === "restore"
+      ? ["pkexec", "/usr/local/lib/loadlet/fan-control", "restore", root.pendingFanChannel]
+      : ["pkexec", "/usr/local/lib/loadlet/fan-control", "boost", root.pendingFanChannel, String(root.pendingFanSpeed), String(root.fanDuration)]
+    onStarted: fanDeadline.restart()
+    onExited: function(code) { fanDeadline.stop(); root.fanStatusKey = code === 0 ? "fan_action_sent" : "fan_action_failed"; activity.refresh() }
+  }
+  Timer { id: fanDeadline; interval: 60000; onTriggered: { fanController.signal(9); root.fanStatusKey = "fan_action_failed" } }
   property int sensorWindowSeconds: 600
   property string selectedSensorId: ""
   property var savedSensors: []
@@ -104,8 +128,12 @@ Panel {
   }
   readonly property var selectedSensor: coolingSensors.filter(function(sensor) { return sensor.id === root.selectedSensorId })[0] || coolingSensors[0] || null
   function loadSensorHistory() { if (!sensorHistoryReader.running) { historyPending = true; sensorHistoryReader.running = true } }
-  onSensorsOpenChanged: if (sensorsOpen) loadSensorHistory()
-  Component.onDestruction: { historyDeadline.stop(); if (sensorHistoryReader.running) sensorHistoryReader.signal(9) }
+  onSensorsOpenChanged: if (sensorsOpen && !fansOpen) loadSensorHistory()
+  Component.onDestruction: {
+    historyDeadline.stop(); fanDeadline.stop()
+    if (sensorHistoryReader.running) sensorHistoryReader.signal(9)
+    if (fanController.running) fanController.signal(9)
+  }
   Process {
     id: sensorHistoryReader
     command: ["python3", "-I", decodeURIComponent(String(Qt.resolvedUrl("activity-report")).replace("file://", "")), "--sensor-history"]
@@ -179,6 +207,8 @@ Panel {
   }).filter(function(key) { return key !== "none" })
   readonly property var tileOptions: ["cpu", "ram", "gpu", "temperature", "fans", "network", "disk", "storage", "none"]
     .concat(root.gpus.map(function(gpu) { return "gpu:" + gpu.id }))
+  readonly property bool compactRamStrip: root.booleanSetting("compactRamStrip", true) && compactTiles.indexOf("ram") < 0
+  readonly property real ramStripHeight: Math.max(Style.space(32), Style.font.caption + Style.spacing.sm * 2 + Style.space(5))
   readonly property real tileHeight: Math.max(Style.space(100), Style.font.caption * 4 + Style.font.title + Style.spacing.md * 2 + Style.space(14))
   function tileTitle(key) {
     if (key.indexOf("gpu:") === 0) {
@@ -199,6 +229,8 @@ Panel {
     var mapped = { Tctl: "sensor_cpu_control", Tdie: "sensor_cpu_die", Composite: "sensor_composite", edge: "sensor_gpu_edge", junction: "sensor_gpu_hotspot", mem: "sensor_gpu_memory" }
     if (mapped[label]) return I18n.t(mapped[label], effectiveLanguage)
     if (sensor.category === "gpu" && label === sensor.owner) return I18n.t("temp_unit", effectiveLanguage)
+    var boardChannel = label.match(/^temp(\d+)$/i)
+    if (sensor.category === "motherboard" && boardChannel) return I18n.t("board_temp_channel",effectiveLanguage,boardChannel[1])
     var ccd = label.match(/^Tccd(\d+)$/i)
     if (ccd) return I18n.t("sensor_ccd", effectiveLanguage, ccd[1])
     var fan = label.match(/^fan(\d+)$/i)
@@ -429,7 +461,7 @@ Panel {
       iconHeatThreshold: 80,
       iconMotion: true,
       diagnosticJournal: false,
-      compactTileCount: 2, compactTile0: "cpu", compactTile1: "ram", compactTile2: "gpu", sensorRecording: false
+      compactTileCount: 2, compactTile0: "cpu", compactTile1: "ram", compactTile2: "gpu", compactRamStrip: true, sensorRecording: false
     })
   }
 
@@ -606,6 +638,7 @@ Panel {
   onOpenedChanged: {
     if (opened) {
       expanded = openExpandedByDefault
+      fansOpen = false
       sensorsOpen = false
       settingsOpen = false
       settingsControlActive = false
@@ -618,6 +651,7 @@ Panel {
       resetDriveSelection()
     } else {
       expanded = false
+      fansOpen = false
       sensorsOpen = false
       settingsOpen = false
       settingsControlActive = false
@@ -719,7 +753,7 @@ Panel {
       anchors.fill: parent
       // The real KeyboardPanel lives in a separate window. Handle fallback keys
       // here, inside that window, rather than on the bar widget's root item.
-      Keys.priority: root.settingsOpen || root.languageExpanded ? Keys.AfterItem : Keys.BeforeItem
+      Keys.priority: root.settingsOpen || root.languageExpanded || root.sensorsOpen ? Keys.AfterItem : Keys.BeforeItem
       Keys.onEscapePressed: {
         if (processActions.confirmationOpen) processActions.cancel()
         else if (root.languageExpanded) root.languageExpanded = false
@@ -729,7 +763,7 @@ Panel {
       }
       blocked: !processActions.confirmationOpen
         && (!!(root.searchField && root.searchField.activeFocus)
-          || root.settingsControlActive || root.languageExpanded)
+          || root.settingsControlActive || root.languageExpanded || root.sensorsOpen)
 
       onMoveRequested: function(dx, dy) {
         if (processActions.confirmationOpen) {
@@ -778,7 +812,7 @@ Panel {
         if (key === "s") root.setSettingsOpen(!root.settingsOpen)
         else if (key === "?") root.hintsVisible = !root.hintsVisible
         else if (root.settingsOpen || root.languageExpanded) return
-        else if (key === "h") { processActions.cancel(); root.sensorsOpen = !root.sensorsOpen }
+        else if (key === "h") { processActions.cancel(); root.fansOpen = false; root.sensorsOpen = !root.sensorsOpen }
         else if (root.sensorsOpen) return
         else if (key === "e") root.setExpanded(!root.expanded)
         else if (key === "r") root.refresh()
@@ -868,12 +902,13 @@ Panel {
         spacing: Style.spacing.sm
         Repeater {
           model: [
-            { key: "overview", icon: "\uf080", sensors: false },
-            { key: "sensors", icon: "\uf2c9", sensors: true }
+            { key: "overview", icon: "\uf080", sensors: false, fans:false },
+            { key: "sensors", icon: "\uf2c9", sensors: true, fans:false },
+            { key: "fans", icon: "\uf863", sensors: true, fans:true }
           ]
           Button {
             required property var modelData
-            width: (pageTabs.width - pageTabs.spacing) / 2
+            width: (pageTabs.width - pageTabs.spacing * 2) / 3
             height: Style.space(30)
             text: I18n.t(modelData.key, root.effectiveLanguage)
             iconText: modelData.icon
@@ -883,10 +918,12 @@ Panel {
             accent: root.accent
             bordered: true
             focusable: true
-            selected: root.sensorsOpen === modelData.sensors
+            selected: root.sensorsOpen === modelData.sensors && root.fansOpen === modelData.fans
             onClicked: {
               processActions.cancel()
+              root.fansOpen = modelData.fans
               root.sensorsOpen = modelData.sensors
+              if (root.sensorsOpen && !root.fansOpen) root.loadSensorHistory()
             }
           }
         }
@@ -907,7 +944,7 @@ Panel {
           anchors.fill: parent
           sourceComponent: root.settingsOpen
             ? settingsContent
-            : (root.sensorsOpen ? sensorsContent : (root.expanded ? expandedContent : compactContent))
+            : (root.sensorsOpen ? (root.fansOpen ? fansContent : sensorsContent) : (root.expanded ? expandedContent : compactContent))
         }
       }
 
@@ -979,7 +1016,7 @@ Panel {
           elide: Text.ElideRight
           text: root.settingsOpen
             ? I18n.t("title", root.effectiveLanguage) + " · " + I18n.t("settings", root.effectiveLanguage)
-            : root.sensorsOpen ? I18n.t("title", root.effectiveLanguage) + " · " + I18n.t("sensors", root.effectiveLanguage)
+            : root.sensorsOpen ? I18n.t("title", root.effectiveLanguage) + " · " + I18n.t(root.fansOpen ? "fans" : "sensors", root.effectiveLanguage)
             : (root.expanded
               ? I18n.t("title", root.effectiveLanguage) + " · " + I18n.t("all_processes", root.effectiveLanguage)
               : I18n.t("title", root.effectiveLanguage))
@@ -1155,7 +1192,8 @@ Panel {
 
         Flickable {
           width: parent.width
-          height: Math.min(root.tileHeight, Math.max(Style.space(80), compactBody.height - Style.space(100)))
+          height: Math.min(root.tileHeight, Math.max(Style.space(80), compactBody.height - Style.space(100)
+            - (root.compactRamStrip ? root.ramStripHeight + compactBody.spacing : 0)))
           contentWidth: width
           contentHeight: compactGrid.implicitHeight
           clip: true
@@ -1176,6 +1214,51 @@ Panel {
             }
           }
         }
+        }
+
+        DetailSurface {
+          id: memoryStrip
+          objectName: "compactRamStrip"
+          visible: root.compactRamStrip
+          width: parent.width
+          height: visible ? root.ramStripHeight : 0
+          readonly property bool ready: root.hasSnapshot && root.snapshot.memory.total > 0
+          Text {
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.top: parent.top
+            anchors.leftMargin: Style.spacing.sm
+            anchors.rightMargin: Style.spacing.sm
+            anchors.topMargin: Style.spacing.xs
+            text: I18n.t("ram", root.effectiveLanguage) + "  " + (memoryStrip.ready
+              ? root.percentText(root.metrics.memory) + " · "
+                + Model.formatCompactBytes(root.snapshot.memory.total - root.snapshot.memory.available)
+                + " / " + Model.formatCompactBytes(root.snapshot.memory.total)
+              : "—")
+            textFormat: Text.PlainText
+            color: memoryStrip.ready ? root.pressureColor(root.metrics.memory) : root.dim
+            font.family: root.bar ? root.bar.fontFamily : Style.font.family
+            font.pixelSize: Style.font.caption
+            font.bold: true
+            elide: Text.ElideRight
+          }
+          Rectangle {
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.bottom: parent.bottom
+            anchors.margins: Style.spacing.sm
+            anchors.bottomMargin: Style.spacing.xs
+            height: Style.space(3)
+            radius: height / 2
+            color: Util.alpha(root.foreground, 0.12)
+            Rectangle {
+              visible: memoryStrip.ready
+              width: parent.width * Math.max(0, Math.min(1, root.metrics.memory / 100))
+              height: parent.height
+              radius: parent.radius
+              color: root.pressureColor(root.metrics.memory)
+            }
+          }
         }
 
         PanelSeparator {
@@ -1316,6 +1399,107 @@ Panel {
     }
   }
 
+  Component {
+    id: fansContent
+    Flickable {
+      anchors.fill: parent
+      contentWidth: width
+      contentHeight: fanBody.implicitHeight
+      clip: true; boundsBehavior: Flickable.StopAtBounds
+      ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+      Column {
+        id: fanBody
+        width: parent.width - Style.spacing.sm
+        spacing: Style.spacing.sm
+        Text {
+          width: parent.width
+          text: I18n.t("fan_control_hint",root.effectiveLanguage)
+          textFormat: Text.PlainText; wrapMode: Text.Wrap
+          color: root.dim
+          font.family: root.bar ? root.bar.fontFamily : Style.font.family
+          font.pixelSize: Style.font.caption
+        }
+        Dropdown {
+          width: parent.width
+          label: I18n.t("fan_boost_duration",root.effectiveLanguage)
+          value: String(root.fanDuration)
+          options: [5,10,30].map(function(value) { return {value:String(value),label:I18n.t("sensor_minutes",root.effectiveLanguage,value)} })
+          foreground: root.foreground; accent: root.accent
+          fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
+          onChanged: function(value) { root.fanDuration = Number(value) }
+        }
+        Text {
+          width: parent.width
+          visible: root.fanStatusKey !== ""
+          text: I18n.t(root.fanStatusKey,root.effectiveLanguage)
+          textFormat: Text.PlainText; wrapMode: Text.Wrap
+          color: root.fanStatusKey === "fan_action_failed" ? root.urgent : root.foreground
+          font.family: root.bar ? root.bar.fontFamily : Style.font.family
+          font.pixelSize: Style.font.caption
+        }
+        Repeater {
+          model: activity.sensorSnapshot.controls || []
+          DetailSurface {
+            required property var modelData
+            width: fanBody.width
+            height: channelBody.implicitHeight + Style.spacing.md * 2
+            Column {
+              id: channelBody
+              x: Style.spacing.md; y: Style.spacing.md
+              width: parent.width - Style.spacing.md * 2
+              spacing: Style.spacing.sm
+              Text {
+                width: parent.width
+                text: modelData.id + " · " + I18n.t("fan_rpm",root.effectiveLanguage,modelData.rpm)
+                  + " · " + Math.round(modelData.duty/255*100) + "% · "
+                  + I18n.t(modelData.mode === 2 ? "fan_mode_auto" : modelData.mode === 0 ? "fan_mode_full" : "fan_mode_manual",root.effectiveLanguage)
+                textFormat: Text.PlainText; wrapMode: Text.Wrap
+                color: root.foreground
+                font.family: root.bar ? root.bar.fontFamily : Style.font.family
+                font.pixelSize: Style.font.bodySmall
+              }
+              Row {
+                id: speeds
+                width: parent.width
+                spacing: Style.spacing.xs
+                Repeater {
+                  model: [60,80,100]
+                  Button {
+                    required property int modelData
+                    width: (speeds.width - speeds.spacing*2)/3
+                    text: modelData + "%"
+                    foreground: root.foreground; accent: root.accent
+                    fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
+                    focusable: true; bordered: true; enabled: !fanController.running
+                    onClicked: root.fanAction(channelBody.parent.modelData.id, modelData, "boost")
+                  }
+                }
+              }
+              Button {
+                width: parent.width
+                text: I18n.t("fan_restore",root.effectiveLanguage)
+                iconText: "\uf2ea"
+                foreground: root.foreground; accent: root.accent
+                fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
+                focusable: true; bordered: true; enabled: !fanController.running
+                onClicked: root.fanAction(modelData.id,100,"restore")
+              }
+            }
+          }
+        }
+        Text {
+          width: parent.width
+          visible: !activity.sensorSnapshot.controls || activity.sensorSnapshot.controls.length === 0
+          text: I18n.t("fan_control_unavailable",root.effectiveLanguage)
+          textFormat: Text.PlainText; wrapMode: Text.Wrap
+          color: root.dim
+          font.family: root.bar ? root.bar.fontFamily : Style.font.family
+          font.pixelSize: Style.font.caption
+        }
+      }
+    }
+  }
+
   component SensorCard: DetailSurface {
     id: sensorCard
     property var sensor: ({})
@@ -1324,7 +1508,7 @@ Panel {
       var saved = root.savedSensors.filter(function(item) { return item.id === sensor.id })[0]
       var live = sensor.id ? activity.sensorHistory[sensor.id] || [] : []
       var offset = Date.now()/1000 - activity.sensorSnapshot.sample
-      var all = (saved ? saved.history : []).concat(live.map(function(point) { return {time:point.time + offset,value:point.value} }))
+      var all = (saved ? saved.history : []).concat(live.map(function(point) { return {time:point.wallTime || point.time + offset,value:point.value} }))
       var cutoff = Date.now()/1000 - root.sensorWindowSeconds
       return all.filter(function(point) { return point.time >= cutoff }).sort(function(a,b) { return a.time-b.time })
     }
@@ -1380,11 +1564,13 @@ Panel {
         font.pixelSize: Style.font.heading
         font.bold: true
       }
-      Sparkline {
+      SensorHistoryChart {
         width: parent.width
-        height: Style.space(44)
-        values: sensorCard.readings
-        ceiling: sensorCard.fan ? (sensorCard.sensor.unit === "percent" ? 100 : 0) : 120
+        height: Style.space(140)
+        points: sensorCard.points.map(function(point) { return {time:point.time,value:!sensorCard.fan && root.temperatureUnitSetting === "Fahrenheit" ? point.value*9/5+32 : point.value} })
+        ceiling: sensorCard.fan ? (sensorCard.sensor.unit === "percent" ? 100 : 0) : (root.temperatureUnitSetting === "Fahrenheit" ? 248 : 120)
+        unit: sensorCard.fan ? (sensorCard.sensor.unit === "percent" ? "%" : "RPM") : (root.temperatureUnitSetting === "Fahrenheit" ? "°F" : "°C")
+        hint: I18n.t("chart_interaction",root.effectiveLanguage)
         lineColor: root.accent
       }
       Text {
@@ -1507,6 +1693,15 @@ Panel {
                 foreground: root.foreground; accent: root.accent
                 fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
                 onChanged: function(value) { root.persistSettings({compactTileCount:Number(value)}) }
+              }
+              Toggle {
+                width: parent.width
+                label: I18n.t("compact_ram_strip", root.effectiveLanguage)
+                description: I18n.t("compact_ram_strip_hint", root.effectiveLanguage)
+                checked: root.booleanSetting("compactRamStrip", true)
+                foreground: root.foreground; accent: root.accent
+                fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
+                onClicked: root.persistSettings({compactRamStrip:!root.booleanSetting("compactRamStrip", true)})
               }
               Repeater {
                 model: root.compactTileCount

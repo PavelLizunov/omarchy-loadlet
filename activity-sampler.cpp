@@ -1047,6 +1047,9 @@ public:
         } else if (chip == "nvme" || chip == "drivetemp") {
           category = "storage";
           owner = ReadLine(Join(path, "device/model")).value_or("");
+        } else if (chip == "it8613") {
+          category = "motherboard";
+          owner = "ITE IT8613E";
         } else if (chip == "spd5118" || chip == "jc42") {
           category = "memory";
         } else if (StartsWith(chip, "iwlwifi")) {
@@ -1082,6 +1085,21 @@ public:
       if (!sensor.temperature) output << "\trpm";
       output << '\t' << sensor.category << '\t' << sensor.owner << '\t'
              << sensor.location << '\n';
+    }
+    const auto board = ReadLine("/sys/class/dmi/id/board_name").value_or("");
+    if (board == "DRFXI") {
+      for (const auto &hwmon : DirectoryNames(Join(paths_.sys, "class/hwmon"))) {
+        const auto path = Join(Join(paths_.sys, "class/hwmon"), hwmon);
+        if (ReadLine(Join(path, "name")).value_or("") != "it8613") continue;
+        for (int channel = 2; channel <= 5; ++channel) {
+          const auto name = "pwm" + std::to_string(channel);
+          const auto duty = ReadUnsigned(Join(path, name));
+          const auto mode = ReadUnsigned(Join(path, name + "_enable"));
+          if (!duty || !mode) continue;
+          output << "control\t" << name << '\t' << *duty << '\t' << *mode
+                 << '\t' << ReadUnsigned(Join(path, "fan" + std::to_string(channel) + "_input")).value_or(0) << '\n';
+        }
+      }
     }
   }
 

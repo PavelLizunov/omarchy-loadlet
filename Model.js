@@ -69,7 +69,7 @@ function emptyThermalSnapshot() {
 }
 
 function emptySensorSnapshot() {
-  return { schema: 0, sample: 0, temperatures: [], fans: [] }
+  return { schema: 0, sample: 0, temperatures: [], fans: [], controls: [] }
 }
 
 function parseSensorSnapshot(raw) {
@@ -79,6 +79,9 @@ function parseSensorSnapshot(raw) {
     var fields = lines[i].split("\t")
     if (fields[0] === "schema") snapshot.schema = fields[1] === "activity-sensors" ? number(fields[2]) : 0
     else if (fields[0] === "sample") snapshot.sample = number(fields[1])
+    else if (fields[0] === "control" && /^pwm[2-5]$/.test(fields[1])) {
+      snapshot.controls.push({id:fields[1],duty:number(fields[2]),mode:number(fields[3]),rpm:number(fields[4])})
+    }
     else if (fields[0] === "recording-error") snapshot.recordingError = String(fields[1] || "")
     else if (fields[0] === "temperature" && fields.length >= 5) {
       var temperature = temperatureFromFields(fields)
@@ -98,7 +101,7 @@ function parseSensorSnapshot(raw) {
           location: String(fields[8] || "") })
     }
   }
-  var order = ["cpu", "gpu", "memory", "storage", "wifi", "ethernet", "unknown"]
+  var order = ["cpu", "gpu", "motherboard", "memory", "storage", "wifi", "ethernet", "unknown"]
   function byOwner(a, b) {
     return order.indexOf(a.category) - order.indexOf(b.category)
       || String(a.owner + a.location).localeCompare(String(b.owner + b.location))
@@ -118,7 +121,7 @@ function nextSensorHistory(previous, snapshot, limit, maxGap) {
     // Do not bridge a closed-panel/suspend gap with an invented continuous line.
     if (old.length && (snapshot.sample <= old[old.length - 1].time
         || snapshot.sample - old[old.length - 1].time > (maxGap || 15))) old = []
-    result[sensor.id] = old.concat([{time: snapshot.sample, value: sensor.value}])
+    result[sensor.id] = old.concat([{time: snapshot.sample, wallTime:Date.now()/1000, value: sensor.value}])
       .slice(-Math.max(20, Math.min(1440, limit)))
   }
   return result

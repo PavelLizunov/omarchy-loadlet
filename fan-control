@@ -1,0 +1,150 @@
+#!/usr/bin/python3 -I
+"""Authenticated, timed IT8613 overrides; restore the original channel state."""
+import json
+import os
+from pathlib import Path
+import re
+import signal
+import subprocess
+import sys
+import time
+
+SELF = '/usr/local/lib/loadlet/fan-control'
+STATE = Path('/run/loadlet-fans')
+
+
+def controller():
+    if Path('/sys/class/dmi/id/board_name').read_text().strip() != 'DRFXI':
+        raise ValueError('This installed adapter supports DRFXI / IT8613 only')
+    for path in Path('/sys/class/hwmon').glob('hwmon*'):
+        if (path/'name').read_text().strip() == 'it8613':
+            return path.resolve()
+    raise ValueError('IT8613 driver is not loaded')
+
+
+def channel_files(channel):
+    if not re.fullmatch(r'pwm[2-5]', channel):
+        raise ValueError('Invalid IT8613 channel')
+    path = controller()
+    pwm, mode = path/channel, path/(channel+'_enable')
+    if not pwm.is_file() or not mode.is_file():
+        raise ValueError('Channel is unavailable')
+    return pwm, mode
+
+
+def state_path(channel):
+    channel_files(channel)
+    STATE.mkdir(mode=0o700, exist_ok=True)
+    st = STATE.lstat()
+    if STATE.is_symlink() or st.st_uid != 0 or st.st_mode & 0o077:
+        raise ValueError('Unsafe controller state directory')
+    return STATE/(channel+'.json')
+
+
+def restore(channel):
+    file = state_path(channel)
+    if not file.exists():
+        return
+    saved = json.loads(file.read_text())
+    pwm, mode = channel_files(channel)
+    value, original_mode = int(saved['pwm']), int(saved['mode'])
+    if not 0 <= value <= 255 or original_mode not in (0, 1, 2):
+        raise ValueError('Invalid saved controller state')
+    # IT8613 rejects duty writes in automatic mode. Go through full speed.
+    mode.write_text('0')
+    mode.write_text('1')
+    pwm.write_text(str(value))
+    mode.write_text(str(original_mode))
+    file.unlink()
+
+
+def cooling_floor(target):
+    """Use full duty on missing CPU telemetry or a hot CPU, rather than a low hold."""
+    cpu = []
+    for path in Path('/sys/class/hwmon').glob('hwmon*'):
+        try:
+            if (path/'name').read_text().strip() not in ('k10temp', 'coretemp', 'zenpower'):
+                continue
+            for sensor in path.glob('temp*_input'):
+                value = int(sensor.read_text())
+                if 0 < value < 150000:
+                    cpu.append(value)
+        except (OSError, ValueError):
+            continue
+    return 255 if not cpu or max(cpu) >= 80000 else target
+
+
+def worker(channel, percent, minutes):
+    pwm, mode = channel_files(channel)
+    state = state_path(channel)
+    if state.exists():
+        raise ValueError('A previous override has not been restored')
+    previous = dict(pwm=int(pwm.read_text()), mode=int(mode.read_text()))
+    with state.open('x') as stream:
+        os.chmod(state, 0o600)
+        json.dump(previous, stream)
+    stopped = False
+
+    def stop(signum, frame):
+        nonlocal stopped
+        stopped = True
+
+    signal.signal(signal.SIGTERM, stop)
+    signal.signal(signal.SIGINT, stop)
+    try:
+        target = round(percent * 255 / 100)
+        # Full speed during takeover avoids the driver's automatic-mode EBUSY.
+        mode.write_text('0')
+        mode.write_text('1')
+        target = max(previous['pwm'], target)
+        pwm.write_text(str(cooling_floor(target)))
+        end = time.monotonic() + minutes*60
+        while not stopped and time.monotonic() < end:
+            time.sleep(1)
+            if not stopped:
+                pwm.write_text(str(cooling_floor(target)))
+    finally:
+        restore(channel)
+
+
+def main():
+    if os.geteuid() != 0:
+        raise PermissionError('System authentication is required')
+    if len(sys.argv) < 3:
+        raise ValueError('Expected boost/restore, channel, optional percent and minutes')
+    action, channel = sys.argv[1:3]
+    channel_files(channel)
+    unit = 'loadlet-fan-'+channel+'.service'
+    if action == 'restore' and len(sys.argv) == 3:
+        subprocess.run(['/usr/bin/systemctl', 'stop', unit], check=False, timeout=15,
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        restore(channel)
+        print('restored')
+    elif action in ('boost', 'worker') and len(sys.argv) == 5:
+        percent, minutes = int(sys.argv[3]), int(sys.argv[4])
+        if percent not in (60, 80, 100) or minutes not in (5, 10, 30):
+            raise ValueError('Unsupported speed or duration')
+        if action == 'worker':
+            worker(channel, percent, minutes)
+            return
+        subprocess.run(['/usr/bin/systemctl', 'stop', unit], check=False, timeout=15,
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        restore(channel)
+        subprocess.run(['/usr/bin/systemd-run', '--quiet', '--collect', '--unit='+unit,
+                        '--property=Type=exec', '--property=TimeoutStopSec=5',
+                        '--property=RuntimeMaxSec='+str(minutes*60+15),
+                        '--property=ExecStopPost='+SELF+' recover '+channel,
+                        SELF, 'worker', channel, str(percent), str(minutes)], check=True, timeout=15)
+        print('boosted')
+    elif action == 'recover' and len(sys.argv) == 3:
+        restore(channel)
+    else:
+        raise ValueError('Invalid operation')
+
+
+if __name__ == '__main__':
+    try:
+        main()
+    except (OSError, ValueError, KeyError, subprocess.SubprocessError) as error:
+        print(str(error), file=sys.stderr)
+        sys.exit(1)
