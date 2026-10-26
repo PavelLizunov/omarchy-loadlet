@@ -1,33 +1,34 @@
 {
   "schema": 1,
   "productName": "Loadlet",
-  "runtimeVersion": "2.11.1",
-  "sourceCommit": "f6738917c45520cc6f77558a9df05b2bc967ad0f",
+  "runtimeVersion": "2.13.0",
   "date": "2026-10-26",
   "captureKind": "actual-native-QML/inert-demo",
   "sourceHashes": {
-    "Panel.qml": "96b8e4356bd05d6d4db41889f6522aebd0ea7226671c9669767e534d43ed9b8d",
+    "Panel.qml": "c0136666da3ede8d6faf9a0c59f795cab81e0b2af4d79509aaa0012295ccbfd9",
+    "ComputerMap.qml": "9761db698e3af70be5c706ea2e4998d817781306244d3054c7742d66ddf1f59e",
+    "SvgIcon.qml": "169488330966d05e4de620587741b6a24e649052f61373f1b33b6bd7ffdf5da2",
     "ActivityController.qml": "00e4297a825b40c01117a8f1005bf748ac3a5aea7558c96cc59e8f679ec09d6f",
     "ActivityIcon.qml": "9e799b388b1ee577d0738da6640a6890169a1ca3e0db70f2958a05f055a6bc3a",
     "ActivityIconSvg.js": "e183d251ef9eda24a6e0284db1d84f9812b13b3c1443b3a7fe57343473ad2eae",
     "SensorHistoryChart.qml": "929dea1127b98f553fd60c0964ba62b3192f1feadf184a18f4567ae0b116b2b7",
-    "Sparkline.qml": "af92bb46af457e7fa42f6379aeb04d0404036547c174d59ec5af042efa48b6fb",
     "Model.js": "6a3567ba26cc2f765540d5cdfa39464f8a43de3b4e13c586bcd9c434d67f59ca",
-    "I18n.js": "9b2d5d9978fbcf3c3404238e24154aed7570f05b1e8f287ba358e28072562b51",
+    "I18n.js": "e861dc212cdb726cd02dbbcc32e8757b055ca6f51ceffe31598d4dce3dc1f3fc",
     "test/mock-data.js": "c2087d43c107d6b31413c2cf583844687c16ea0dbb486eb7593171639655a126",
-    "test/render-icon-update.qml": "462d4ccfd7384a03283368974e0fb8471f874131d11c0223ca02039bfadac6ca",
-    "test/ui-checks.py": "45e95eaf52fae75e5c61d42b0caf51cbf19b7935c6ada712e46df06926fd8907"
+    "test/render-icon-update.qml": "9fd383e3889f0e54d43b7e09264c86b1f540cb2269c02114bc22f703afdd277d",
+    "test/ui-checks.py": "145133e64cd229ad691e871a50306271c0347fb9c7289f886badc19acdbdc2f2"
   },
   "assetHashes": {
-    "compact.png": "3d381b5aeb23f1c7c17ee47c91c3d150c49889d9f84720a880fbb3bf2c9a7e11",
-    "expanded.png": "8d2ea313e60e932a6eb886cb14ab7dcf5c1b44de01568ce0b5a53fde94c84469",
-    "settings.png": "ed713c4ec56e043f17eb2523cc9b37344bef0ce001b41cc936188da8c4809a08",
-    "cooling.png": "1a156c8b1af4ed95c0c837db5e83a47ba4834cf53b6bc447b4ed02ea7771c4ef",
-    "fans.png": "e731426ad610f2a0bca7fef04c88d097322f6b1796496c69802daeea4e5951ed"
+    "compact.png": "ab7891a7c520bcc25243b7ed3360b19a8f9d776c667607a912d5243fb2a0e49e",
+    "expanded.png": "f7d6ac0954e5189a43c1e606a8f6281df75ce2e28257c20b0df87212e854f80f",
+    "cooling.png": "aa2b47d2502c47e05eb739e6087b322289a610b28b9b33dcc57d6ef36c376719",
+    "fans.png": "11fe86505ba86488dffcd0c4102d16015efdda46996686e0db955cac2bdd673b",
+    "settings.png": "a64451e1ea0f7cfc00c84cb9cc6df283c6e7e2e2b09360b7d3dbafd9cf1e8f45",
+    "computer-map.png": "6c7651266248cd2a718f4a119e75046ef5a9166bf3463aa17e1d6ae1a3375df3"
   },
   "captures": {
     "compact.png": {
-      "rawSha256": "3945ddf00a3609b9513450a1f43e88c6159d85d471a100f5ecaaadc48411c6c7",
+      "rawSha256": "0f778c8492c33079ead6a050a6e97de01bc32902db0486aad56a2b0fc07e39d4",
       "rawSize": [
         520,
         470
@@ -39,74 +40,89 @@
       "dpr": 1,
       "locale": "ru",
       "inspected": true,
-      "crop": "Empty outer area only; no resize/redraw"
+      "crop": "Empty outer fixture space only; no resize"
     },
     "expanded.png": {
-      "rawSha256": "8f5e7a6d333d9c632a5f41df044de4961c1182c8a3fc62188cb6a2ffc7d58c0c",
+      "rawSha256": "d468ab67d497018130f3e8f71f16def1f75f83003a880ef670ec81af2dfd279a",
       "rawSize": [
-        820,
-        630
+        940,
+        720
       ],
       "size": [
-        780,
-        592
+        900,
+        682
       ],
       "dpr": 1,
       "locale": "ru",
       "inspected": true,
-      "crop": "Empty outer area only; no resize/redraw"
-    },
-    "settings.png": {
-      "rawSha256": "37b0272197a2a22183a63e1728c96c7dfc03cf440554e58aec76b227734967b5",
-      "rawSize": [
-        520,
-        470
-      ],
-      "size": [
-        480,
-        422
-      ],
-      "dpr": 1,
-      "locale": "ru",
-      "inspected": true,
-      "crop": "Empty outer area only; no resize/redraw"
+      "crop": "Empty outer fixture space only; no resize"
     },
     "cooling.png": {
-      "rawSha256": "19b7fd3c360730ae7e354e514a097511df3701e0e4f228f24df10e967b0cd976",
+      "rawSha256": "9e1a104d42641836169003d041fa323186ae17c7ee05617ce80e3997a13cde73",
       "rawSize": [
-        820,
-        630
+        940,
+        720
       ],
       "size": [
-        780,
-        592
+        900,
+        682
       ],
       "dpr": 1,
       "locale": "ru",
       "inspected": true,
-      "crop": "Empty outer area only; no resize/redraw"
+      "crop": "Empty outer fixture space only; no resize"
     },
     "fans.png": {
-      "rawSha256": "1eadfb0e5bfaf2474f1678bd06c97794b5f48298bdc7522c0db01c261eb6a404",
+      "rawSha256": "99e0414bf06d437e29016023a7b54f5590cee15a900771317b0406d3b54cf544",
       "rawSize": [
-        520,
-        470
+        940,
+        720
       ],
       "size": [
-        480,
-        422
+        900,
+        682
       ],
       "dpr": 1,
       "locale": "ru",
       "inspected": true,
-      "crop": "Empty outer area only; no resize/redraw"
+      "crop": "Empty outer fixture space only; no resize"
+    },
+    "settings.png": {
+      "rawSha256": "45cf07e5fe500b0822699ab1c948d6589f7dfed87a9eb35c08a15434342cabba",
+      "rawSize": [
+        940,
+        720
+      ],
+      "size": [
+        900,
+        682
+      ],
+      "dpr": 1,
+      "locale": "ru",
+      "inspected": true,
+      "crop": "Empty outer fixture space only; no resize"
+    },
+    "computer-map.png": {
+      "rawSha256": "521e2f65b7672a17ee713f954b7231aa84309898a9cb39b2b90f9262e328ce3a",
+      "rawSize": [
+        940,
+        720
+      ],
+      "size": [
+        900,
+        682
+      ],
+      "dpr": 1,
+      "locale": "ru",
+      "inspected": true,
+      "crop": "Empty outer fixture space only; no resize"
     }
   },
   "limits": [
-    "Inert data; no production desktop input or screenshot",
-    "Popup overlays are outside the captured QQuickItem subtree; keyboard interaction tested separately",
-    "AT-SPI desktop bridge warnings reported; no QML diagnostics",
-    "No independent review; no real authentication or hardware override in this audit"
+    "Inert model, not desktop screenshot or physical interaction",
+    "Report policy: AT-SPI bridge warnings; no QML diagnostics",
+    "No actual fan stop; identification and thermal recovery exercised only on temporary files",
+    "Popup overlay pixels, physical connector identity and independent review unverified"
   ],
   "renderer": {
     "qtVersion": "6.12.0",
@@ -115,6 +131,20 @@
     "platform": "offscreen",
     "backend": "software"
   },
-  "palette": "Nord; foreground#d8dee9/background#2e3440/accent#81a1c1",
-  "fontBaseSize": 12
+  "palette": "Nord;foreground#d8dee9/background#2e3440/accent#81a1c1",
+  "fontBaseSize": 12,
+  "additionalInspectedStates": [
+    "settings-icon",
+    "settings-sampling",
+    "settings-diagnostics",
+    "cpu",
+    "gpu",
+    "cooling-empty",
+    "cooling-error",
+    "fans-narrow",
+    "map-de",
+    "settings-zh",
+    "cooling-font16",
+    "map-dpr2"
+  ]
 }

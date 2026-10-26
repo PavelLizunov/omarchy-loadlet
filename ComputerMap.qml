@@ -6,84 +6,90 @@ import "I18n.js" as I18n
 
 Item {
   id: root
+  objectName: "computerMap"
   property string language: "ru"
   property string selectedPart: ""
   signal picked(string part)
-  implicitHeight: width * 0.76
+  implicitHeight: width * 0.72
   readonly property color ink: Host.Color.popups.text
   readonly property color accent: Host.Color.accent
-  readonly property string outlineColor: "#" + [ink.r, ink.g, ink.b].map(function(channel) {
-    return Math.round(channel * 255).toString(16).padStart(2, "0")
-  }).join("")
-  readonly property var parts: [
-    {key:"fan_top",x:0.37,y:0.06,w:0.28,h:0.12,icon:"fans"},
-    {key:"fan_rear",x:0.05,y:0.24,w:0.22,h:0.15,icon:"fans"},
-    {key:"cpu",x:0.34,y:0.24,w:0.23,h:0.16,icon:"cpu"},
-    {key:"memory",x:0.62,y:0.24,w:0.19,h:0.16,icon:"ram"},
-    {key:"fan_cpu",x:0.34,y:0.43,w:0.23,h:0.13,icon:"fans"},
-    {key:"fan_front",x:0.83,y:0.43,w:0.16,h:0.22,icon:"fans"},
-    {key:"gpu",x:0.17,y:0.60,w:0.61,h:0.13,icon:"gpu"},
-    {key:"motherboard",x:0.17,y:0.79,w:0.28,h:0.13,icon:"cpu"},
-    {key:"storage",x:0.50,y:0.79,w:0.22,h:0.13,icon:"storage"},
-    {key:"fan_ssd",x:0.75,y:0.79,w:0.23,h:0.13,icon:"fans"}
-  ]
-  Image {
-    anchors.fill: parent
-    sourceSize.width: Math.max(1, Math.ceil(width * Screen.devicePixelRatio))
-    sourceSize.height: Math.max(1, Math.ceil(height * Screen.devicePixelRatio))
-    source: "data:image/svg+xml;utf8," + encodeURIComponent(
-      '<svg xmlns="http://www.w3.org/2000/svg" width="' + sourceSize.width + '" height="' + sourceSize.height
-      + '" viewBox="0 0 400 304" fill="none" stroke="' + root.outlineColor + '" stroke-opacity="0.35" stroke-width="2">'
-      + '<rect x="8" y="8" width="384" height="288" rx="12"/><rect x="52" y="58" width="268" height="224" rx="5"/>'
-      + '<path d="M24 18h65m-65 8h65M24 283h112M330 32h46v56h-46M92 126v42h-21m130-42v42h36M82 232h198M302 144h28v72h-16"/>'
-      + '<circle cx="350" cy="43" r="3"/></svg>')
+  function hex(color) {
+    return "#" + [color.r,color.g,color.b].map(function(c){return Math.round(c*255).toString(16).padStart(2,"0")}).join("")
   }
-  Repeater {
-    model: root.parts
-    Button {
-      id: hotspot
-      required property var modelData
-      x: modelData.x * root.width
-      y: modelData.y * root.height
-      width: modelData.w * root.width
-      height: modelData.h * root.height
-      text: ""
-      selected: root.selectedPart === modelData.key
-      foreground: root.ink
-      accent: root.accent
-      background: Host.Color.popups.background
-      bordered: true
-      focusable: true
-      tooltipText: I18n.t("map_" + modelData.key, root.language)
-      Accessible.name: tooltipText
-      onClicked: root.picked(modelData.key)
-      Rectangle {
-        anchors.right: parent.right; anchors.top: parent.top
-        anchors.margins: Style.space(3)
-        width: Style.space(4); height: width; radius: width / 2
-        color: hotspot.selected ? root.accent : root.ink
-      }
-      Column {
-        anchors.centerIn: parent
-        width: parent.width - Style.spacing.xs
-        spacing: Style.space(1)
-        SvgIcon {
-          anchors.horizontalCenter: parent.horizontalCenter
-          name: hotspot.modelData.icon
-          width: Math.min(Style.space(16), hotspot.height * 0.36)
-          height: width
-          tint: hotspot.selected ? root.accent : root.ink
+  readonly property var parts: [
+    {key:"fan_rear",x:0.15,y:0.25}, {key:"cpu",x:0.43,y:0.29},
+    {key:"memory",x:0.65,y:0.29}, {key:"fan_cpu",x:0.43,y:0.43},
+    {key:"gpu",x:0.43,y:0.64}, {key:"storage",x:0.65,y:0.48},
+    {key:"motherboard",x:0.27,y:0.48}, {key:"fan_front",x:0.85,y:0.51},
+    {key:"fan_top",x:0.44,y:0.09}, {key:"fan_ssd",x:0.65,y:0.80}
+  ]
+  Item {
+    id: drawing
+    anchors.centerIn: parent
+    width: Math.min(parent.width, parent.height / 0.72)
+    height: width * 0.72
+    Image {
+      anchors.fill: parent
+      readonly property int pixelWidth: Math.max(1,Math.ceil(width*Screen.devicePixelRatio))
+      readonly property int pixelHeight: Math.max(1,Math.ceil(height*Screen.devicePixelRatio))
+      sourceSize.width: pixelWidth
+      sourceSize.height: pixelHeight
+      // Original side cutaway. Tabler keyline principles: uniform strokes,
+      // round joins, simple geometry and generous separation, not boxed labels.
+      source: "data:image/svg+xml;utf8," + encodeURIComponent(
+        '<svg xmlns="http://www.w3.org/2000/svg" width="'+pixelWidth+'" height="'+pixelHeight+'" viewBox="0 0 500 360" fill="none" stroke="'+root.hex(root.ink)+'" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
+        +'<path d="M42 24H438L462 42V328H42Z M438 24V310H42m396 0 24 18M62 328v12h35v-12m299 0v12h35v-12"/>'
+        +'<rect x="110" y="65" width="260" height="220" rx="5" stroke-opacity=".45"/>'
+        +'<path d="M120 74h25m-25 7h25m-25 7h25m-25 7h25M130 161v28h33m123 4v15h50m-175-22v18m-7-18v18m-7-18v18" stroke-opacity=".5"/>'
+        +'<rect x="165" y="76" width="102" height="104" rx="5"/>'
+        +'<path d="M175 82v92m9-92v92m9-92v92m9-92v92m9-92v92m9-92v92m9-92v92m9-92v92m9-92v92m9-92v92" stroke-opacity=".4"/>'
+        +'<circle cx="216" cy="127" r="34"/><circle cx="216" cy="127" r="8"/>'
+        +'<path d="M211 120c-27-22-4-36 4-23l7 23m1 4c30-15 33 12 18 12l-17-4m-7 3c-2 34-27 21-20 8l13-15"/>'
+        +'<rect x="299" y="76" width="15" height="87" rx="2"/><rect x="324" y="76" width="15" height="87" rx="2"/>'
+        +'<path d="M303 87h7m-7 13h7m-7 13h7m-7 13h7m-7 13h7m18-52h7m-7 13h7m-7 13h7m-7 13h7m-7 13h7" stroke-opacity=".5"/>'
+        +'<rect x="281" y="175" width="75" height="22" rx="3"/><circle cx="348" cy="186" r="2"/><path d="M290 181h33m-33 5h33m-33 5h33" stroke-opacity=".5"/>'
+        +'<rect x="106" y="220" width="258" height="55" rx="5"/><path d="M107 230H96v49h13m12-4v10h97m14-10v10h56"/>'
+        +'<circle cx="177" cy="247" r="20"/><circle cx="287" cy="247" r="20"/>'
+        +'<path d="m164 234 26 26m-26 0 26-26m84 0 26 26m-26 0 26-26" stroke-opacity=".5"/>'
+        +'<rect x="385" y="65" width="41" height="220" rx="3"/>'
+        +'<circle cx="405" cy="105" r="17"/><circle cx="405" cy="175" r="17"/><circle cx="405" cy="245" r="17"/>'
+        +'<path d="m394 94 22 22m-22 0 22-22m-22 70 22 22m-22 0 22-22m-22 70 22 22m-22 0 22-22" stroke-opacity=".5"/>'
+        +'<rect x="57" y="65" width="38" height="63" rx="3"/><circle cx="76" cy="96" r="14"/><path d="m66 86 20 20m-20 0 20-20"/>'
+        +'<path d="M151 40h161m-161 7h161m-161 7h161" stroke-opacity=".55"/>'
+        +'<rect x="58" y="293" width="126" height="15" rx="2"/><path d="M69 296v9m8-9v9m8-9v9m8-9v9m8-9v9" stroke-opacity=".4"/>'
+        +'</svg>')
+    }
+    Repeater {
+      model: root.parts
+      Item {
+        id: target
+        required property var modelData
+        required property int index
+        x: modelData.x*drawing.width-width/2
+        y: modelData.y*drawing.height-height/2
+        width: Style.space(30); height: width
+        Rectangle {
+          anchors.centerIn: parent
+          width: Style.space(20); height: width; radius: width/2
+          color: root.selectedPart===target.modelData.key || mouse.containsMouse ? root.accent : Host.Color.popups.background
+          border.color: root.accent; border.width: Math.max(1,Style.space(1))
+          Text {
+            anchors.centerIn: parent
+            text: target.index+1; textFormat: Text.PlainText
+            color: root.selectedPart===target.modelData.key || mouse.containsMouse ? Host.Color.popups.background : root.accent
+            font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true
+          }
         }
-        Text {
-          width: parent.width
-          text: I18n.t("map_" + hotspot.modelData.key, root.language)
-          textFormat: Text.PlainText
-          color: hotspot.selected ? root.accent : root.ink
-          font.family: Style.font.family
-          font.pixelSize: Style.font.caption
-          horizontalAlignment: Text.AlignHCenter
-          elide: Text.ElideRight
+        activeFocusOnTab: true
+        Accessible.role: Accessible.Button
+        Accessible.name: I18n.t("map_"+modelData.key,root.language)
+        Keys.onReturnPressed: root.picked(modelData.key)
+        Keys.onSpacePressed: root.picked(modelData.key)
+        MouseArea {
+          id: mouse; anchors.fill: parent; hoverEnabled:true; cursorShape:Qt.PointingHandCursor
+          onClicked: root.picked(target.modelData.key)
         }
+        PanelToolTip { visible:mouse.containsMouse || target.activeFocus; text:target.Accessible.name; fontFamily:Style.font.family }
       }
     }
   }

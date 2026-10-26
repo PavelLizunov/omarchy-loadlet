@@ -36,10 +36,12 @@ Image {
   width: Style.space(16)
   height: width
   fillMode: Image.PreserveAspectFit
-  sourceSize.width: Math.max(1, Math.ceil(width * Screen.devicePixelRatio))
-  sourceSize.height: Math.max(1, Math.ceil(height * Screen.devicePixelRatio))
+  readonly property int pixelWidth: Math.max(1, Math.ceil(width * Screen.devicePixelRatio))
+  readonly property int pixelHeight: Math.max(1, Math.ceil(height * Screen.devicePixelRatio))
+  sourceSize.width: pixelWidth
+  sourceSize.height: pixelHeight
   source: paths[name] ? "data:image/svg+xml;utf8," + encodeURIComponent(
-    '<svg xmlns="http://www.w3.org/2000/svg" width="' + sourceSize.width + '" height="' + sourceSize.height
+    '<svg xmlns="http://www.w3.org/2000/svg" width="' + pixelWidth + '" height="' + pixelHeight
       + '" viewBox="0 0 24 24" fill="none" stroke="' + strokeColor + '" stroke-opacity="' + tint.a
       + '" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' + paths[name] + '</svg>') : ""
 }

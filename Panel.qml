@@ -67,7 +67,7 @@ Panel {
         journalError: activity.journalError,
         heatThreshold: activity.heatThreshold,
         productName: "Loadlet",
-        iconRevision: "2.12.0",
+        iconRevision: "2.13.0",
         rightClickAction: "none",
         iconTooltip: button.tooltipText,
         iconConsumer: String(Qt.resolvedUrl("Panel.qml")),
@@ -109,7 +109,7 @@ Panel {
     id: fanController
     command: root.pendingFanAction === "restore"
       ? ["/usr/local/lib/loadlet/fan-control", "request", "restore", root.pendingFanChannel]
-      : ["/usr/local/lib/loadlet/fan-control", "request", "boost", root.pendingFanChannel, String(root.pendingFanSpeed), String(root.fanDuration)]
+      : ["/usr/local/lib/loadlet/fan-control", "request", root.pendingFanAction, root.pendingFanChannel, String(root.pendingFanSpeed), String(root.pendingFanAction === "identify" ? 5 : root.fanDuration)]
     onStarted: fanDeadline.restart()
     onExited: function(code) { fanDeadline.stop(); root.fanStatusKey = code === 0 ? "fan_action_sent" : "fan_action_failed"; activity.refresh() }
   }
@@ -117,8 +117,16 @@ Panel {
   property int sensorWindowSeconds: 600
   property string selectedSensorId: ""
   property string sensorPart: ""
-  property bool computerMapVisible: true
+  property bool computerMapVisible: false
   property string focusedFanChannel: ""
+  readonly property string activeFanChannel: {
+    var channels=activity.sensorSnapshot.controls || []
+    return channels.some(function(channel){return channel.id===root.focusedFanChannel}) ? focusedFanChannel : channels.length ? channels[0].id : ""
+  }
+  property bool sensorOptionsOpen: false
+  property bool sensorAssignmentOpen: false
+  property string settingsSection: "tiles"
+  property int identificationPercent: 0
   readonly property var fanPlaces: ["unknown", "fan_cpu", "fan_front", "fan_rear", "fan_top", "fan_ssd"]
   function fanPlace(channel) {
     var place = String(root.setting("fanPlace_" + channel, "unknown"))
@@ -160,6 +168,7 @@ Panel {
   }
   readonly property var filteredSensors: coolingSensors.filter(function(sensor) { return root.sensorMatches(sensor, root.sensorPart) })
   function selectPart(part) {
+    root.setExpanded(true)
     computerMapVisible = false
     sensorPart = part
     selectedSensorId = ""
@@ -204,7 +213,7 @@ Panel {
   }
   onSensorsOpenChanged: {
     if (!sensorsOpen) { fansOpen = false; sensorPart = ""; focusedFanChannel = "" }
-    else if (!fansOpen) loadSensorHistory()
+    else { root.setExpanded(true); if (!fansOpen) loadSensorHistory() }
   }
   Component.onDestruction: {
     historyDeadline.stop(); fanDeadline.stop()
@@ -423,6 +432,7 @@ Panel {
   }
 
   function setSettingsOpen(value) {
+    if (value) root.setExpanded(true)
     settingsOpen = value
     settingsControlActive = value
     languageExpanded = false
@@ -841,8 +851,8 @@ Panel {
 
     // Stable Panel Geometry per design-review.md:
     // 480x390 compact / 780x560 expanded. Geometry stays rock-solid when settings open!
-    contentWidth: panel.fittedContentWidth(root.expanded ? Style.space(780) : Style.space(480))
-    contentHeight: panel.fittedContentHeight(Style.space(root.expanded ? 560 : 390))
+    contentWidth: panel.fittedContentWidth(root.expanded ? Style.space(900) : Style.space(480))
+    contentHeight: panel.fittedContentHeight(Style.space(root.expanded ? 650 : 390))
 
     PanelKeyCatcher {
       id: keyCatcher
@@ -1474,15 +1484,34 @@ Panel {
       foreground: root.foreground; accent: root.accent
       fontFamily: Style.font.family; fontSize: Style.font.bodySmall
       bordered: true; focusable: true
-      onClicked: root.computerMapVisible = !root.computerMapVisible
+      onClicked: { root.setExpanded(true); root.computerMapVisible = !root.computerMapVisible }
     }
     ComputerMap {
       width: parent.width
-      height: visible ? implicitHeight : 0
+      height: visible ? Math.min(implicitHeight, Style.space(285)) : 0
       visible: root.computerMapVisible
       language: root.effectiveLanguage
       selectedPart: root.sensorPart
       onPicked: function(part) { root.selectPart(part) }
+    }
+    Grid {
+      width: parent.width
+      visible: root.computerMapVisible
+      columns: width >= Style.space(600) ? 3 : 2
+      spacing: Style.spacing.xs
+      Repeater {
+        model: ["fan_rear","cpu","memory","fan_cpu","gpu","storage","motherboard","fan_front","fan_top","fan_ssd"]
+        Button {
+          required property string modelData
+          required property int index
+          width: (parent.width-parent.spacing*(parent.columns-1))/parent.columns
+          height: Style.space(25)
+          text: (index+1)+" · "+I18n.t("map_"+modelData,root.effectiveLanguage)
+          foreground: root.foreground; accent: root.accent
+          fontFamily: Style.font.family; fontSize: Style.font.caption; bordered:true;focusable:true
+          onClicked: root.selectPart(modelData)
+        }
+      }
     }
     Text {
       visible: root.computerMapVisible
@@ -1518,26 +1547,39 @@ Panel {
         ComputerNavigator {}
       Column {
         id: coolingControls
+        visible: !root.computerMapVisible
         width: parent.width
         spacing: Style.spacing.sm
-        Toggle {
-          width: parent.width
-          label: I18n.t("sensor_recording", root.effectiveLanguage)
-          description: I18n.t("sensor_recording_hint", root.effectiveLanguage)
-          checked: activity.sensorRecording
-          foreground: root.foreground; accent: root.accent
-          fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
-          onClicked: root.persistSettings({sensorRecording:!activity.sensorRecording})
+        Row {
+          width: parent.width; spacing: Style.spacing.sm
+          SvgButton {
+            width: (parent.width-parent.spacing)/2
+            text: I18n.t("sensor_recording",root.effectiveLanguage)
+            iconName: "storage"; selected: activity.sensorRecording
+            foreground: root.foreground; accent: root.accent
+            fontFamily: Style.font.family; fontSize: Style.font.caption
+            bordered: true; focusable: true
+            tooltipText: I18n.t("sensor_recording_hint",root.effectiveLanguage)
+            onClicked: root.persistSettings({sensorRecording:!activity.sensorRecording})
+          }
+          SvgButton {
+            width: (parent.width-parent.spacing)/2
+            text: I18n.t("map_options",root.effectiveLanguage)
+            iconName: "settings"; selected: root.sensorOptionsOpen
+            foreground: root.foreground; accent: root.accent
+            fontFamily: Style.font.family; fontSize: Style.font.caption
+            bordered: true; focusable: true
+            onClicked: root.sensorOptionsOpen=!root.sensorOptionsOpen
+          }
         }
         Text {
           width: parent.width
-          text: activity.sensorRecordingError || root.historyReadError ? I18n.t("sensor_recording_error", root.effectiveLanguage)
-            : I18n.t(activity.sensorRecording && activity.sensorWriterEnabled ? "sensor_recording_on" : "sensor_recording_off", root.effectiveLanguage)
-          textFormat: Text.PlainText
-          wrapMode: Text.Wrap
+          visible: root.sensorOptionsOpen || activity.sensorRecordingError !== "" || root.historyReadError
+          text: activity.sensorRecordingError || root.historyReadError ? I18n.t("sensor_recording_error",root.effectiveLanguage)
+            : I18n.t("sensor_recording_hint",root.effectiveLanguage)
+          textFormat: Text.PlainText; wrapMode: Text.Wrap
           color: activity.sensorRecordingError || root.historyReadError ? root.urgent : root.dim
-          font.family: root.bar ? root.bar.fontFamily : Style.font.family
-          font.pixelSize: Style.font.caption
+          font.family: Style.font.family; font.pixelSize: Style.font.caption
         }
         Dropdown {
           width: parent.width
@@ -1572,16 +1614,24 @@ Panel {
           }
         }
       }
+        Text {
+          width:parent.width
+          visible:!root.computerMapVisible && root.fanStatusKey!==""
+          text:I18n.t(root.fanStatusKey,root.effectiveLanguage)
+          textFormat:Text.PlainText;wrapMode:Text.Wrap
+          color:root.fanStatusKey==="fan_action_failed" ? root.urgent : root.dim
+          font.family:Style.font.family;font.pixelSize:Style.font.caption
+        }
         SensorCard {
           id: selectedSensorCard
-          visible: !!root.selectedSensor
+          visible: !root.computerMapVisible && !!root.selectedSensor
           width: parent.width
           height: visible ? implicitHeight : 0
           sensor: root.selectedSensor || ({})
           fan: sensor.fan === true
         }
         Text {
-          visible: !root.selectedSensor
+          visible: !root.computerMapVisible && !root.selectedSensor
           width: parent.width
           text: root.historyPending ? I18n.t("sampling",root.effectiveLanguage)
             : I18n.t(root.sensorPart ? "map_no_sensors" : "no_temperature_sensors",root.effectiveLanguage)
@@ -1609,60 +1659,32 @@ Panel {
         spacing: Style.spacing.sm
         ComputerNavigator {}
         Text {
-          width: parent.width
-          visible: root.sensorPart.indexOf("fan_") === 0
-          text: I18n.t("map_assignment_hint", root.effectiveLanguage)
-          textFormat: Text.PlainText; wrapMode: Text.Wrap
-          color: root.accent; font.family: Style.font.family; font.pixelSize: Style.font.caption
+          width:parent.width
+          visible:!root.computerMapVisible && root.fanStatusKey!==""
+          text:I18n.t(root.fanStatusKey,root.effectiveLanguage)
+          textFormat:Text.PlainText;wrapMode:Text.Wrap
+          color:root.fanStatusKey==="fan_action_failed" ? root.urgent : root.dim
+          font.family:Style.font.family;font.pixelSize:Style.font.caption
         }
-        Repeater {
-          model: root.sensorPart.indexOf("fan_") === 0 ? root.filteredSensors : []
-          SvgButton {
-            required property var modelData
-            width: fanBody.width
-            text: root.sensorOwner(modelData) + " · " + root.sensorLabel(modelData)
-            iconName: "fans"
-            foreground: root.foreground; accent: root.accent
-            fontFamily: Style.font.family; fontSize: Style.font.caption
-            bordered: true; focusable: true
-            onClicked: {
-              var id = modelData.id
-              root.sensorPart = ""
-              root.selectedSensorId = id
-              root.fansOpen = false
-              root.loadSensorHistory()
-            }
+        Column {
+          width: parent.width
+          visible: !root.computerMapVisible
+          spacing: Style.spacing.sm
+          Dropdown {
+            objectName: "fanChannelDropdown"
+            width: parent.width
+            label: I18n.t("map_channel",root.effectiveLanguage)
+            value: root.activeFanChannel
+            options: (activity.sensorSnapshot.controls || []).map(function(channel) {
+              return {value:channel.id,label:channel.id+" · "+I18n.t("map_"+root.fanPlace(channel.id),root.effectiveLanguage)+" · "+I18n.t("fan_rpm",root.effectiveLanguage,channel.rpm)}
+            })
+            foreground: root.foreground; accent: root.accent; fontFamily:Style.font.family
+            onChanged: function(value) { root.focusedFanChannel=value }
           }
         }
-        Text {
-          width: parent.width
-          text: I18n.t("fan_control_hint",root.effectiveLanguage)
-          textFormat: Text.PlainText; wrapMode: Text.Wrap
-          color: root.dim
-          font.family: root.bar ? root.bar.fontFamily : Style.font.family
-          font.pixelSize: Style.font.caption
-        }
-        Dropdown {
-          width: parent.width
-          label: I18n.t("fan_boost_duration",root.effectiveLanguage)
-          value: String(root.fanDuration)
-          options: [5,10,30].map(function(value) { return {value:String(value),label:I18n.t("sensor_minutes",root.effectiveLanguage,value)} })
-          foreground: root.foreground; accent: root.accent
-          fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
-          onChanged: function(value) { root.fanDuration = Number(value) }
-        }
-        Text {
-          width: parent.width
-          visible: root.fanStatusKey !== ""
-          text: I18n.t(root.fanStatusKey,root.effectiveLanguage)
-          textFormat: Text.PlainText; wrapMode: Text.Wrap
-          color: root.fanStatusKey === "fan_action_failed" ? root.urgent : root.foreground
-          font.family: root.bar ? root.bar.fontFamily : Style.font.family
-          font.pixelSize: Style.font.caption
-        }
         Repeater {
-          model: (activity.sensorSnapshot.controls || []).filter(function(channel) {
-            return !root.focusedFanChannel || channel.id === root.focusedFanChannel
+          model: root.computerMapVisible ? [] : (activity.sensorSnapshot.controls || []).filter(function(channel) {
+            return channel.id === root.activeFanChannel
           })
           DetailSurface {
             id: fanChannelCard
@@ -1683,14 +1705,6 @@ Panel {
                 fontFamily: Style.font.family
                 onChanged: function(place) { root.assignFan(fanChannelCard.modelData.id, place) }
               }
-              SvgButton {
-                width: parent.width
-                text: I18n.t("map_fan_history", root.effectiveLanguage)
-                iconName: "overview"
-                foreground: root.foreground; accent: root.accent
-                fontFamily: Style.font.family; bordered: true; focusable: true
-                onClicked: root.showFanHistory(fanChannelCard.modelData.id)
-              }
               Text {
                 width: parent.width
                 text: modelData.id + " · " + I18n.t("fan_rpm",root.effectiveLanguage,modelData.rpm)
@@ -1700,6 +1714,25 @@ Panel {
                 color: root.foreground
                 font.family: root.bar ? root.bar.fontFamily : Style.font.family
                 font.pixelSize: Style.font.bodySmall
+              }
+              Row {
+                width: parent.width; spacing:Style.spacing.sm
+                Dropdown {
+                  width:(parent.width-parent.spacing)/2
+                  label:I18n.t("fan_boost_duration",root.effectiveLanguage)
+                  value:String(root.fanDuration)
+                  options:[5,10,30].map(function(n){return {value:String(n),label:I18n.t("sensor_minutes",root.effectiveLanguage,n)}})
+                  foreground:root.foreground;accent:root.accent;fontFamily:Style.font.family
+                  onChanged:function(value){root.fanDuration=Number(value)}
+                }
+                SvgButton {
+                  width:(parent.width-parent.spacing)/2
+                  anchors.bottom:parent.bottom
+                  text:I18n.t("map_fan_history",root.effectiveLanguage);iconName:"overview"
+                  foreground:root.foreground;accent:root.accent;fontFamily:Style.font.family
+                  bordered:true;focusable:true
+                  onClicked:root.showFanHistory(fanChannelCard.modelData.id)
+                }
               }
               Row {
                 id: speeds
@@ -1718,6 +1751,32 @@ Panel {
                   }
                 }
               }
+              Row {
+                width:parent.width;spacing:Style.spacing.sm
+                Dropdown {
+                  objectName:"identifyPercentDropdown"
+                  width:(parent.width-parent.spacing)/2
+                  label:I18n.t("fan_identify_level",root.effectiveLanguage)
+                  value:String(root.identificationPercent)
+                  options:[0,5,10,20,30,40,50,60,80,100].map(function(n){return {value:String(n),label:n+"%"}})
+                  foreground:root.foreground;accent:root.accent;fontFamily:Style.font.family
+                  onChanged:function(value){root.identificationPercent=Number(value)}
+                }
+                SvgButton {
+                  objectName:"identifyFanButton"
+                  width:(parent.width-parent.spacing)/2;anchors.bottom:parent.bottom
+                  text:I18n.t("fan_identify",root.effectiveLanguage);iconName:"fans"
+                  foreground:root.urgent;accent:root.urgent;fontFamily:Style.font.family
+                  bordered:true;focusable:true;enabled:!fanController.running
+                  onClicked:root.fanAction(fanChannelCard.modelData.id,root.identificationPercent,"identify")
+                }
+              }
+              Text {
+                width:parent.width
+                text:I18n.t("fan_identify_hint",root.effectiveLanguage)
+                textFormat:Text.PlainText;wrapMode:Text.Wrap
+                color:root.dim;font.family:Style.font.family;font.pixelSize:Style.font.caption
+              }
               SvgButton {
                 width: parent.width
                 text: I18n.t("fan_restore",root.effectiveLanguage)
@@ -1732,7 +1791,7 @@ Panel {
         }
         Text {
           width: parent.width
-          visible: !activity.sensorSnapshot.controls || activity.sensorSnapshot.controls.length === 0
+          visible: !root.computerMapVisible && (!activity.sensorSnapshot.controls || activity.sensorSnapshot.controls.length === 0)
           text: I18n.t("fan_control_unavailable",root.effectiveLanguage)
           textFormat: Text.PlainText; wrapMode: Text.Wrap
           color: root.dim
@@ -1774,8 +1833,17 @@ Panel {
       y: Style.spacing.md
       width: parent.width - Style.spacing.md * 2
       spacing: Style.spacing.xs
+      SvgButton {
+        width: parent.width
+        visible: root.sensorOptionsOpen
+        text: I18n.t("map_sensor_assignment",root.effectiveLanguage)
+        iconName: "settings"; foreground: root.foreground; accent: root.accent
+        fontFamily: Style.font.family; fontSize: Style.font.caption; bordered: true; focusable: true
+        onClicked: root.sensorAssignmentOpen=!root.sensorAssignmentOpen
+      }
       Dropdown {
         width: parent.width
+        visible: root.sensorOptionsOpen && root.sensorAssignmentOpen
         label: I18n.t("map_sensor_assignment", root.effectiveLanguage)
         value: root.sensorPlace(sensorCard.sensor)
         options: root.sensorPlaces.map(function(place) { return {value:place,label:I18n.t("map_" + place,root.effectiveLanguage)} })
@@ -1891,10 +1959,29 @@ Panel {
         }
       }
 
-      // Settings body scrolls cleanly between top of pageArea and bottom buttons
+      Row {
+        id: settingsTabs
+        objectName:"settingsTabs"
+        width:parent.width;spacing:Style.spacing.xs
+        Repeater {
+          model:["tiles","icon","sampling","diagnostics"]
+          Button {
+            required property string modelData
+            width:(settingsTabs.width-settingsTabs.spacing*3)/4;height:Style.space(28)
+            text:I18n.t("settings_"+modelData,root.effectiveLanguage)
+            selected:root.settingsSection===modelData
+            foreground:root.foreground;accent:root.accent;fontFamily:Style.font.family;fontSize:Style.font.caption
+            bordered:true;focusable:true
+            onClicked:{root.settingsSection=modelData;settingsViewport.contentY=0}
+          }
+        }
+      }
+      // Each category owns a short independently fitted page.
       Flickable {
+        id: settingsViewport
         objectName: "settingsViewport"
-        anchors.top: parent.top
+        anchors.top: settingsTabs.bottom
+        anchors.topMargin:Style.spacing.sm
         anchors.bottom: settingsActions.top
         anchors.bottomMargin: Style.spacing.sm
         anchors.left: parent.left
@@ -1911,6 +1998,7 @@ Panel {
           spacing: Style.spacing.md
 
           DetailSurface {
+            visible:root.settingsSection!=="diagnostics"
             width: parent.width
             height: settingsGridCol.implicitHeight + Style.spacing.xl * 2
 
@@ -1922,6 +2010,7 @@ Panel {
               spacing: Style.spacing.md
 
               PanelSectionHeader {
+                visible:false
                 text: I18n.t("settings", root.effectiveLanguage)
                 foreground: root.foreground
                 fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
@@ -1929,6 +2018,7 @@ Panel {
 
               Text {
                 width: parent.width
+                visible:false
                 text: I18n.t("settings_desc", root.effectiveLanguage)
                 color: root.dim
                 font.family: root.bar ? root.bar.fontFamily : Style.font.family
@@ -1936,6 +2026,9 @@ Panel {
                 wrapMode: Text.WordWrap
               }
 
+              Column {
+                width:parent.width;spacing:Style.spacing.sm
+                visible:root.settingsSection==="tiles"
               PanelSectionHeader {
                 width: parent.width
                 text: I18n.t("compact_tiles", root.effectiveLanguage)
@@ -1979,14 +2072,17 @@ Panel {
                 }
               }
 
+              }
               Grid {
                 id: preferenceGrid
+                visible:root.settingsSection==="icon" || root.settingsSection==="sampling"
                 width: parent.width
                 columns: width >= Style.space(460) ? 2 : 1
                 columnSpacing: Style.spacing.xl
                 rowSpacing: Style.spacing.md
 
                 Dropdown {
+                  visible:root.settingsSection==="icon"
                   objectName: "iconShapeDropdown"
                   width: (preferenceGrid.width - preferenceGrid.columnSpacing * (preferenceGrid.columns - 1)) / preferenceGrid.columns
                   label: I18n.t("icon_shape", root.effectiveLanguage)
@@ -2001,6 +2097,7 @@ Panel {
                 }
 
                 Dropdown {
+                  visible:root.settingsSection==="icon"
                   objectName: "iconLoadThresholdDropdown"
                   width: (preferenceGrid.width - preferenceGrid.columnSpacing * (preferenceGrid.columns - 1)) / preferenceGrid.columns
                   label: I18n.t("icon_load_threshold", root.effectiveLanguage)
@@ -2015,6 +2112,7 @@ Panel {
                 }
 
                 Dropdown {
+                  visible:root.settingsSection==="icon"
                   objectName: "iconHeatDropdown"
                   width: (preferenceGrid.width - preferenceGrid.columnSpacing * (preferenceGrid.columns - 1)) / preferenceGrid.columns
                   label: I18n.t("icon_heat_threshold", root.effectiveLanguage)
@@ -2029,6 +2127,7 @@ Panel {
                 }
 
                 Text {
+                  visible:root.settingsSection==="icon"
                   width: (preferenceGrid.width - preferenceGrid.columnSpacing * (preferenceGrid.columns - 1)) / preferenceGrid.columns
                   text: I18n.t("icon_heat_desc", root.effectiveLanguage, activity.heatThreshold - 5)
                   color: root.dim
@@ -2038,6 +2137,7 @@ Panel {
                 }
 
                 Text {
+                  visible:root.settingsSection==="icon"
                   width: (preferenceGrid.width - preferenceGrid.columnSpacing * (preferenceGrid.columns - 1)) / preferenceGrid.columns
                   text: root.iconLegend + "\n" + I18n.t(root.iconShapeSetting === IconVector.defaultShape
                     ? "icon_split_colors" : "icon_load_colors", root.effectiveLanguage)
@@ -2048,6 +2148,7 @@ Panel {
                 }
 
                 Toggle {
+                  visible:root.settingsSection==="icon"
                   objectName: "iconMotionToggle"
                   width: (preferenceGrid.width - preferenceGrid.columnSpacing * (preferenceGrid.columns - 1)) / preferenceGrid.columns
                   label: I18n.t("icon_motion", root.effectiveLanguage)
@@ -2060,6 +2161,7 @@ Panel {
                 }
 
                 Text {
+                  visible:root.settingsSection==="icon"
                   width: (preferenceGrid.width - preferenceGrid.columnSpacing * (preferenceGrid.columns - 1)) / preferenceGrid.columns
                   text: I18n.t("heat_steps",root.effectiveLanguage,activity.heatThreshold)
                   color: root.dim
@@ -2069,6 +2171,7 @@ Panel {
                 }
 
                 Dropdown {
+                  visible:root.settingsSection==="sampling"
                   id: speedDropdown
                   width: (preferenceGrid.width - preferenceGrid.columnSpacing * (preferenceGrid.columns - 1)) / preferenceGrid.columns
                   label: I18n.t("speed", root.effectiveLanguage)
@@ -2085,6 +2188,7 @@ Panel {
                 }
 
                 Dropdown {
+                  visible:root.settingsSection==="sampling"
                   width: (preferenceGrid.width - preferenceGrid.columnSpacing * (preferenceGrid.columns - 1)) / preferenceGrid.columns
                   label: I18n.t("history", root.effectiveLanguage)
                   value: String(root.historySamplesSetting)
@@ -2100,6 +2204,7 @@ Panel {
                 }
 
                 Dropdown {
+                  visible:root.settingsSection==="sampling"
                   width: (preferenceGrid.width - preferenceGrid.columnSpacing * (preferenceGrid.columns - 1)) / preferenceGrid.columns
                   label: I18n.t("temp_unit", root.effectiveLanguage)
                   value: root.temperatureUnitSetting
@@ -2114,6 +2219,7 @@ Panel {
                 }
 
                 Toggle {
+                  visible:root.settingsSection==="sampling"
                   width: (preferenceGrid.width - preferenceGrid.columnSpacing * (preferenceGrid.columns - 1)) / preferenceGrid.columns
                   label: I18n.t("icon_indicator", root.effectiveLanguage)
                   description: I18n.t("icon_indicator_desc", root.effectiveLanguage)
@@ -2125,6 +2231,7 @@ Panel {
                 }
 
                 Toggle {
+                  visible:root.settingsSection==="sampling"
                   width: (preferenceGrid.width - preferenceGrid.columnSpacing * (preferenceGrid.columns - 1)) / preferenceGrid.columns
                   label: I18n.t("open_expanded", root.effectiveLanguage)
                   description: I18n.t("open_expanded_desc", root.effectiveLanguage)
@@ -2136,6 +2243,7 @@ Panel {
                 }
 
                 Toggle {
+                  visible:root.settingsSection==="sampling"
                   width: (preferenceGrid.width - preferenceGrid.columnSpacing * (preferenceGrid.columns - 1)) / preferenceGrid.columns
                   label: I18n.t("frequencies", root.effectiveLanguage)
                   description: I18n.t("frequencies_desc", root.effectiveLanguage)
@@ -2150,6 +2258,7 @@ Panel {
           }
 
           DetailSurface {
+            visible:root.settingsSection==="diagnostics"
             width: parent.width
             height: diagnosticColumn.implicitHeight+Style.spacing.xl*2
             Column {
@@ -2318,7 +2427,7 @@ Panel {
         Grid {
           id: summaryGrid
           width: summaryViewport.width - Style.spacing.sm
-          columns: width >= Style.space(600) ? 3 : (width >= Style.space(380) ? 2 : 1)
+          columns: width >= Style.space(800) ? 4 : (width >= Style.space(600) ? 3 : (width >= Style.space(380) ? 2 : 1))
           spacing: Style.spacing.sm
           Repeater {
             model: ["cpu", "ram"].concat(root.gpus.length

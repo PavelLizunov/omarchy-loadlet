@@ -59,7 +59,7 @@ Item {
       plugin.close(); host.width=1600; host.height=1200
       Style.fontBaseSize=12; Style.spacingScaleWithFont=true
       plugin.settings={locale:"ru",iconIndicator:false}; plugin.sortKey="cpu";plugin.sortAscending=false
-      plugin.open();plugin.activityController.stop();plugin.computerMapVisible=false
+      plugin.open();plugin.activityController.stop();plugin.computerMapVisible=false;plugin.settingsSection="tiles";plugin.fanStatusKey=""
       // Previous icon tests may replace bindings on this persistent consumer.
       var ctrl=plugin.activityController
       var icons=nodes(plugin).filter(function(n){return n.shapeIndex!==undefined})
@@ -94,13 +94,13 @@ Item {
       plugin.fansOpen=data.page==='fans'
       plugin.setSettingsOpen(data.page==='settings');wait(20)
       var button=named('expandButton'), panel=pick('fittedContentWidth')
-      verify(button.visible);var small=panel.width
+      verify(button.visible);var small=panel.width;var before=plugin.expanded
       mouseClick(button,button.width/2,button.height/2);wait(30)
-      compare(plugin.expanded,true);verify(panel.width>small)
+      compare(plugin.expanded,!before);verify(before ? panel.width<small : panel.width>small)
       compare(plugin.settingsOpen,data.page==='settings')
       compare(plugin.sensorsOpen,data.page==='cooling'||data.page==='fans')
       pick('moveRequested').forceActiveFocus();keyClick(Qt.Key_E);wait(30)
-      compare(plugin.expanded,false,'E works on every page')
+      compare(plugin.expanded,before,'E works on every page')
     }
     function test_page_geometry_data() {
       var result=[]
@@ -129,7 +129,7 @@ Item {
       plugin.hintsVisible=false;pick('moveRequested').forceActiveFocus()
       keyClick(Qt.Key_H);wait(30);compare(plugin.sensorsOpen,true)
       var viewport=named('coolingViewport')
-      verify(viewport.contentHeight>viewport.height,'The whole cooling page scrolls')
+      verify(viewport.contentHeight<=viewport.height+1,'Normal expanded Cooling fits without scrolling')
       viewport.contentY=viewport.contentHeight-viewport.height;wait(10)
       var chart=named('sensorHistoryChart')
       verify(chart.mapToItem(viewport,0,chart.height).y<=viewport.height+1,'Chart reachable by scrolling')
@@ -162,11 +162,39 @@ Item {
       mouseClick(boost,boost.width/2,boost.height/2);wait(10)
       compare(proc.running,true);compare(proc.command.join(' '),'/usr/local/lib/loadlet/fan-control request boost pwm2 60 10')
       proc.running=false;proc.exited(126);wait(10);compare(plugin.fanStatusKey,'fan_action_failed')
+      var viewport=named('fansViewport');viewport.contentY=Math.max(0,viewport.contentHeight-viewport.height);wait(10)
       var restore=nodes(plugin).filter(function(n){return n.iconName==='restore'&&n.text&&n.text.indexOf('Вернуть')>=0})[0]
       mouseClick(restore,restore.width/2,restore.height/2);wait(10)
       compare(proc.command.join(' '),'/usr/local/lib/loadlet/fan-control request restore pwm2')
       proc.running=false;proc.exited(0);compare(plugin.fanStatusKey,'fan_action_sent')
       plugin.fanAction('pwm1',100,'boost');compare(proc.running,false)
+    }
+    function test_identification_command_and_assignment() {
+      plugin.sensorsOpen=true;plugin.fansOpen=true;wait(30)
+      var proc=nodes(plugin).filter(function(n){return n.command&&n.command[0]==='/usr/local/lib/loadlet/fan-control'})[0]
+      plugin.identificationPercent=0
+      var fansViewport=named('fansViewport')
+      verify(fansViewport.contentHeight<=fansViewport.height+1,'Normal Fans view requires no scroll')
+      var identify=named('identifyFanButton')
+      mouseClick(identify,identify.width/2,identify.height/2);wait(10)
+      compare(proc.command.join(' '),'/usr/local/lib/loadlet/fan-control request identify pwm2 0 5')
+      proc.running=false;proc.exited(0);plugin.activityController.stop();MockData.populate(plugin.activityController)
+      plugin.assignFan('pwm2','fan_cpu');compare(plugin.fanPlace('pwm2'),'fan_cpu')
+      plugin.computerMapVisible=true;wait(20)
+      var map=named('computerMap');map.picked('fan_cpu');wait(30)
+      compare(plugin.computerMapVisible,false);compare(plugin.activeFanChannel,'pwm2')
+      map=named('computerMap');map.picked('cpu');wait(30)
+      compare(plugin.fansOpen,false);compare(plugin.selectedSensor.category,'cpu')
+      var viewport=named('coolingViewport')
+      verify(viewport.contentHeight<=viewport.height+1,'Main Cooling view requires no scroll')
+    }
+    function test_settings_categories_fit_data() {
+      return ['tiles','icon','sampling','diagnostics'].map(function(section){return {tag:section,section:section}})
+    }
+    function test_settings_categories_fit(data) {
+      plugin.hintsVisible=false;plugin.setSettingsOpen(true);plugin.settingsSection=data.section;wait(30)
+      var viewport=named('settingsViewport')
+      verify(viewport.contentHeight<=viewport.height+1,'Settings category fits: '+data.section)
     }
     function test_sensor_history_parse_failure() {
       var proc=nodes(plugin).filter(function(n){return n.command&&n.command.indexOf('--sensor-history')>=0})[0]
@@ -241,7 +269,7 @@ Item {
       keyClick(Qt.Key_Escape);wait(10);compare(plugin.settingsOpen,false)
     }
     function test_settings_dropdown() {
-      plugin.setSettingsOpen(true);wait(20)
+      plugin.setSettingsOpen(true);plugin.settingsSection="sampling";wait(20)
       var d=nodes(plugin).filter(function(n){return n.options!==undefined && n.label==='Частота обновления'})[0]
       d.open();wait(10);keyClick(Qt.Key_Down);keyClick(Qt.Key_Return);wait(20)
       compare(plugin.samplingSpeedSetting,'Balanced')
@@ -308,8 +336,8 @@ Item {
       compare(plugin.opened,true);compare(plugin.expanded,false,'right-click must not expand the overview')
       plugin.setSettingsOpen(true);plugin.languageExpanded=true;wait(20)
       mouseClick(button,button.width/2,button.height/2,Qt.RightButton);wait(20)
-      compare(plugin.settingsOpen,true);compare(plugin.languageExpanded,true);compare(plugin.expanded,false)
-      plugin.setSettingsOpen(false)
+      compare(plugin.settingsOpen,true);compare(plugin.languageExpanded,true);compare(plugin.expanded,true)
+      plugin.setSettingsOpen(false);plugin.setExpanded(false)
       pick('moveRequested').forceActiveFocus();keyClick(Qt.Key_E);wait(20)
       compare(plugin.expanded,true,'internal details remain available through the panel')
       plugin.activityController.stop();MockData.populate(plugin.activityController);wait(20)
@@ -330,7 +358,8 @@ Item {
       plugin.settings={locale:'ru',iconIndicator:false,openExpanded:true}
       mouseClick(button,button.width/2,button.height/2,Qt.LeftButton);wait(20)
       compare(plugin.opened,true);compare(plugin.expanded,true)
-      mouseClick(button,button.width/2,button.height/2,Qt.LeftButton);wait(20)
+      // The inert bar fills the host; use a point outside its expanded popup.
+      button.triggerPress(Qt.LeftButton);wait(20)
       compare(plugin.opened,false);compare(plugin.settings.openExpanded,true)
     }
     function test_header_sizes() {
@@ -417,8 +446,9 @@ Item {
     }
     function test_icon_preferences_and_frame() {
       plugin.settings={locale:'ru',iconIndicator:false,iconShape:1};wait(10)
-      var panel=pick('fittedContentWidth'), w=panel.width, h=panel.height
-      plugin.setSettingsOpen(true);wait(20)
+      var panel=pick('fittedContentWidth')
+      plugin.setSettingsOpen(true);plugin.settingsSection='icon';wait(20)
+      var w=panel.width,h=panel.height
       var dropdown=nodes(plugin).filter(function(n){return n.objectName==='iconShapeDropdown'})[0]
       dropdown.open();wait(10);keyClick(Qt.Key_Down);keyClick(Qt.Key_Return);wait(20)
       compare(plugin.iconShapeSetting,2)
@@ -563,13 +593,13 @@ Item {
     }
     function test_diagnostic_controls() {
       compare(plugin.activityController.journalEnabled,false)
-      plugin.setSettingsOpen(true);wait(20)
+      plugin.setSettingsOpen(true);plugin.settingsSection="diagnostics";wait(20)
       var toggle=nodes(plugin).filter(function(n){return n.objectName==='diagnosticJournalToggle'})[0]
       toggle.clicked();wait(10);compare(plugin.activityController.journalEnabled,true)
       plugin.close();wait(10);compare(plugin.activityController.collectionEnabled,true)
       plugin.settings={locale:'ru',iconIndicator:false,diagnosticJournal:false};wait(10)
       compare(plugin.activityController.collectionEnabled,false)
-      plugin.open();plugin.activityController.stop();plugin.setSettingsOpen(true);wait(20)
+      plugin.open();plugin.activityController.stop();plugin.setSettingsOpen(true);plugin.settingsSection="diagnostics";wait(20)
       var period=nodes(plugin).filter(function(n){return n.objectName==='diagnosticPeriodDropdown'})[0]
       period.open();wait(10);keyClick(Qt.Key_Down);keyClick(Qt.Key_Return);wait(20);compare(period.value,'6')
     }

@@ -1,5 +1,42 @@
 # Loadlet verification
 
+## 2.13.0 visual redesign and zero-duty identification — 2026-10-26
+
+The user rejected the previous drawing and explicitly requested vector-reference
+research, zero-duty fan identification and a visual pass over all pages. Reviewed
+available design skills and actual Tabler/Lucide guides; see docs/vector-design.md.
+The original case cutaway now has consistent outlines, recognizable internal
+parts and numbered hotspots with a separate legend. It is an optional view,
+collapsed by default, not an illustration ahead of every sensor/control.
+
+Cooling/Fans/Settings automatically expand to a fitted 900x650 content frame.
+Fan controls show one selected channel. Settings has four short categories.
+Normal Cooling and all four categories have no-scroll assertions at preferred
+geometry; small screens retain necessary scrolling. Expanded overview fits seven
+summaries in two rows at normal width, leaving the process list visible.
+A source/sourceSize feedback loop in SvgIcon and the former map reproduced under
+native resize; independent pixelWidth/pixelHeight inputs remove those warnings.
+
+Identification is a separate explicit 5-second request with duty0-100%, not a
+change to the boost-only floor. Temporary-file tests observed an actual zero
+write, restored duty/mode, hot/missing-CPU refusal and a10-second recovery unit.
+Exclusive identification lock prevents simultaneous low-duty trials. Exact
+native UI argv and manual assignment/map transitions pass with inert processes.
+No real fan duty, existing override or firmware state changed during testing.
+
+Full local make check passed: core/package/install/validation plus64panel results
+and four native-bar results each DPR1/2, no QML warnings. Eighteen final actual-consumer renders and six published crops inspected
+inline, covering all pages/categories, CPU/GPU, empty/error, narrow,font16,de/zh,
+DPR2. Report policy explicitly retains AT-SPI bridge warnings, not QML failures.
+Independent review, popup overlay pixels, actual fan stop/connector identification,
+real authentication expiry and physical Wayland interaction remain unverified.
+
+Applied17exact runtime files through a fresh versioned directory and installed
+the matching root-owned mode755 adapter. The scoped day grant was renewed and
+visudo accepted the added identification pattern. Existing-shell status reports
+2.13.0, the new consumer, ready state,13temperatures/5fans/4controls and no reader
+error. No real identification/stop command was run; saved preferences retained.
+
 ## 2.12.0 interactive computer map — 2026-10-26
 
 Added a theme-colored SVG case schematic with CPU, GPU, RAM, storage, motherboard

@@ -1,24 +1,23 @@
-# Loadlet 2.11.1 visuals
+# Loadlet 2.13.0 visuals
 
-The five PNGs show Loadlet 2.11.1 through its actual native Panel consumer with
-inert demonstration data. Compact, expanded, settings, Cooling and Fans were
-read inline after rendering. No desktop capture or production input was used.
-They predate the 2.11.2 SVG icon update; no new preview was requested for that
-change. The manifest pins their actual 2.11.1 source commit without relabeling.
+Six current-source PNGs show compact, expanded, Cooling, Fans, Settings and the
+computer map through the actual native Panel consumer with inert demonstration
+data. All raw renders and published crops were read inline. No desktop capture.
 
-Compact/settings/Fans are 480x422; expanded/Cooling are 780x592 logical pixels.
-Only empty outer fixture space was cropped. No resizing or reconstruction.
-The preview.png file equals expanded.png. The manifest records current source
-and asset hashes, Nord palette, font12 and Qt6.12 software/offscreen renderer.
+Compact is 480x422; other preferred outer frames are 900x682 logical pixels at
+font12. Only empty outer fixture space was cropped; no rescaling or redraw.
+preview.png equals expanded.png. The manifest binds sources, asset hashes,
+renderer and palette. The old film remains explicitly historical 2.8.1 media.
 
-Additional inspected states cover page expansion, scrolling, language selection,
-empty/loading/error states, three tiles, German Cooling, Chinese Settings,
-Russian font16, narrow Fans and English DPR2. Host Popup overlays are outside
-the captured subtree; their pixels are not verified by these images. QtTest
-exercises dropdown opening, selection and Escape independently. The renderer
-reports local AT-SPI desktop-bridge warnings; no QML diagnostics were observed.
+Additional inspected states cover every settings category, CPU/GPU filters,
+empty/error, narrow fan layout, font16, German map, Chinese settings and DPR2.
+Normal Cooling and all four settings categories have native no-scroll assertions
+at the preferred frame. Constrained displays may still scroll. Native QtTest
+exercises navigation, map filtering, manual fan assignment and the exact 0%
+identification argv with inert I/O. Fan expiry is temporary-file simulation.
 
-The film and DPR2 film assets remain explicitly historical 2.8.1 media, pinned
-to that release source rather than relabeled as current. No independent review
-happened. Physical Wayland focus, real authentication, every theme and long-run
-behavior remain unverified.
+Renderer report policy retains local AT-SPI desktop-bridge warnings; no QML
+render diagnostics. A prior SVG source/sourceSize binding loop reproduced in
+QtTest during resize and was corrected using independently computed raster sizes.
+Popup overlay pixels, physical connector identity, actual zero-duty behavior,
+authentication expiry and independent review remain unverified.

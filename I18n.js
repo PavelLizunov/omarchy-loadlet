@@ -3,6 +3,15 @@
 // Standard Omarchy plugin localization catalog (slovn.mx-ergo & slovn.cetra reference).
 var strings = {
   "en": {
+    "map_options": "More options",
+    "map_channel": "Fan channel",
+    "fan_identify_level": "Identification duty",
+    "fan_identify": "Try for 5 seconds",
+    "fan_identify_hint": "0% requests a stop for 5 seconds, then restores control. One channel at a time. Hot/missing CPU telemetry cancels the trial. Some fans keep spinning at 0%.",
+    "settings_tiles": "Tiles",
+    "settings_icon": "Icon",
+    "settings_sampling": "Sampling",
+    "settings_diagnostics": "History",
     "map_automatic": "Driver category",
     "map_sensor_assignment": "Place this sensor on the map",
     "computer_map": "Computer map",
@@ -186,6 +195,15 @@ var strings = {
     "hints_expanded": "e collapse  ·  / search  ·  c/m/p/t/n sort  ·  ↑/↓ select  ·  x end task  ·  r refresh"
   },
   "ru": {
+    "map_options": "Дополнительно",
+    "map_channel": "Канал вентилятора",
+    "fan_identify_level": "Мощность для определения",
+    "fan_identify": "Проба на 5 секунд",
+    "fan_identify_hint": "0% — запрос остановки на 5 секунд, затем возврат управления. По одному каналу. При горячем CPU или потере температуры проба отменяется. Некоторые вентиляторы при 0% не останавливаются.",
+    "settings_tiles": "Плитки",
+    "settings_icon": "Значок",
+    "settings_sampling": "Данные",
+    "settings_diagnostics": "История",
     "map_automatic": "Категория из драйвера",
     "map_sensor_assignment": "Место этого датчика на схеме",
     "computer_map": "Схема компьютера",
@@ -369,6 +387,15 @@ var strings = {
     "hints_expanded": "e свернуть  ·  / поиск  ·  c/m/p/t/n сорт.  ·  ↑/↓ выбор  ·  x завершить  ·  r обновить"
   },
   "de": {
+    "map_options": "Weitere Optionen",
+    "map_channel": "Lüfterkanal",
+    "fan_identify_level": "Leistung zur Zuordnung",
+    "fan_identify": "5 Sekunden testen",
+    "fan_identify_hint": "0% fordert 5 Sekunden Stillstand an, danach wird die Regelung wiederhergestellt. Nur ein Kanal zugleich. Heiße oder fehlende CPU-Werte brechen ab. Manche Lüfter laufen bei 0% weiter.",
+    "settings_tiles": "Kacheln",
+    "settings_icon": "Symbol",
+    "settings_sampling": "Messung",
+    "settings_diagnostics": "Verlauf",
     "map_automatic": "Treiberkategorie",
     "map_sensor_assignment": "Position dieses Sensors im Schema",
     "computer_map": "Computerschema",
@@ -552,6 +579,15 @@ var strings = {
     "hints_expanded": "e einklappen  ·  / Suche  ·  c/m/p/t/n Sort.  ·  ↑/↓ Auswahl  ·  x beenden  ·  r aktual."
   },
   "zh": {
+    "map_options": "更多选项",
+    "map_channel": "风扇通道",
+    "fan_identify_level": "识别时的输出",
+    "fan_identify": "试运行 5 秒",
+    "fan_identify_hint": "0% 请求停转 5 秒，之后恢复原控制。每次仅测试一个通道。CPU 过热或温度不可用时取消。部分风扇在 0% 时仍会转动。",
+    "settings_tiles": "卡片",
+    "settings_icon": "图标",
+    "settings_sampling": "采样",
+    "settings_diagnostics": "历史",
     "map_automatic": "驱动分类",
     "map_sensor_assignment": "此传感器在示意图中的位置",
     "computer_map": "电脑示意图",

@@ -1,6 +1,7 @@
 #!/usr/bin/python3 -I
 """Authenticated, timed IT8613 overrides; restore the original channel state."""
 import json
+import fcntl
 import os
 import pwd
 from pathlib import Path
@@ -75,11 +76,17 @@ def cooling_floor(target):
     return 255 if not cpu or max(cpu) >= 80000 else target
 
 
-def worker(channel, percent, minutes):
+def worker(channel, percent, minutes, identify=False):
+    if identify and cooling_floor(0) != 0:
+        raise ValueError("Identification unavailable: CPU is hot or telemetry is missing")
     pwm, mode = channel_files(channel)
     state = state_path(channel)
     if state.exists():
         raise ValueError('A previous override has not been restored')
+    identification_lock = None
+    if identify:
+        identification_lock = os.open(STATE/".identify.lock", os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
+        fcntl.flock(identification_lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
     previous = dict(pwm=int(pwm.read_text()), mode=int(mode.read_text()))
     with state.open('x') as stream:
         os.chmod(state, 0o600)
@@ -97,21 +104,31 @@ def worker(channel, percent, minutes):
         # Full speed during takeover avoids the driver's automatic-mode EBUSY.
         mode.write_text('0')
         mode.write_text('1')
-        target = 255 if previous['mode'] == 0 else max(previous['pwm'], target)
+        if not identify:
+            target = 255 if previous['mode'] == 0 else max(previous['pwm'], target)
         pwm.write_text(str(cooling_floor(target)))
-        end = time.monotonic() + minutes*60
+        end = time.monotonic() + (5 if identify else minutes*60)
         while not stopped and time.monotonic() < end:
             time.sleep(1)
             if not stopped:
-                pwm.write_text(str(cooling_floor(target)))
+                value = cooling_floor(target)
+                if identify and value != target:
+                    break
+                pwm.write_text(str(value))
     finally:
-        restore(channel)
+        try:
+            restore(channel)
+        finally:
+            if identification_lock is not None:
+                os.close(identification_lock)
 
 
 def request(args):
     if not (len(args) == 2 and args[0] == 'restore' and re.fullmatch(r'pwm[2-5]', args[1])
             or len(args) == 4 and args[0] == 'boost' and re.fullmatch(r'pwm[2-5]', args[1])
-            and args[2] in ('60', '80', '100') and args[3] in ('5', '10', '30')):
+            and args[2] in ('60', '80', '100') and args[3] in ('5', '10', '30')
+            or len(args) == 4 and args[0] == 'identify' and re.fullmatch(r'pwm[2-5]', args[1])
+            and args[2] in ('0','5','10','20','30','40','50','60','80','100') and args[3] == '5'):
         raise ValueError('Invalid fan request')
     command = [SELF, *args]
     attempted = subprocess.run(['/usr/bin/sudo', '-n', '--', *command],
@@ -138,7 +155,8 @@ def unlock(uid):
     expires = (datetime.now(timezone.utc) + timedelta(hours=24)).strftime('%Y%m%d%H%M%SZ')
     rule = (f'{username} ALL=(root) NOTAFTER={expires} NOPASSWD: '
             + SELF + ' ^boost pwm[2-5] (60|80|100) (5|10|30)$, '
-            + SELF + ' ^restore pwm[2-5]$\n')
+            + SELF + ' ^restore pwm[2-5]$, '
+            + SELF + ' ^identify pwm[2-5] (0|5|10|20|30|40|50|60|80|100) 5$\n')
     import tempfile
     fd, temporary = tempfile.mkstemp(prefix='.loadlet-', dir='/etc/sudoers.d')
     try:
@@ -173,21 +191,23 @@ def main():
                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         restore(channel)
         print('restored')
-    elif action in ('boost', 'worker') and len(sys.argv) == 5:
+    elif action in ('boost', 'worker', 'identify', 'identify-worker') and len(sys.argv) == 5:
         percent, minutes = int(sys.argv[3]), int(sys.argv[4])
-        if percent not in (60, 80, 100) or minutes not in (5, 10, 30):
+        identifying = action in ('identify', 'identify-worker')
+        if (identifying and (percent not in (0,5,10,20,30,40,50,60,80,100) or minutes != 5)
+                or not identifying and (percent not in (60, 80, 100) or minutes not in (5, 10, 30))):
             raise ValueError('Unsupported speed or duration')
-        if action == 'worker':
-            worker(channel, percent, minutes)
+        if action in ('worker','identify-worker'):
+            worker(channel, percent, minutes, identify=identifying)
             return
         subprocess.run(['/usr/bin/systemctl', 'stop', unit], check=False, timeout=15,
                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         restore(channel)
         subprocess.run(['/usr/bin/systemd-run', '--quiet', '--collect', '--unit='+unit,
                         '--property=Type=exec', '--property=TimeoutStopSec=5',
-                        '--property=RuntimeMaxSec='+str(minutes*60+15),
+                        '--property=RuntimeMaxSec='+str(10 if identifying else minutes*60+15),
                         '--property=ExecStopPost='+SELF+' recover '+channel,
-                        SELF, 'worker', channel, str(percent), str(minutes)], check=True, timeout=15)
+                        SELF, 'identify-worker' if identifying else 'worker', channel, str(percent), str(minutes)], check=True, timeout=15)
         print('boosted')
     elif action == 'recover' and len(sys.argv) == 3:
         restore(channel)

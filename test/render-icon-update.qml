@@ -20,6 +20,10 @@ Rectangle {
   property bool motionPreview: false
   property bool settingsBottom: false
   property bool expandedView: false
+  property bool mapOpen: false
+  property string settingsCategory: "tiles"
+  property string part: ""
+  property bool optionsOpen: false
   property bool pageBottom: false
   property bool sensorDropdown: false
   property bool languageOpen: false
@@ -55,6 +59,10 @@ Rectangle {
         var ctrl=p.activityController, high=fixture.sampleState==='hot'
         p.sensorsOpen=fixture.mode==='cooling' || fixture.mode==='fans'
         p.fansOpen=fixture.mode==='fans'
+        p.computerMapVisible=fixture.mapOpen
+        p.settingsSection=fixture.settingsCategory
+        p.sensorOptionsOpen=fixture.optionsOpen
+        if(fixture.part) p.selectPart(fixture.part)
         if (fixture.sampleState==='empty' || fixture.sampleState==='loading' || fixture.sampleState==='error') {
           ctrl._sensorSnapshot={schema:1,sample:270000,temperatures:[],fans:[],controls:[]}
           ctrl.sensorHistory={}
@@ -129,7 +137,7 @@ Rectangle {
           activityController.stop()
           MockData.populate(activityController)
           setSettingsOpen(fixture.mode==='settings')
-          setExpanded(fixture.mode==='expanded' || fixture.expandedView)
+          setExpanded(fixture.mode==='expanded' || fixture.mode==='settings' || fixture.expandedView)
           activityController.glanceCpu=30
           activityController.glanceMemory=44
           activityController.glanceUpdatedAt=Date.now()

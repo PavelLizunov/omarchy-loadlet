@@ -63,7 +63,36 @@ with tempfile.TemporaryDirectory(prefix='loadlet-controls-') as tmp:
         assert '--property=ExecStopPost=/usr/local/lib/loadlet/fan-control recover pwm2' in command
         assert command[-5:] == ['/usr/local/lib/loadlet/fan-control', 'worker', 'pwm2', '80', '5']
         restore.assert_called_once_with('pwm2')
-    print('PASS fan simulation: expiry, exception rollback, exact timed unit/recovery; no hardware writes')
+    # Identification deliberately permits lower duty, unlike the boost path.
+    pwm.write_text('200'); mode.write_text('2')
+    observed = []
+    def observe_sleep(_):
+        observed.append(pwm.read_text())
+    with patch.object(fan, 'STATE', base), \
+         patch.object(fan, 'channel_files', return_value=(pwm, mode)), \
+         patch.object(fan, 'state_path', return_value=saved), \
+         patch.object(fan, 'cooling_floor', side_effect=lambda target: target), \
+         patch.object(fan.signal, 'signal'), patch.object(fan.time, 'sleep', side_effect=observe_sleep), \
+         patch.object(fan.time, 'monotonic', side_effect=[0, 0, 6]):
+        fan.worker('pwm2', 0, 5, identify=True)
+    assert observed == ['0'], observed
+    assert pwm.read_text() == '200' and mode.read_text() == '2' and not saved.exists()
+    with patch.object(fan, 'cooling_floor', return_value=255):
+        try:
+            fan.worker('pwm2', 0, 5, identify=True)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError('Hot or missing CPU telemetry must reject identification')
+    with patch.object(fan, 'channel_files', return_value=(pwm, mode)), \
+         patch.object(fan, 'restore'), patch.object(fan.os, 'geteuid', return_value=0), \
+         patch.object(fan.sys, 'argv', ['fan-control', 'identify', 'pwm2', '0', '5']), \
+         patch.object(fan.subprocess, 'run') as run:
+        fan.main()
+        command = run.call_args_list[-1].args[0]
+        assert '--property=RuntimeMaxSec=10' in command
+        assert command[-5:] == [fan.SELF, 'identify-worker', 'pwm2', '0', '5']
+    print('PASS fan simulation: boost floor, exact zero duty, 5s restoration, thermal refusal and unit recovery; no hardware writes')
 
     folder = base/'omarchy/activity-lite/sensors'
     folder.mkdir(parents=True, mode=0o700)

@@ -28,12 +28,9 @@ that change appears, use the command above from the source link.
 
 ![Loadlet compact native metrics panel with demonstration data](docs/images/compact.png)
 
-These 2.11.1 native QML screenshots use inert demonstration data, not desktop
-captures. Version 2.11.2 replaces action/navigation glyphs and adds metric-heading
-icons using theme-colored SVG. Version 2.11.3 increases icon contrast, anchors
-button SVG to its native slot and adds one-time 24-hour fan authorization.
-Version 2.12.0 adds an interactive computer map in Cooling and Fans, with manual
-sensor and fan-location assignments. Screenshots predate these updates.
+Current 2.13.0 native QML screenshots use inert demonstration data, not desktop
+captures. The optional line-art computer map opens component sensors; manual
+assignments remain explicit. [Vector design references](docs/vector-design.md).
 
 ## One icon, exact readings
 
@@ -75,6 +72,13 @@ executed as root. The normal monitor installation does not require it.
 ![Loadlet Cooling with an interactive sensor chart](docs/images/cooling.png)
 
 ![Loadlet Fans with model-gated timed controls](docs/images/fans.png)
+
+![Loadlet optional computer cutaway with numbered sensor hotspots](docs/images/computer-map.png)
+
+Fans includes a separate 5-second identification trial from 0 to 100% duty, with
+restoration afterward. A 0% request may not physically stop every fan. Hot or
+missing CPU readings reject or cancel the trial. Ordinary timed boosts still
+never reduce the previous duty. Only one identification trial runs at a time.
 
 Process actions use sampled PID/start time and ownership guards. Force kill needs
 separate confirmation. There is no automatic escalation or privileged helper.

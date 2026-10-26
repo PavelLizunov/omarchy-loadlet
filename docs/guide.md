@@ -177,9 +177,10 @@ percentage columns hide before the process name, CPU and absolute memory columns
 Expanded mode keeps the process list and action buttons reachable by scrolling
 the summary cards internally when vertical space is limited.
 
-Preferred content sizes are 480×390 and 780×560 logical pixels, multiplied by the
-host spacing scale. The host adds popup padding and borders to the height; with
-default tokens the outer cards are 480×422 and 780×592. Actual theme overrides and
+Preferred content sizes are 480×390 and 900×650 logical pixels, multiplied by the
+host spacing scale. Cooling, Fans and Settings open expanded to keep ordinary
+controls visible. The host adds popup padding and borders to the height; with
+default tokens the outer cards are 480×422 and 900×682. Actual theme overrides and
 screen bounds can change these dimensions. Settings uses the same frame as its
 parent page, with its header and bottom actions outside the settings viewport.
 
@@ -254,14 +255,17 @@ the Cooling page; Escape returns to Overview before collapsing or closing.
 
 ## Interactive computer map
 
-Cooling and Fans provide a collapsible SVG computer schematic. Select CPU, GPU,
+Cooling and Fans provide an optional SVG case cutaway with numbered hotspots
+and a separate legend. It is collapsed by default so data remains visible.
+See the [drawing references](vector-design.md). Select CPU, GPU,
 RAM, drives or the motherboard to filter existing temperature/fan sensors and
 reuse their history charts. The schematic collapses after selection to leave
 room for data; its heading reopens it. Show all removes the filter. Multiple
 devices in one category remain selectable by model in the sensor dropdown.
 Missing telemetry is explicitly unavailable, not a fabricated reading.
 
-CPU/front/rear/top/SSD fan points open the control page. Assign a channel location
+CPU/front/rear/top/SSD fan points open the control page. A channel selector
+replaces the repeated tall card list. Assign a channel location
 with the dropdown on that channel card; assignments are saved in plugin settings
 and do not change fan duty or require authentication. With one assigned channel,
 the corresponding point focuses it; without a unique match all channels remain
@@ -298,10 +302,24 @@ noninteractive sudo, honoring Omarchy's existing day grant. If authentication is
 needed, one Polkit pkexec unlock grants the authenticated caller 24 hours of
 passwordless fan requests only. The helper validates and atomically installs
 /etc/sudoers.d/60-loadlet-fans-UID with an absolute NOTAFTER deadline and exact
-boost/restore argument patterns; no general sudo or pkexec permission is added.
+boost/restore/identification argument patterns; no general sudo or pkexec permission is added.
 Remove that file as root to revoke early. Expired files grant nothing; a new
 unlock replaces the deadline. Passwords never enter plugin code. Requests allow
-only the four exposed channels, 60/80/100% and a 5/10/30-minute hold. A channel boost snapshots its original duty/mode,
+only the four exposed channels, 60/80/100% and a 5/10/30-minute boost hold.
+A separate identification trial accepts 0/5/10/20/30/40/50/60/80/100% for exactly
+5 seconds, then restores the saved state. Unlike a boost, this intentionally
+allows a lower duty, including zero. One identification worker holds an exclusive
+lock; CPU temperature at/above 80 C or missing CPU telemetry rejects/cancels the
+trial. It uses a 10-second systemd watchdog and the same recovery hook. These
+are application limits, not a hardware cooling guarantee. Some fans do not stop
+at 0% PWM; observe the physical fan rather than inferring identity from RPM alone.
+No actual fan-stop trial was executed during development.
+
+Settings is split into Tiles, Icon, Sampling and History. The normal preferred
+frame fits each category without scrolling; constrained screens retain scrolling.
+Rare sensor assignment controls are under More options.
+
+A channel boost snapshots its original duty/mode,
 starts one owned transient system service, and restores the snapshot on expiry,
 stop, or worker exit. Root-only state lives in /run/loadlet-fans. ExecStopPost
 attempts restoration if the worker is killed. The override can outlive the UI
