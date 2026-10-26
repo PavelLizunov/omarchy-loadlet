@@ -15,6 +15,11 @@ Rectangle {
   property bool dropdownOpen: false
   property bool dataReady: false
   property string sampleState: "normal"
+  property string chartState: ""
+  property bool chartPinned: false
+  property bool chartSettled: false
+  property int historyWindow: 600
+  property string themeVariant: "nord"
   property int selectedShape: 10
   property int loadThreshold: 50
   property bool motionPreview: false
@@ -41,7 +46,7 @@ Rectangle {
     return result
   }
   Component.onCompleted: {
-    Host.Color.loadColors('foreground="#d8dee9"\nbackground="#2e3440"\naccent="#81a1c1"\nred="#bf616a"')
+    Host.Color.loadColors(fixture.themeVariant==='warm' ? 'foreground="#ead8bc"\nbackground="#100916"\naccent="#e9c046"\nred="#db7866"' : 'foreground="#d8dee9"\nbackground="#2e3440"\naccent="#81a1c1"\nred="#bf616a"')
     Style.fontBaseSize = fontSize
   }
 
@@ -59,6 +64,15 @@ Rectangle {
         p.activityController.stop()
         if (fixture.sampleState!=='loading' && fixture.sampleState!=='error') MockData.populate(p.activityController)
         var ctrl=p.activityController, high=fixture.sampleState==='hot'
+        p.sensorWindowSeconds=fixture.historyWindow
+        if(fixture.chartState) {
+          var now=Date.now()/1000,values={}
+          var id=fixture.chartState==='rpm'?'fan2':fixture.chartState==='percent'?'gpu-fan':'cpu-tctl'
+          if(fixture.chartState==='percent')ctrl._sensorSnapshot=Object.assign({},ctrl.sensorSnapshot,{fans:ctrl.sensorSnapshot.fans.concat([{id:'gpu-fan',chip:'nvidia',label:'fan',category:'gpu',owner:'NVIDIA',unit:'percent',value:35}])})
+          p.selectedSensorId=id
+          values[id]=fixture.chartState==='empty'?[]:Array.from({length:fixture.chartState==='single'?1:120},function(_,i){return {time:270000-(119-i)*3,wallTime:now-(119-i)*3,value:fixture.chartState==='rpm'?700+Math.sin(i/7)*150:fixture.chartState==='percent'?35+Math.sin(i/7)*5:54+Math.sin(i/7)*3,breakBefore:fixture.chartState==='gap'&&i===70}}).filter(function(_,i){return fixture.chartState!=='gap'||i<40||i>=70})
+          ctrl.sensorHistory=values
+        }
         p.sensorsOpen=fixture.mode==='cooling' || fixture.mode==='fans'
         p.fansOpen=fixture.mode==='fans'
         p.computerMapVisible=fixture.mapOpen
@@ -96,6 +110,12 @@ Rectangle {
       }
       if (icons.length === 0 || icons.some(function(n){return n.status !== Image.Ready})) return
       if (icons.some(function(n){return n.motionRunning})) return
+      if (fixture.chartPinned && !fixture.chartSettled) {
+        var chart=all.filter(function(n){return n.objectName==='sensorHistoryChart'})[0]
+        if(!chart||!chart.points.length)return
+        chart.selectIndex(Math.floor(chart.points.length/2));chart.pinned=true;fixture.chartSettled=true
+        return
+      }
       if (fixture.settingsBottom) {
         var scroll=all.filter(function(n){return n.objectName==='settingsViewport'})[0]
         if (!scroll) return

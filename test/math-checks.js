@@ -23,4 +23,12 @@ assert.equal(value.cpu,200);assert.equal(value.memory,25);assert.equal(value.rss
 next.processes=[p(124,8000,2048)];assert.equal(M.nextProcesses(before,next,8192)[0].cpu,0);
 next.sample=100;assert.equal(M.nextProcesses(before,next,8192)[0].cpu,0);
 assert.deepEqual(M.appendHistory([1,2,3],4,3),[2,3,4]);
-console.log('PASS model mathematics: CPU ratios 63 cases, RAM/swap ratios 82 cases, rates, one-core process CPU, identity and bounded history');
+let sensorHistory=M.nextSensorHistory({}, {sample:100,temperatures:[{id:'cpu',value:50}],fans:[]},240,15);
+assert.equal(sensorHistory.cpu[0].breakBefore,undefined,'The first live sample must not declare saved-to-live continuity');
+sensorHistory=M.nextSensorHistory(sensorHistory,{sample:103,temperatures:[{id:'cpu',value:55}],fans:[]},240,15);
+assert.equal(sensorHistory.cpu[1].breakBefore,false);
+sensorHistory=M.nextSensorHistory(sensorHistory,{sample:160,temperatures:[{id:'cpu',value:60}],fans:[]},240,15);
+assert.equal(sensorHistory.cpu.length,3,'A gap does not erase earlier observations');
+assert.equal(sensorHistory.cpu[2].breakBefore,true);
+assert.equal(M.nextSensorHistory(sensorHistory,{sample:10,temperatures:[{id:'cpu',value:45}],fans:[]},240,15).cpu.length,1,'Counter reset starts a new history');
+console.log('PASS model mathematics: CPU/RAM/swap ratios, rates, identity, bounded history and explicit sensor gaps');

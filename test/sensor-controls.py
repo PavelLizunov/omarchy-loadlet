@@ -112,4 +112,23 @@ with tempfile.TemporaryDirectory(prefix='loadlet-controls-') as tmp:
     assert rpm['fan'] and rpm['unit'] == 'rpm'
     assert cpu['history'][0]['time'] == stamp-3600
     assert len(output.getvalue()) <= 240000
-    print('PASS persisted sensor history: real private JSONL reader, temperature/RPM units, bounded output')
+    # Twenty channels force compaction wider than60s; continuous raw data is not a gap.
+    frame_many = 'schema\tactivity-sensors\t1\n' + '\n'.join(
+        f'temperature\tcpu{n}\tk10temp\tTctl\t54000\tcpu\tAMD Ryzen\tpackage0' for n in range(20))
+    records = [dict(schema=1,time=stamp-6*3600+i*15,boot_id='fixture',sensors_tsv=frame_many) for i in range(1400)]
+    records = [r for i,r in enumerate(records) if not 500 <= i < 510]
+    chunk.unlink()
+    for begin in range(0,len(records),400):
+        part=folder/f'samples-fixture-{begin:04}.jsonl'
+        part.write_text(''.join(json.dumps(row)+'\n' for row in records[begin:begin+400]));part.chmod(0o600)
+    with patch.dict(report.os.environ, {'XDG_STATE_HOME': str(base)}), \
+         patch.object(report.time, 'time', return_value=stamp), redirect_stdout(io.StringIO()) as output:
+        report.sensor_history()
+    data=json.loads(output.getvalue())
+    points=data['sensors'][0]['history']
+    assert len(points)<150
+    assert len({p['time'] for p in points})==len(points), 'Compacted history has unique timestamps'
+    assert any(b['time']-a['time']>60 and not b['breakBefore'] for a,b in zip(points,points[1:])), 'Compaction must not invent recording gaps'
+    assert sum(bool(p['breakBefore']) for p in points)==1, 'Real omitted recording interval is preserved'
+    assert len(output.getvalue())<=240000
+    print('PASS persisted sensor history: private JSONL, units, bounded output, compaction continuity and real gaps')

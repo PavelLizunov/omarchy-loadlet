@@ -304,6 +304,7 @@ def sensor_history():
     folder = state/'omarchy/activity-lite/sensors'
     end = time.time()
     sensors = {}
+    previous = {}
     if folder.exists():
         for record in records(folder, end - 6*3600, end):
             frame = record.get('sensors_tsv')
@@ -329,7 +330,10 @@ def sensor_history():
                 entry = sensors.setdefault(fields[1], dict(id=fields[1], chip=fields[2], label=fields[3],
                     unit=fields[5] if fan else '', category=fields[offset], owner=fields[offset+1],
                     location=fields[offset+2], fan=fan, history=[]))
-                entry['history'].append(dict(time=record['time'], value=value))
+                prior = previous.get(fields[1])
+                gap = bool(prior and (record['time'] - prior[0] > 60 or record.get('boot_id') != prior[1]))
+                entry['history'].append(dict(time=record['time'], value=value, breakBefore=gap))
+                previous[fields[1]] = (record['time'], record.get('boot_id'))
                 entry['history'] = entry['history'][-1440:]
     budget = max(2, 3000 // max(1, len(sensors)))
     for entry in sensors.values():
@@ -339,10 +343,17 @@ def sensor_history():
         for begin in range(0, len(points), step):
             bucket = points[begin:begin+step]
             low, high = min(bucket,key=lambda p:p['value']), max(bucket,key=lambda p:p['value'])
-            compact.extend(sorted([low,high] if low != high else [low], key=lambda p:p['time']))
+            selected = sorted([low,high] if low != high else [low], key=lambda p:p['time'])
+            # Carry raw continuity through downsampling; spacing alone is not a recording gap.
+            for point in selected:
+                prior_time = compact[-1]['time'] if compact else points[0]['time'] - 1
+                compact.append(dict(point, breakBefore=any(p.get('breakBefore', False)
+                    for p in points if prior_time < p['time'] <= point['time'])))
         entry['history'] = compact
-        if points and entry['history'][-1] != points[-1]:
-            entry['history'].append(points[-1])
+        if points and entry['history'][-1]['time'] != points[-1]['time']:
+            prior_time = entry['history'][-1]['time']
+            entry['history'].append(dict(points[-1], breakBefore=any(p.get('breakBefore', False)
+                for p in points if prior_time < p['time'] <= points[-1]['time'])))
     output = json.dumps(dict(sensors=list(sensors.values())), ensure_ascii=True, separators=(',', ':'))
     if len(output) > 240000:
         raise ValueError('Sensor history output budget exceeded')

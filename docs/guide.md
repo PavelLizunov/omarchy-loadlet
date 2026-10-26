@@ -182,10 +182,37 @@ host spacing scale. Switching pages, opening Settings or the diagram never
 changes the chosen size. Only Expand, `e`, the initial saved preference and the
 explicit details route change it. Long pages scroll internally with a persistent
 scroll thumb. Fan location and identification controls are separate disclosures;
-ordinary boost and restore actions fit the default compact Fans view. The host adds popup padding and borders to the height; with
+ordinary boost and restore actions fit the default compact Fans view. Cooling's
+compact toolbar leaves the chart and range summary visible without scrolling.
+Scrolling pages keep both content edges aligned with their tabs; the scroll thumb
+uses the outer padding, not an asymmetric content gutter. Keyboard focus scrolls
+controls into view. RPM history has an explicit return to the originating channel.
+The host adds popup padding and borders to the height; with
 default tokens the outer cards are 480×422 and 900×682. Actual theme overrides and
 screen bounds can change these dimensions. Settings uses the same frame as its
 parent page, with its header and bottom actions outside the settings viewport.
+
+## Reading charts
+
+Sensor charts retain the full selected 10-minute, 1-hour or 6-hour horizontal
+window, ending at the current time. Empty earlier space means missing history,
+not a zero reading. The vertical grid labels temperature, percent or RPM; RPM
+uses a bounded automatic scale and temperature/percent use a zero baseline.
+A single observation is a dot, not a continuous line.
+
+Hover previews a timestamp/value. Click pins that reading while live sampling
+continues; drag moves it. Arrow keys select neighboring observations; Home/End
+select oldest/newest. Live or Escape clears the selection; Escape then follows
+the page's normal return behavior. Selection follows its timestamp across updates
+and clears if that timestamp leaves the retained history. Hovering an unrecorded
+gap shows no value rather than pretending its nearest sample was measured there.
+
+Raw recording gaps and boot boundaries remain line breaks after downsampling.
+Ordinary reduced-resolution history does not become a chain of false gaps.
+The range summary describes available observations, not continuous coverage.
+Saved-history read failures have a separate message and retry, independent of
+recording/write errors. Recording is explicitly labeled on/off and never enabled
+by opening a chart or changing its time window.
 
 ## Summary tiles and sensor names
 

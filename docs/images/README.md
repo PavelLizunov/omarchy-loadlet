@@ -1,25 +1,29 @@
-# Loadlet 2.13.1 visuals
+# Loadlet 2.14.0 visuals
 
 Six current-source PNGs show compact, expanded, Cooling, Fans, Settings and the
 computer map through the actual native Panel consumer with inert demonstration
-data. All raw renders and published crops were read inline. No desktop capture.
+data. Raw renders and published crops were read inline. No desktop capture.
 
-Compact and Fans are 480x422; other pictured outer frames are 900x682 logical
-pixels at font12. Size is explicitly selected, never changed by page navigation.
+Compact, Cooling and Fans are480x422; expanded/Settings/map are900x682 logical
+pixels at font12. The user chooses size; pages never expand on navigation.
 Only empty outer fixture space was cropped; no rescaling or redraw.
 preview.png equals expanded.png. The manifest binds sources, asset hashes,
-renderer and palette. The old film remains explicitly historical 2.8.1 media.
+renderer and palette. The old film remains explicitly historical2.8.1 media.
 
-Additional inspected states cover compact category editing and chart scrolling,
-fan assignment and identification, narrow Fans, font16, German map, Chinese
-settings, DPR2 and empty/error. Persistent scroll thumbs show overflowing pages.
-Native QtTest exercises actual visible pointer routes across pages, disclosures,
-category reassignment, history and Escape at both frame sizes. Explicitly expanded
-settings retain no-scroll checks. Hidden controls are not clicked as acceptance.
-Identification and recovery use inert I/O and temporary-file helper simulation.
+23 final renders cover the above plus warm/purple-gold fan styling, trial/location
+editors, pinned chart with a real gap, RPM/percent, single/empty observations,
+six-hour window, history error, constrained Fans, font16, de/zh and DPR2.
+Declared geometry checks compare content/tab edges, adjacent field/action bottom
+alignment and normal chart containment. Normal compact Fans and Cooling have
+no-scroll QtTest assertions; constrained/editor states scroll with equal margins.
 
-Renderer report policy retains local AT-SPI desktop-bridge warnings; no QML
-render diagnostics. Strict rendering was first rejected by those host warnings,
-not accepted as a clean run. Popup overlay pixels, physical connector identity,
-actual zero-duty behavior, authentication expiry, live compositor positioning
-and independent review remain unverified.
+QtTest exercises actual pointer/keyboard routes, pinned hover retention, Live and
+Escape, gap selection, focus scrolling, same-channel history return and read retry.
+Temporary-file/Node checks cover raw recording gaps through compaction and live
+history retention. No actual fan writes, helper installation or privilege changes.
+
+Renderer report policy retains local AT-SPI desktop-bridge warnings. An initial
+fixture property-name collision with Qt's palette was renamed and rerendered;
+final images have no QML diagnostics. Physical Wayland input/placement, popup
+overlay pixels, screen readers, real fan-stop/auth expiry and independent review
+remain unverified. Passing fixtures are not user acceptance.

@@ -28,7 +28,7 @@ that change appears, use the command above from the source link.
 
 ![Loadlet compact native metrics panel with demonstration data](docs/images/compact.png)
 
-Current 2.13.1 native QML screenshots use inert demonstration data, not desktop
+Current 2.14.0 native QML screenshots use inert demonstration data, not desktop
 captures. The optional line-art computer map opens component sensors; manual
 assignments remain explicit. Page changes never resize the chosen frame; use the
 Expand button or `e` when needed. Fan location and identification are separate
@@ -62,9 +62,13 @@ to preserve readable values; the expanded CPU tile retains it. If RAM is not
 one of the main tiles, a narrow RAM strip shows its percentage, used/total
 capacity and fill below them. The strip can be disabled in Settings.
 
-Cooling charts use actual sample timestamps. Hover, click, drag, or use the
-left/right keys to inspect the selected time and temperature. Gaps are not
-painted as continuous measurements. The Fans tab exposes timed boosts only
+Cooling charts show labeled value scales and the entire selected time window.
+Hover to inspect, click to pin a sample, drag or use the arrow/Home/End keys to
+move it. **Live** or Escape clears the selection. Gaps remain empty; reduced
+history resolution alone is not labeled as a recording gap. The default compact
+Cooling and Fans pages fit their normal controls without extra scrolling.
+Scrolling editors retain symmetric content margins and reveal keyboard focus.
+Fan RPM history includes an explicit return to the same channel's controls. The Fans tab exposes timed boosts only
 for the model-gated motherboard controller described in the guide; its
 privileged adapter is a separate explicit system installation, not plugin code
 executed as root. The normal monitor installation does not require it.

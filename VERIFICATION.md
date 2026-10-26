@@ -1,5 +1,49 @@
 # Loadlet verification
 
+## 2.14.0 symmetric layouts, usability and sensor charts — 2026-10-26
+
+The supplied2.13.1 Fans screenshot showed unequal content margins, the scroll
+thumb crowding the frame, and different adjacent field/action heights. Cooling,
+Fans and Settings now share full-width content edges aligned to tabs. One small
+scroll component lives in outer padding, without shrinking only the right side;
+ordinary compact Fans fits without a spurious overflow thumb. Duration/history
+and identification input/action pairs share heights and baselines. A final crop
+inspection also exposed oversized diagram legend cells; explicit grid ownership
+and rounded widths fix that separate layout cause, with a native pointer regression.
+
+Cooling uses a short diagram/recording/category toolbar. The default compact page
+fits its selected reading, chart, labeled scales and range without scrolling.
+Technical identity remains under Category and expanded view; it is not discarded.
+Keyboard focus reveals controls in the correct page viewport. RPM history has an
+explicit same-channel return; Escape also returns there. Read failures have a
+separate saved-history message and retry rather than a false recording-write claim.
+
+Charts retain the entire selected10m/1h/6h window ending now, zero-baseline value
+grid, temperature/percent/RPM units, bounded auto RPM scale, lone points and empty
+state. Hover previews, click pins, drag/arrows/Home/End move selection, Live/Escape
+clear it; selected timestamp survives data shifts. Missing intervals do not return
+an invented nearest reading. Raw continuity survives history compaction, preventing
+sparse six-hour output from being mislabeled as recording gaps. Real gaps/boot
+changes are carried explicitly; live-history gaps retain older observations.
+
+Full local make check passed:75panel results,4native-bar eachDPR1/2, core/package,
+private temporary-file history/fan simulations, isolated native add/enable/update
+and manifest validation. New checks cover symmetric edges/baselines, compact fit,
+legend bounds, pin/Live/Escape/gaps, keyboard focus scrolling, back/retry, live
+history retention and20-channel1400-frame compaction with one real omitted gap.
+23 final actual-consumer inert renders plus6published crops inspected inline,
+including warm palette, narrow/font16/de/zh/DPR2, RPM/percent/single/empty/6h/gap,
+editors, map, settings and error. Declared geometry checks pass. Initial fixture
+palette-property warning was renamed and rerendered; no final QML diagnostics.
+Report policy retains local AT-SPI bridge warnings, not a screen-reader pass.
+
+Installed17exact runtime files in runtime-2.14.0-qol-final-20261026 and reloaded through
+the existing shared shell. Read-only status confirms2.14.0/newconsumer/ready,
+13temperatures/5fans/4controls and no reader error. Preferences/history retained;
+no real fan writes, helper changes or privilege-grant renewal. Physical Wayland
+input/placement, popup overlay pixels, actual fan/auth-expiry behavior and
+independent review remain unverified. Loaded state is not user acceptance.
+
 ## 2.13.1 predictable navigation and compact fan controls — 2026-10-26
 
 User screenshots exposed clipped compact fan controls, unclear assignments and

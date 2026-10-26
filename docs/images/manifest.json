@@ -1,34 +1,35 @@
 {
   "schema": 1,
   "productName": "Loadlet",
-  "runtimeVersion": "2.13.1",
+  "runtimeVersion": "2.14.0",
   "date": "2026-10-26",
   "captureKind": "actual-native-QML/inert-demo",
   "sourceHashes": {
-    "Panel.qml": "2f2fce6544e24c74a25ce6c23c3629ce07f411ffc214b1c60c452b859c2d00bd",
+    "Panel.qml": "7eef7eb7a6cfb5fc8e1a7499217db43dc8b4273a694041985ab0f1de48151228",
     "ComputerMap.qml": "9761db698e3af70be5c706ea2e4998d817781306244d3054c7742d66ddf1f59e",
     "SvgIcon.qml": "169488330966d05e4de620587741b6a24e649052f61373f1b33b6bd7ffdf5da2",
     "ActivityController.qml": "00e4297a825b40c01117a8f1005bf748ac3a5aea7558c96cc59e8f679ec09d6f",
     "ActivityIcon.qml": "9e799b388b1ee577d0738da6640a6890169a1ca3e0db70f2958a05f055a6bc3a",
     "ActivityIconSvg.js": "e183d251ef9eda24a6e0284db1d84f9812b13b3c1443b3a7fe57343473ad2eae",
-    "SensorHistoryChart.qml": "929dea1127b98f553fd60c0964ba62b3192f1feadf184a18f4567ae0b116b2b7",
-    "Model.js": "6a3567ba26cc2f765540d5cdfa39464f8a43de3b4e13c586bcd9c434d67f59ca",
-    "I18n.js": "b46e6ffe0231fb74570c2ed747f72b4d137c06acc7334197f6ff321807697153",
+    "SensorHistoryChart.qml": "7fa12291067af62b3e2eb75e8da4825f51b2e8cb9cccdbb9adf9080b1026c8bd",
+    "Model.js": "78f1db554e706065775bfe48b2a1d5b71e22c0bb2ec930294787a0d5349c95da",
+    "I18n.js": "7ac07b8d6e4810e651cd80875fca6e9aec21c1df527252fc2f0f17ba33318f06",
+    "activity-report": "ebe0b25849a3b0cd324dc68b7b908fc08c094e0b8c84101ef7283ed1694dd15f",
     "test/mock-data.js": "c2087d43c107d6b31413c2cf583844687c16ea0dbb486eb7593171639655a126",
-    "test/render-icon-update.qml": "b512b6cebdbea571a611c8a5642cde7a7125c4730efc9b84c78fdc724da379b1",
+    "test/render-icon-update.qml": "ba6e7d16705b3566487cf8bd5908691d284ca1f51823ebcae83c4d046e1e5435",
     "test/ui-checks.py": "145133e64cd229ad691e871a50306271c0347fb9c7289f886badc19acdbdc2f2"
   },
   "assetHashes": {
-    "compact.png": "e1632a5b9195c32498b5ce5f20e5e68c4c5b8dfd63ae2ace049dba224375b60e",
-    "expanded.png": "f291dcd7a1f43e9871b2a22e864ae009137ffdfbcb4a0b72aec1668e6431be06",
-    "cooling.png": "83c72340731aae5a42da8af0e8356acb3ebfc269da1f27764a47776aed6d8a74",
-    "fans.png": "b7c3fb711030f2eb8e6958fef22bea164769029de8ada429a4f31328f28e984f",
-    "settings.png": "def16cf0db6b3c71cd9b0b0cb8016a0c8466f4b38aab93567cc249311ac406f0",
-    "computer-map.png": "e504e078e2894435c043402ac18843af7eacccc373178a45908765defea2eba1"
+    "compact.png": "38de8129f7403439f6b1710d4a0c422e7a4be2c514b7b993840c6704f417da95",
+    "expanded.png": "5260e7c68121e0e7940038254c77e6b6579f22d51995c862994b4d184f46d0c2",
+    "cooling.png": "2e78a0494d9be56436a309b04e9ebdb3f0ebd0a31fe2c77f603cdeed5b91af3e",
+    "fans.png": "a600abf5143257b45291b930339a52998d3e78fd3bccf8b4e17d6eb14c0da45b",
+    "settings.png": "f7214fc3442eda99e557552c2b4d73bd7dc33aab9c161d9f8dc2f3df0745070b",
+    "computer-map.png": "715dbcf5b0e1bfa6da625e70953bfb488391eec85506582a70fc4a9e64d343a0"
   },
   "captures": {
     "compact.png": {
-      "rawSha256": "0f778c8492c33079ead6a050a6e97de01bc32902db0486aad56a2b0fc07e39d4",
+      "rawSha256": "ada41079ffef5b6fb3b4eb68f01b169ac1fe9386d4aa494df9ecb8b65e4afc5a",
       "rawSize": [
         520,
         470
@@ -43,7 +44,7 @@
       "crop": "Empty outer fixture space only; no resize"
     },
     "expanded.png": {
-      "rawSha256": "3a0573683c03e935378a2a91a5e37d5c7b9e769cd28cab32966faf576aead042",
+      "rawSha256": "a765aaa792d641cd0016a096c0749bf5adb6fdef5e56177813c0ea356f9b7732",
       "rawSize": [
         940,
         720
@@ -58,14 +59,14 @@
       "crop": "Empty outer fixture space only; no resize"
     },
     "cooling.png": {
-      "rawSha256": "0e343acebf630db613eb41d700102c9df1429ccc9addc1a975eccfc3cf499643",
+      "rawSha256": "74fcafdd88d731f56631d836628ff3e2c8e265931dfcce0a1800e5aaf39949a1",
       "rawSize": [
-        940,
-        720
+        520,
+        470
       ],
       "size": [
-        900,
-        682
+        480,
+        422
       ],
       "dpr": 1,
       "locale": "ru",
@@ -73,7 +74,7 @@
       "crop": "Empty outer fixture space only; no resize"
     },
     "fans.png": {
-      "rawSha256": "5e40e22071de6aeacb69e8168084535d644c6713146186a76f3b89ccf7fe248e",
+      "rawSha256": "5b26781723cb025661ed340ff3ee72c423e4c0bf0c3c53a625e02557a90a23aa",
       "rawSize": [
         520,
         470
@@ -103,7 +104,7 @@
       "crop": "Empty outer fixture space only; no resize"
     },
     "computer-map.png": {
-      "rawSha256": "96b2a98d4bae681a0fa839f9f49acf703547940c1b88cdeb254437b1877b0cb1",
+      "rawSha256": "53fec56457b4316fcd4317ea5e4490243ea4b4f653ef1bffca28d23734ec5a1a",
       "rawSize": [
         940,
         720
@@ -120,9 +121,9 @@
   },
   "limits": [
     "Inert model, not desktop screenshot or physical interaction",
-    "Report policy: AT-SPI bridge warnings; no QML diagnostics",
-    "No actual fan writes in this task",
-    "Popup overlay pixels, physical connector identity and independent review unverified"
+    "Report policy: local AT-SPI bridge warnings retained; no final QML diagnostics",
+    "No real fan writes or privilege-helper changes",
+    "Physical Wayland input, popup overlay pixels, connector identity and independent review unverified"
   ],
   "renderer": {
     "qtVersion": "6.12.0",
@@ -134,16 +135,22 @@
   "palette": "Nord;foreground#d8dee9/background#2e3440/accent#81a1c1",
   "fontBaseSize": 12,
   "additionalInspectedStates": [
-    "cooling-options",
-    "cooling-bottom",
+    "fans-warm",
     "fans-trial",
     "fans-assignment",
+    "cooling-expanded",
+    "cooling-options",
+    "chart-gap",
+    "chart-rpm",
+    "chart-percent",
+    "chart-single",
+    "chart-empty",
+    "chart-6h",
+    "cooling-error",
     "fans-narrow",
-    "cooling-font16",
-    "map-de",
+    "chart-font16",
+    "chart-de",
     "settings-zh",
-    "fans-dpr2",
-    "cooling-empty",
-    "cooling-error"
+    "chart-dpr2"
   ]
 }

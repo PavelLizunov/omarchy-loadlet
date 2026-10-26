@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Window
 import QtQuick.Controls
 import Quickshell
 import Quickshell.Io
@@ -67,7 +68,7 @@ Panel {
         journalError: activity.journalError,
         heatThreshold: activity.heatThreshold,
         productName: "Loadlet",
-        iconRevision: "2.13.1",
+        iconRevision: "2.14.0",
         rightClickAction: "none",
         iconTooltip: button.tooltipText,
         iconConsumer: String(Qt.resolvedUrl("Panel.qml")),
@@ -172,6 +173,7 @@ Panel {
   }
   readonly property var filteredSensors: coolingSensors.filter(function(sensor) { return root.sensorMatches(sensor, root.sensorPart) })
   function selectPart(part) {
+    historyFanChannel = ""
     computerMapVisible = false
     sensorPart = part
     selectedSensorId = ""
@@ -192,6 +194,7 @@ Panel {
     var sensor = coolingSensors.filter(function(item) { return root.fanChannel(item) === channel && item.fan })[0]
     if (!sensor) return
     computerMapVisible = false
+    historyFanChannel = channel
     sensorPart = ""
     selectedSensorId = sensor.id
     fansOpen = false
@@ -201,6 +204,14 @@ Panel {
   property var savedSensors: []
   property bool historyPending: false
   property bool historyReadError: false
+  property string historyFanChannel: ""
+  function returnToFanControls() {
+    root.focusedFanChannel = historyFanChannel
+    historyFanChannel = ""
+    root.fansOpen = true
+    root.sensorsOpen = true
+    Qt.callLater(function() { if (root.opened) keyCatcher.forceActiveFocus() })
+  }
   readonly property var currentSensors: activity.sensorSnapshot.temperatures.concat(activity.sensorSnapshot.fans.map(function(sensor) { return Object.assign({}, sensor, {fan:true}) }))
   readonly property var coolingSensors: {
     var byId = {}
@@ -216,7 +227,7 @@ Panel {
     sensorHistoryReader.running = true
   }
   onSensorsOpenChanged: {
-    if (!sensorsOpen) { fansOpen = false; sensorPart = ""; focusedFanChannel = "" }
+    if (!sensorsOpen) { fansOpen = false; sensorPart = ""; focusedFanChannel = ""; historyFanChannel = "" }
     else if (!fansOpen) loadSensorHistory()
   }
   Component.onDestruction: {
@@ -748,6 +759,7 @@ Panel {
       sensorPart = ""
       computerMapVisible = false
       sensorOptionsOpen = false
+      historyFanChannel = ""
       fanAssignmentOpen = false
       fanIdentificationOpen = false
       focusedFanChannel = ""
@@ -884,6 +896,7 @@ Panel {
         else if (root.languageExpanded) root.languageExpanded = false
         else if (root.settingsOpen) root.setSettingsOpen(false)
         else if (root.computerMapVisible) root.computerMapVisible = false
+        else if (root.historyFanChannel) root.returnToFanControls()
         else if (root.sensorsOpen) root.sensorsOpen = false
         else keyCatcher.closeRequested()
       }
@@ -916,6 +929,7 @@ Panel {
         if (root.languageExpanded) { root.languageExpanded = false; return }
         if (root.settingsOpen) root.setSettingsOpen(false)
         else if (root.computerMapVisible) root.computerMapVisible = false
+        else if (root.historyFanChannel) root.returnToFanControls()
         else if (root.sensorsOpen) root.sensorsOpen = false
         else if (root.expanded) root.setExpanded(false)
         else root.close()
@@ -1049,6 +1063,7 @@ Panel {
             onClicked: {
               processActions.cancel()
               root.computerMapVisible = false
+              root.historyFanChannel = ""
               root.sensorPart = ""
               root.focusedFanChannel = ""
               root.fansOpen = modelData.fans
@@ -1482,11 +1497,13 @@ Panel {
   }
 
   component ComputerNavigator: Column {
+    property bool showToggle: true
     width: parent.width
     spacing: Style.spacing.sm
     SvgButton {
       width: parent.width
-      objectName: "computerMapToggle"
+      objectName: parent.showToggle ? "computerMapToggle" : "navigatorMapToggle"
+      visible: parent.showToggle
       text: I18n.t(root.computerMapVisible ? "map_close" : "map_open", root.effectiveLanguage)
       iconName: "overview"
       selected: root.computerMapVisible
@@ -1504,6 +1521,8 @@ Panel {
       onPicked: function(part) { root.selectPart(part) }
     }
     Grid {
+      id: mapLegend
+      objectName: "mapLegend"
       width: parent.width
       visible: root.computerMapVisible
       columns: width >= Style.space(600) ? 3 : 2
@@ -1513,7 +1532,8 @@ Panel {
         Button {
           required property string modelData
           required property int index
-          width: (parent.width-parent.spacing*(parent.columns-1))/parent.columns
+          objectName: "mapLegendPart" + index
+          width: Math.floor((mapLegend.width-mapLegend.spacing*(mapLegend.columns-1))/mapLegend.columns)
           height: Style.space(25)
           text: (index+1)+" · "+I18n.t("map_"+modelData,root.effectiveLanguage)
           foreground: root.foreground; accent: root.accent
@@ -1541,36 +1561,67 @@ Panel {
     }
   }
 
+  component PageScrollBar: ScrollBar {
+    required property Flickable viewport
+    parent: viewport.parent
+    anchors.top: viewport.top
+    anchors.bottom: viewport.bottom
+    anchors.left: viewport.right
+    anchors.leftMargin: Style.spacing.xs
+    width: Style.space(4)
+    padding: 0
+    policy: ScrollBar.AlwaysOn
+    visible: size < 1
+    contentItem: Rectangle { implicitWidth: Style.space(4); implicitHeight: Style.space(40); color: root.accent; opacity: 0.65 }
+    background: null
+    Connections {
+      target: viewport.Window.window
+      function onActiveFocusItemChanged() {
+        var item = viewport.Window.window.activeFocusItem
+        var ancestor = item
+        while (ancestor && ancestor !== viewport.contentItem) ancestor = ancestor.parent
+        if (!ancestor) return
+        var top = item.mapToItem(viewport.contentItem, 0, 0).y
+        if (top < viewport.contentY) viewport.contentY = Math.max(0, top)
+        else if (top + item.height > viewport.contentY + viewport.height)
+          viewport.contentY = Math.max(0, Math.min(viewport.contentHeight - viewport.height, top + item.height - viewport.height))
+      }
+    }
+  }
+
   Component {
     id: sensorsContent
     Flickable {
+      id: coolingViewport
       objectName: "coolingViewport"
       anchors.fill: parent
       contentWidth: width
       contentHeight: coolingBody.implicitHeight
       clip: true; boundsBehavior: Flickable.StopAtBounds
-      ScrollBar.vertical: ScrollBar {
-        policy: ScrollBar.AlwaysOn
-        visible: size < 1
-        width: Style.space(8)
-        contentItem: Rectangle { implicitWidth: Style.space(4); implicitHeight: Style.space(40); color: root.accent; opacity: 0.7 }
-      }
+      ScrollBar.vertical: PageScrollBar { objectName: "coolingScrollBar"; viewport: coolingViewport }
       onContentHeightChanged: contentY = Math.max(0, Math.min(contentY, contentHeight - height))
       Column {
         id: coolingBody
-        width: parent.width - Style.spacing.sm
-        spacing: Style.spacing.sm
-        ComputerNavigator {}
-      Column {
-        id: coolingControls
-        visible: !root.computerMapVisible
+        objectName: "coolingBody"
         width: parent.width
         spacing: Style.spacing.sm
         Row {
           width: parent.width; spacing: Style.spacing.sm
           SvgButton {
-            width: (parent.width-parent.spacing)/2
-            text: I18n.t("sensor_recording",root.effectiveLanguage)
+            objectName: "computerMapToggle"
+            tooltipText: I18n.t("map_open", root.effectiveLanguage)
+            width: (parent.width-parent.spacing*2)/3
+            height: Style.spacing.controlHeight
+            text: I18n.t(root.computerMapVisible ? "map_close_short" : "map_open_short", root.effectiveLanguage)
+            iconName: "overview"; selected: root.computerMapVisible
+            foreground: root.foreground; accent: root.accent
+            fontFamily: Style.font.family; fontSize: Style.font.caption; bordered: true; focusable: true
+            onClicked: root.computerMapVisible = !root.computerMapVisible
+          }
+          SvgButton {
+            width: (parent.width-parent.spacing*2)/3
+            height: Style.spacing.controlHeight
+            text: I18n.t(activity.sensorRecording ? "sensor_recording_short_on" : "sensor_recording_short_off",root.effectiveLanguage)
             iconName: "storage"; selected: activity.sensorRecording
             foreground: root.foreground; accent: root.accent
             fontFamily: Style.font.family; fontSize: Style.font.caption
@@ -1579,9 +1630,11 @@ Panel {
             onClicked: root.persistSettings({sensorRecording:!activity.sensorRecording})
           }
           SvgButton {
-            width: (parent.width-parent.spacing)/2
+            width: (parent.width-parent.spacing*2)/3
+            height: Style.spacing.controlHeight
             objectName: "sensorOptionsToggle"
-            text: I18n.t(root.sensorOptionsOpen ? "map_options_close" : "map_options",root.effectiveLanguage)
+            tooltipText: I18n.t("map_sensor_assignment", root.effectiveLanguage)
+            text: I18n.t("map_category_short",root.effectiveLanguage)
             iconName: "settings"; selected: root.sensorOptionsOpen
             foreground: root.foreground; accent: root.accent
             fontFamily: Style.font.family; fontSize: Style.font.caption
@@ -1589,17 +1642,42 @@ Panel {
             onClicked: root.sensorOptionsOpen=!root.sensorOptionsOpen
           }
         }
+        ComputerNavigator { showToggle: false; visible: root.computerMapVisible || root.sensorPart !== "" }
+        SvgButton {
+          objectName: "backToFanControls"
+          visible: root.historyFanChannel !== "" && !root.computerMapVisible
+          width: parent.width
+          text: I18n.t("fan_back_controls", root.effectiveLanguage, root.historyFanChannel)
+          iconName: "fans"; foreground: root.foreground; accent: root.accent
+          fontFamily: Style.font.family; fontSize: Style.font.caption; focusable: true; bordered: true
+          onClicked: root.returnToFanControls()
+        }
+      Column {
+        id: coolingControls
+        visible: !root.computerMapVisible
+        width: parent.width
+        spacing: Style.spacing.sm
+
         Text {
           width: parent.width
           visible: activity.sensorRecordingError !== "" || root.historyReadError
-          text: activity.sensorRecordingError || root.historyReadError ? I18n.t("sensor_recording_error",root.effectiveLanguage)
-            : I18n.t("sensor_recording_hint",root.effectiveLanguage)
+          text: I18n.t(root.historyReadError ? "sensor_history_error" : "sensor_recording_error",root.effectiveLanguage)
           textFormat: Text.PlainText; wrapMode: Text.Wrap
           color: activity.sensorRecordingError || root.historyReadError ? root.urgent : root.dim
           font.family: Style.font.family; font.pixelSize: Style.font.caption
         }
+        Button {
+          objectName: "retrySensorHistory"
+          visible: root.historyReadError
+          width: parent.width
+          text: I18n.t("sensor_history_retry", root.effectiveLanguage)
+          foreground: root.foreground; accent: root.accent; fontFamily: Style.font.family
+          fontSize: Style.font.caption; bordered: true; focusable: true; enabled: !root.historyPending
+          onClicked: root.loadSensorHistory()
+        }
         Dropdown {
           width: parent.width
+          enabled: root.filteredSensors.length > 0
           objectName: "sensorDropdown"
           label: I18n.t("sensor_device", root.effectiveLanguage)
           value: root.selectedSensor ? root.selectedSensor.id : ""
@@ -1664,21 +1742,18 @@ Panel {
   Component {
     id: fansContent
     Flickable {
+      id: fansViewport
       objectName: "fansViewport"
       anchors.fill: parent
       contentWidth: width
       contentHeight: fanBody.implicitHeight
       clip: true; boundsBehavior: Flickable.StopAtBounds
-      ScrollBar.vertical: ScrollBar {
-        policy: ScrollBar.AlwaysOn
-        visible: size < 1
-        width: Style.space(8)
-        contentItem: Rectangle { implicitWidth: Style.space(4); implicitHeight: Style.space(40); color: root.accent; opacity: 0.7 }
-      }
+      ScrollBar.vertical: PageScrollBar { objectName: "fansScrollBar"; viewport: fansViewport }
       onContentHeightChanged: contentY = Math.max(0, Math.min(contentY, contentHeight - height))
       Column {
         id: fanBody
-        width: parent.width - Style.spacing.sm
+        objectName: "fanBody"
+        width: parent.width
         spacing: Style.spacing.sm
         ComputerNavigator {}
         Text {
@@ -1697,6 +1772,7 @@ Panel {
             objectName: "fanChannelDropdown"
             width: parent.width
             label: I18n.t("map_channel",root.effectiveLanguage)
+            enabled: !!root.activeFanChannel
             value: root.activeFanChannel
             options: (activity.sensorSnapshot.controls || []).map(function(channel) {
               return {value:channel.id,label:channel.id+" · "+I18n.t("map_"+root.fanPlace(channel.id),root.effectiveLanguage)+" · "+I18n.t("fan_rpm",root.effectiveLanguage,channel.rpm)}
@@ -1728,6 +1804,7 @@ Panel {
               spacing: Style.spacing.sm
               SvgButton {
                 objectName: "fanAssignmentToggle"
+                height: Style.spacing.controlHeight
                 width: parent.width
                 text: I18n.t("map_assignment", root.effectiveLanguage, fanChannelCard.modelData.id)
                 iconName: "settings"; selected: root.fanAssignmentOpen
@@ -1759,6 +1836,8 @@ Panel {
               Row {
                 width: parent.width; spacing:Style.spacing.sm
                 Dropdown {
+                  id: fanDurationDropdown
+                  objectName: "fanDurationDropdown"
                   width:(parent.width-parent.spacing)/2
                   label:I18n.t("fan_boost_duration",root.effectiveLanguage)
                   value:String(root.fanDuration)
@@ -1770,6 +1849,7 @@ Panel {
                   width:(parent.width-parent.spacing)/2
                   anchors.bottom:parent.bottom
                   objectName: "fanHistoryButton"
+                  height: fanDurationDropdown.rowHeight
                   text:I18n.t("map_fan_history",root.effectiveLanguage);iconName:"overview"
                   foreground:root.foreground;accent:root.accent;fontFamily:Style.font.family
                   bordered:true;focusable:true
@@ -1806,6 +1886,7 @@ Panel {
                 visible: root.fanIdentificationOpen
                 width:parent.width;spacing:Style.spacing.sm
                 Dropdown {
+                  id: identifyPercentDropdown
                   objectName:"identifyPercentDropdown"
                   width:(parent.width-parent.spacing)/2
                   label:I18n.t("fan_identify_level",root.effectiveLanguage)
@@ -1816,6 +1897,7 @@ Panel {
                 }
                 SvgButton {
                   objectName:"identifyFanButton"
+                  height: identifyPercentDropdown.rowHeight
                   width:(parent.width-parent.spacing)/2;anchors.bottom:parent.bottom
                   text:I18n.t("fan_identify",root.effectiveLanguage);iconName:"fans"
                   foreground:root.urgent;accent:root.urgent;fontFamily:Style.font.family
@@ -1831,6 +1913,7 @@ Panel {
                 color:root.dim;font.family:Style.font.family;font.pixelSize:Style.font.caption
               }
               SvgButton {
+                objectName: "fanRestoreButton"
                 width: parent.width
                 text: I18n.t("fan_restore",root.effectiveLanguage)
                 iconName: "restore"
@@ -1859,19 +1942,20 @@ Panel {
     id: sensorCard
     property var sensor: ({})
     property bool fan: false
+    readonly property double chartNow: Math.max(Date.now()/1000, activity.freshnessClock/1000)
     readonly property var points: {
       var saved = root.savedSensors.filter(function(item) { return item.id === sensor.id })[0]
       var live = sensor.id ? activity.sensorHistory[sensor.id] || [] : []
-      var offset = Date.now()/1000 - activity.sensorSnapshot.sample
-      var all = (saved ? saved.history : []).concat(live.map(function(point) { return {time:point.wallTime || point.time + offset,value:point.value} }))
+      var offset = (activity.sensorsUpdatedAt || Date.now())/1000 - activity.sensorSnapshot.sample
+      var all = (saved ? saved.history : []).concat(live.map(function(point) { return {time:point.wallTime || point.time + offset,value:point.value,breakBefore:point.breakBefore} }))
       var byTime = {}
       all.forEach(function(point) { byTime[point.time] = point })
       all = Object.keys(byTime).map(function(time) { return byTime[time] })
-      var cutoff = Date.now()/1000 - root.sensorWindowSeconds
-      return all.filter(function(point) { return point.time >= cutoff }).sort(function(a,b) { return a.time-b.time })
+      var cutoff = chartNow - root.sensorWindowSeconds
+      return all.filter(function(point) { return point.time >= cutoff && point.time <= chartNow }).sort(function(a,b) { return a.time-b.time })
     }
     readonly property var readings: points.map(function(point) { return point.value })
-    readonly property bool historyGaps: points.some(function(point,index) { return index > 0 && point.time - points[index-1].time > 60 })
+    readonly property bool historyGaps: points.some(function(point,index) { return point.breakBefore === true || (index > 0 && point.breakBefore === undefined && point.time - points[index-1].time > 60) })
     readonly property real span: points.length > 1 ? points[points.length - 1].time - points[0].time : 0
     function valueText(value) {
       if (!fan) return Model.formatTemperature(value, root.temperatureUnitSetting)
@@ -1899,6 +1983,7 @@ Panel {
       }
       Text {
         width: parent.width
+        visible: root.expanded || root.sensorOptionsOpen
         text: root.sensorOwner(sensorCard.sensor)
         textFormat: Text.PlainText
         wrapMode: Text.Wrap
@@ -1918,6 +2003,7 @@ Panel {
       }
       Text {
         width: parent.width
+        visible: root.sensorOptionsOpen
         text: [sensorCard.sensor.chip, sensorCard.sensor.label, sensorCard.sensor.location || sensorCard.sensor.id].join(" · ")
         textFormat: Text.PlainText
         wrapMode: Text.Wrap
@@ -1937,12 +2023,24 @@ Panel {
       }
       SensorHistoryChart {
         width: parent.width
-        height: Style.space(140)
-        points: sensorCard.points.map(function(point) { return {time:point.time,value:!sensorCard.fan && root.temperatureUnitSetting === "Fahrenheit" ? point.value*9/5+32 : point.value} })
+        height: Style.space(132)
+        points: sensorCard.points.map(function(point) { return {time:point.time,value:!sensorCard.fan && root.temperatureUnitSetting === "Fahrenheit" ? point.value*9/5+32 : point.value,breakBefore:point.breakBefore} })
+        windowSeconds: root.sensorWindowSeconds
+        referenceTime: sensorCard.chartNow
+        liveText: I18n.t("chart_live",root.effectiveLanguage)
+        gapText: I18n.t("chart_gap",root.effectiveLanguage)
+        emptyText: I18n.t(root.historyPending ? "sampling" : "chart_empty",root.effectiveLanguage)
         ceiling: sensorCard.fan ? (sensorCard.sensor.unit === "percent" ? 100 : 0) : (root.temperatureUnitSetting === "Fahrenheit" ? 248 : 120)
         unit: sensorCard.fan ? (sensorCard.sensor.unit === "percent" ? "%" : "RPM") : (root.temperatureUnitSetting === "Fahrenheit" ? "°F" : "°C")
-        hint: I18n.t("chart_interaction",root.effectiveLanguage)
+        hint: I18n.t("chart_short_hint",root.effectiveLanguage)
         lineColor: root.accent
+      }
+      Text {
+        width: parent.width
+        visible: root.sensorOptionsOpen
+        text: I18n.t("chart_interaction",root.effectiveLanguage)
+        textFormat: Text.PlainText; wrapMode: Text.Wrap
+        color: root.dim; font.family: Style.font.family; font.pixelSize: Style.font.caption
       }
       Text {
         width: parent.width
@@ -2036,10 +2134,11 @@ Panel {
         contentHeight: settingsBodyCol.implicitHeight
         clip: true
         boundsBehavior: Flickable.StopAtBounds
-        ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+        ScrollBar.vertical: PageScrollBar { objectName: "settingsScrollBar"; viewport: settingsViewport }
 
         Column {
           id: settingsBodyCol
+          objectName: "settingsBody"
           width: parent.width
           spacing: Style.spacing.md
 

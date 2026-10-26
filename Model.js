@@ -118,10 +118,10 @@ function nextSensorHistory(previous, snapshot, limit, maxGap) {
   for (var i = 0; i < values.length; i++) {
     var sensor = values[i]
     var old = previous[sensor.id] || []
-    // Do not bridge a closed-panel/suspend gap with an invented continuous line.
-    if (old.length && (snapshot.sample <= old[old.length - 1].time
-        || snapshot.sample - old[old.length - 1].time > (maxGap || 15))) old = []
-    result[sensor.id] = old.concat([{time: snapshot.sample, wallTime:Date.now()/1000, value: sensor.value}])
+    // Keep earlier observations, but mark gaps instead of drawing through them.
+    if (old.length && snapshot.sample <= old[old.length - 1].time) old = []
+    var gap = old.length > 0 && snapshot.sample - old[old.length - 1].time > (maxGap || 15)
+    result[sensor.id] = old.concat([{time: snapshot.sample, wallTime:Date.now()/1000, value: sensor.value, breakBefore:old.length ? gap : undefined}])
       .slice(-Math.max(20, Math.min(1440, limit)))
   }
   return result

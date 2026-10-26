@@ -130,6 +130,7 @@ Item {
       keyClick(Qt.Key_H);wait(30);compare(plugin.sensorsOpen,true)
       var viewport=named('coolingViewport')
       compare(plugin.expanded,false,'Cooling navigation preserves compact size')
+      verify(viewport.contentHeight<=viewport.height+1,'Default compact chart fits without extra scrolling')
       viewport.contentY=Math.max(0,viewport.contentHeight-viewport.height);wait(10)
       var chart=named('sensorHistoryChart')
       verify(chart.mapToItem(viewport,0,chart.height).y<=viewport.height+1,'Chart reachable by scrolling')
@@ -203,6 +204,7 @@ Item {
       clickVisible(named('fanIdentificationToggle'),viewport)
       var restore=nodes(plugin).filter(function(n){return n.iconName==='restore'&&n.text&&n.text.indexOf('Вернуть')>=0})[0]
       verify(restore.visible,'Recovery control is retained')
+      verify(viewport.contentHeight<=viewport.height+1,'Default compact Fans fits without a spurious scroll thumb')
       var history=named('fanHistoryButton');clickVisible(history,viewport)
       compare(plugin.fansOpen,false);compare(plugin.selectedSensor.label,'fan2');compare(plugin.expanded,false)
       plugin.close();plugin.open();plugin.activityController.stop();MockData.populate(plugin.activityController);wait(20)
@@ -211,13 +213,107 @@ Item {
     function test_chart_timestamp_selection() {
       plugin.sensorsOpen=true;wait(20)
       var chart=named('sensorHistoryChart')
+      chart.referenceTime=200;chart.windowSeconds=100
       chart.points=[{time:100,value:40},{time:110,value:50},{time:200,value:60}]
-      chart.selectAt(chart.width*0.12);compare(chart.selectedIndex,1)
+      chart.selectAt(chart.xFor(chart.points[1]));compare(chart.selectedIndex,1)
       chart.forceActiveFocus();keyClick(Qt.Key_Right);compare(chart.selectedIndex,2)
       keyClick(Qt.Key_Left);compare(chart.selectedIndex,1)
       chart.points=[{time:110,value:50},{time:200,value:60},{time:210,value:61}]
       compare(chart.selectedPoint.time,110,'Selection follows the timestamp, not a shifting index')
       chart.points=[];keyClick(Qt.Key_Left);compare(chart.selectedIndex,-1)
+      chart.points=[{time:110,value:50},{time:200,value:60}];keyClick(Qt.Key_Left);compare(chart.selectedIndex,1,'Left enters from newest sample')
+    }
+    function test_symmetric_page_margins_data() {
+      return ['fans','cooling','settings'].map(function(page){return {tag:page,page:page}})
+    }
+    function test_symmetric_page_margins(data) {
+      plugin.hintsVisible=false
+      if(data.page==='settings')plugin.setSettingsOpen(true)
+      else { clickVisible(tab(data.page==='fans'?'fans':'sensors')) }
+      var viewport=named(data.page==='fans'?'fansViewport':data.page==='cooling'?'coolingViewport':'settingsViewport')
+      var body=named(data.page==='fans'?'fanBody':data.page==='cooling'?'coolingBody':'settingsBody')
+      compare(body.width,viewport.width,'Content does not reserve an asymmetric scrollbar gutter')
+      var tabs=named(data.page==='settings'?'settingsTabs':'pageTabs')
+      compare(viewport.mapToItem(plugin,0,0).x,tabs.mapToItem(plugin,0,0).x)
+      compare(viewport.width,tabs.width,'Scrolling content and navigation share both edges')
+      if(data.page==='fans') {
+        var duration=named('fanDurationDropdown'),history=named('fanHistoryButton')
+        compare(history.height,duration.rowHeight,'Adjacent action matches the input height')
+        compare(history.mapToItem(viewport,0,history.height).y,duration.mapToItem(viewport,0,duration.height).y)
+      }
+      var scroll=named(data.page==='fans'?'fansScrollBar':data.page==='cooling'?'coolingScrollBar':'settingsScrollBar')
+      verify(scroll.mapToItem(viewport,0,0).x>=viewport.width,'Scroll thumb stays outside content')
+      host.width=350;wait(20);compare(body.width,viewport.width)
+      viewport.contentY=Math.max(0,viewport.contentHeight-viewport.height);wait(10)
+      compare(body.width,viewport.width)
+    }
+    function test_chart_axes_pin_gaps_and_live() {
+      plugin.hintsVisible=false;plugin.setExpanded(true);clickVisible(tab('sensors'))
+      var chart=named('sensorHistoryChart')
+      chart.referenceTime=1000;chart.windowSeconds=600
+      chart.points=[{time:410,value:50},{time:420,value:55},{time:900,value:60,breakBefore:true}]
+      compare(chart.startTime,400);compare(chart.endTime,1000)
+      verify(named('coolingViewport').contentHeight<=named('coolingViewport').height+1,'Expanded chart page fits')
+      compare(chart.maximum,120)
+      chart.points=[{time:410,value:50,breakBefore:false},{time:900,value:60,breakBefore:false}]
+      compare(chart.breakBefore(1),false,'Downsampled continuous samples are not gaps')
+      chart.points=[{time:410,value:50},{time:420,value:55},{time:900,value:60,breakBefore:true}]
+      chart.selectAt((600-400)/600*named('chartPlot').width)
+      compare(chart.selectedIndex,-1);compare(chart.cursorInGap,true)
+      var pointer=named('chartPointer')
+      mouseClick(pointer,chart.xFor(chart.points[0]),pointer.height/2);wait(10)
+      compare(chart.pinned,true);compare(chart.selectedPoint.time,410)
+      mouseMove(pointer,pointer.width-2,pointer.height/2);wait(10)
+      compare(chart.selectedPoint.time,410,'Pinned reading does not follow hover')
+      clickVisible(named('chartLiveButton'));compare(chart.selectedIndex,-1);compare(chart.pinned,false)
+      chart.forceActiveFocus();keyClick(Qt.Key_End);compare(chart.selectedPoint.time,900)
+      keyClick(Qt.Key_Escape);compare(chart.selectedIndex,-1);compare(plugin.sensorsOpen,true)
+      chart.ceiling=0;chart.unit='RPM';chart.points=[{time:420,value:1800}]
+      verify(chart.maximum>1800);compare(chart.formatValue(1800),'1800')
+      chart.points=[{time:420,value:0}];verify(chart.maximum>0)
+      chart.points=[];compare(chart.selectedIndex,-1)
+    }
+    function test_map_legend_cells_stay_inside() {
+      plugin.hintsVisible=false;plugin.setExpanded(true);clickVisible(tab('sensors'))
+      clickVisible(named('computerMapToggle'),named('coolingViewport'))
+      var legend=named('mapLegend')
+      for(var i=0;i<10;i++) {
+        var cell=named('mapLegendPart'+i)
+        verify(cell.mapToItem(legend,cell.width,0).x<=legend.width+1,'Legend cell fits at index'+i)
+      }
+      clickVisible(named('mapLegendPart1'),named('coolingViewport'))
+      compare(plugin.sensorPart,'cpu');compare(plugin.computerMapVisible,false)
+    }
+    function test_page_keyboard_focus_reveals_controls() {
+      host.width=350;host.height=340;plugin.hintsVisible=false
+      clickVisible(tab('fans'))
+      var viewport=named('fansViewport'),restore=named('fanRestoreButton')
+      viewport.contentY=0;wait(10);restore.forceActiveFocus();wait(30)
+      verify(restore.mapToItem(viewport,0,0).y>=-1)
+      verify(restore.mapToItem(viewport,0,restore.height).y<=viewport.height+1,'Focused restore control scrolls into view')
+      named('computerMapToggle').forceActiveFocus();wait(30)
+      compare(viewport.contentY,0,'Focusing top navigation scrolls back to it')
+      clickVisible(tab('sensors'))
+      var chart=named('sensorHistoryChart')
+      chart.forceActiveFocus();wait(30)
+      var cooling=named('coolingViewport')
+      verify(chart.mapToItem(cooling,0,chart.height).y<=cooling.height+1)
+    }
+    function test_history_back_and_error_recovery() {
+      plugin.hintsVisible=false;clickVisible(tab('fans'))
+      clickVisible(named('fanHistoryButton'),named('fansViewport'))
+      compare(plugin.historyFanChannel,'pwm2')
+      clickVisible(named('backToFanControls'),named('coolingViewport'))
+      compare(plugin.fansOpen,true);compare(plugin.activeFanChannel,'pwm2')
+      clickVisible(named('fanHistoryButton'),named('fansViewport'))
+      pick('moveRequested').forceActiveFocus();keyClick(Qt.Key_Escape);wait(20)
+      compare(plugin.fansOpen,true);compare(plugin.expanded,false)
+      clickVisible(tab('sensors'))
+      var proc=nodes(plugin).filter(function(n){return n.command&&n.command.indexOf('--sensor-history')>=0})[0]
+      proc.running=false;plugin.historyPending=false;plugin.historyReadError=true;wait(20)
+      clickVisible(named('retrySensorHistory'),named('coolingViewport'))
+      compare(proc.running,true);compare(plugin.historyReadError,false)
+      proc.running=false;proc.exited(0)
     }
     function test_fan_commands_inert() {
       plugin.setExpanded(true);plugin.sensorsOpen=true;plugin.fansOpen=true;wait(20)
