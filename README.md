@@ -30,7 +30,9 @@ that change appears, use the command above from the source link.
 
 These 2.11.1 native QML screenshots use inert demonstration data, not desktop
 captures. Version 2.11.2 replaces action/navigation glyphs and adds metric-heading
-icons using theme-colored SVG. Screenshots predate that icon update.
+icons using theme-colored SVG. Version 2.11.3 increases icon contrast, anchors
+button SVG to its native slot and adds one-time 24-hour fan authorization.
+Screenshots predate these updates.
 
 ## One icon, exact readings
 

@@ -1,5 +1,30 @@
 # Loadlet verification
 
+## 2.11.3 fan authorization and icon follow-up — 2026-10-26
+
+The user reported invisible icons and required a single password entry rather
+than a prompt per fan action. The previous 2.11.2 loaded identity was confirmed,
+but did not prove icon pixels. Existing-shell logs did not establish a rendering
+error. The candidate increases outline size/weight and heading contrast, emits
+explicit RGB stroke colors and anchors button SVG inside the native glyph slot
+instead of estimating its position from the unfitted label. The original cause
+of the reported invisible icons remains unconfirmed without pixel evidence.
+
+Fan requests now enter the fixed root-owned adapter unprivileged. It tries sudo
+noninteractively first, reusing existing Omarchy authorization. Only an explicit
+password-required failure opens a Polkit unlock. Unlock records the actual caller
+UID and creates a validated root-owned 24-hour sudoers grant with an absolute
+NOTAFTER deadline, limited to boost/restore and permitted channel/speed/duration
+arguments. No permission to run worker/recover/unlock or arbitrary commands is
+granted by that rule. Early revocation removes the UID-specific file.
+
+Installed the root-owned adapter and successfully applied the caller's 24-hour
+grant through existing sudo authorization; visudo accepted the actual rule.
+No fan duty was changed. Installed 16 runtime files in a fresh 2.11.3 directory
+and requested existing-shell rescan. Saved preferences and sensor history remain.
+No tests, preview, hardware/authentication replay or independent review was run.
+Actual icon visibility, first interactive unlock and expiry behavior are unverified.
+
 ## 2.11.2 SVG icon update — 2026-10-26
 
 Added original theme-colored SVG symbols to navigation, header controls, metric

@@ -156,15 +156,15 @@ Item {
     }
     function test_fan_commands_inert() {
       plugin.sensorsOpen=true;plugin.fansOpen=true;wait(20)
-      var proc=nodes(plugin).filter(function(n){return n.command&&n.command[0]==='pkexec'})[0]
+      var proc=nodes(plugin).filter(function(n){return n.command&&n.command[0]==='/usr/local/lib/loadlet/fan-control'})[0]
       verify(!!proc)
       var boost=nodes(plugin).filter(function(n){return n.text==='60%'})[0]
       mouseClick(boost,boost.width/2,boost.height/2);wait(10)
-      compare(proc.running,true);compare(proc.command.join(' '),'pkexec /usr/local/lib/loadlet/fan-control boost pwm2 60 10')
+      compare(proc.running,true);compare(proc.command.join(' '),'/usr/local/lib/loadlet/fan-control request boost pwm2 60 10')
       proc.running=false;proc.exited(126);wait(10);compare(plugin.fanStatusKey,'fan_action_failed')
       var restore=nodes(plugin).filter(function(n){return n.iconName==='restore'&&n.text&&n.text.indexOf('Вернуть')>=0})[0]
       mouseClick(restore,restore.width/2,restore.height/2);wait(10)
-      compare(proc.command.join(' '),'pkexec /usr/local/lib/loadlet/fan-control restore pwm2')
+      compare(proc.command.join(' '),'/usr/local/lib/loadlet/fan-control request restore pwm2')
       proc.running=false;proc.exited(0);compare(plugin.fanStatusKey,'fan_action_sent')
       plugin.fanAction('pwm1',100,'boost');compare(proc.running,false)
     }

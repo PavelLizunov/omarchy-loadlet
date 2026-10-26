@@ -30,13 +30,16 @@ Image {
     copy: '<rect x="8" y="8" width="12" height="13" rx="1"/><path d="M16 8V3H3v13h5"/>',
     close: '<path d="m6 6 12 12M6 18 18 6"/>'
   })
-  width: Style.space(14)
+  readonly property string strokeColor: "#" + [tint.r, tint.g, tint.b].map(function(channel) {
+    return Math.round(channel * 255).toString(16).padStart(2, "0")
+  }).join("")
+  width: Style.space(16)
   height: width
   fillMode: Image.PreserveAspectFit
   sourceSize.width: Math.max(1, Math.ceil(width * Screen.devicePixelRatio))
   sourceSize.height: Math.max(1, Math.ceil(height * Screen.devicePixelRatio))
   source: paths[name] ? "data:image/svg+xml;utf8," + encodeURIComponent(
     '<svg xmlns="http://www.w3.org/2000/svg" width="' + sourceSize.width + '" height="' + sourceSize.height
-      + '" viewBox="0 0 24 24" fill="none" stroke="' + String(Qt.rgba(tint.r, tint.g, tint.b, 1)) + '" stroke-opacity="' + tint.a
-      + '" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">' + paths[name] + '</svg>') : ""
+      + '" viewBox="0 0 24 24" fill="none" stroke="' + strokeColor + '" stroke-opacity="' + tint.a
+      + '" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' + paths[name] + '</svg>') : ""
 }

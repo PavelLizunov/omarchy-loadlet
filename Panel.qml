@@ -67,7 +67,7 @@ Panel {
         journalError: activity.journalError,
         heatThreshold: activity.heatThreshold,
         productName: "Loadlet",
-        iconRevision: "2.11.2",
+        iconRevision: "2.11.3",
         rightClickAction: "none",
         iconTooltip: button.tooltipText,
         iconConsumer: String(Qt.resolvedUrl("Panel.qml")),
@@ -108,12 +108,12 @@ Panel {
   Process {
     id: fanController
     command: root.pendingFanAction === "restore"
-      ? ["pkexec", "/usr/local/lib/loadlet/fan-control", "restore", root.pendingFanChannel]
-      : ["pkexec", "/usr/local/lib/loadlet/fan-control", "boost", root.pendingFanChannel, String(root.pendingFanSpeed), String(root.fanDuration)]
+      ? ["/usr/local/lib/loadlet/fan-control", "request", "restore", root.pendingFanChannel]
+      : ["/usr/local/lib/loadlet/fan-control", "request", "boost", root.pendingFanChannel, String(root.pendingFanSpeed), String(root.fanDuration)]
     onStarted: fanDeadline.restart()
     onExited: function(code) { fanDeadline.stop(); root.fanStatusKey = code === 0 ? "fan_action_sent" : "fan_action_failed"; activity.refresh() }
   }
-  Timer { id: fanDeadline; interval: 60000; onTriggered: { fanController.signal(9); root.fanStatusKey = "fan_action_failed" } }
+  Timer { id: fanDeadline; interval: 150000; onTriggered: { fanController.signal(9); root.fanStatusKey = "fan_action_failed" } }
   property int sensorWindowSeconds: 600
   property string selectedSensorId: ""
   property var savedSensors: []
@@ -1012,13 +1012,22 @@ Panel {
     property string iconName: ""
     iconText: iconName ? "\u2003" : ""
     SvgIcon {
+      id: buttonSvg
       name: svgButton.iconName
       width: svgButton.iconSize
       height: width
-      x: (svgButton.width - svgButton._contentNaturalWidth) / 2
-        + (svgButton._iconRoom - (svgButton.text ? Style.spacing.controlGap : 0) - width) / 2
-      anchors.verticalCenter: parent.verticalCenter
+      anchors.centerIn: parent
       tint: svgButton.selected ? svgButton._selectedColor : svgButton.foreground
+      // Follow the native glyph slot even when the label is fitted or elided.
+      Component.onCompleted: {
+        var rows = svgButton.children
+        for (var i = 0; i < rows.length; i++) {
+          var items = rows[i].children || []
+          for (var j = 0; j < items.length; j++) {
+            if (items[j].text === "\u2003") { buttonSvg.parent = items[j]; return }
+          }
+        }
+      }
     }
   }
 
@@ -1028,7 +1037,7 @@ Panel {
     SvgIcon {
       anchors.centerIn: parent
       name: svgAction.iconName
-      width: Math.min(Style.space(14), svgAction.width - Style.spacing.sm)
+      width: Math.min(Style.space(16), svgAction.width - Style.spacing.sm)
       height: width
       tint: svgAction.enabled ? (svgAction._hot ? svgAction.hoverColor : svgAction.foreground)
         : Qt.darker(svgAction.foreground, 2)
@@ -2350,11 +2359,11 @@ Panel {
           id: metricIcon
           visible: metricCard.iconName !== ""
           name: metricCard.iconName
-          width: Style.font.caption
+          width: Math.max(Style.space(14), Style.font.caption)
           height: width
           anchors.left: parent.left
           anchors.verticalCenter: parent.verticalCenter
-          tint: root.dim
+          tint: root.foreground
         }
         PanelSectionHeader {
           id: cardLabel

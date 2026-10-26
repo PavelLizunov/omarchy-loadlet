@@ -2,6 +2,7 @@
 """Authenticated, timed IT8613 overrides; restore the original channel state."""
 import json
 import os
+import pwd
 from pathlib import Path
 import re
 import signal
@@ -107,9 +108,61 @@ def worker(channel, percent, minutes):
         restore(channel)
 
 
+def request(args):
+    if not (len(args) == 2 and args[0] == 'restore' and re.fullmatch(r'pwm[2-5]', args[1])
+            or len(args) == 4 and args[0] == 'boost' and re.fullmatch(r'pwm[2-5]', args[1])
+            and args[2] in ('60', '80', '100') and args[3] in ('5', '10', '30')):
+        raise ValueError('Invalid fan request')
+    command = [SELF, *args]
+    attempted = subprocess.run(['/usr/bin/sudo', '-n', '--', *command],
+                               capture_output=True, text=True, timeout=40,
+                               env=dict(os.environ, LC_ALL='C'))
+    if attempted.returncode == 0:
+        print(attempted.stdout, end='')
+        return
+    if attempted.returncode != 1 or 'a password is required' not in attempted.stderr:
+        raise ValueError(attempted.stderr.strip() or 'Fan command failed')
+    subprocess.run(['/usr/bin/pkexec', SELF, 'unlock', str(os.getuid())], check=True, timeout=60)
+    subprocess.run(['/usr/bin/sudo', '-n', '--', *command], check=True, timeout=40)
+
+
+def unlock(uid):
+    caller = os.environ.get('PKEXEC_UID') or os.environ.get('SUDO_UID')
+    if caller != str(uid) or uid <= 0:
+        raise PermissionError('Unlock requires authenticated caller identity')
+    username = pwd.getpwuid(uid).pw_name
+    if not re.fullmatch(r'[a-z_][a-z0-9_-]*', username):
+        raise ValueError('Unsupported account name')
+    # Sudo enforces this absolute deadline; reboot does not extend the grant.
+    from datetime import datetime, timedelta, timezone
+    expires = (datetime.now(timezone.utc) + timedelta(hours=24)).strftime('%Y%m%d%H%M%SZ')
+    rule = (f'{username} ALL=(root) NOTAFTER={expires} NOPASSWD: '
+            + SELF + ' ^boost pwm[2-5] (60|80|100) (5|10|30)$, '
+            + SELF + ' ^restore pwm[2-5]$\n')
+    import tempfile
+    fd, temporary = tempfile.mkstemp(prefix='.loadlet-', dir='/etc/sudoers.d')
+    try:
+        with os.fdopen(fd, 'w') as stream:
+            stream.write(rule)
+            os.fchmod(stream.fileno(), 0o440)
+        subprocess.run(['/usr/bin/visudo', '-cf', temporary], check=True, timeout=5,
+                       stdout=subprocess.DEVNULL)
+        os.replace(temporary, '/etc/sudoers.d/60-loadlet-fans-' + str(uid))
+    finally:
+        if os.path.exists(temporary):
+            os.unlink(temporary)
+    print('Fan controls unlocked for 24 hours')
+
+
 def main():
+    if len(sys.argv) >= 2 and sys.argv[1] == 'request':
+        request(sys.argv[2:])
+        return
     if os.geteuid() != 0:
         raise PermissionError('System authentication is required')
+    if len(sys.argv) == 3 and sys.argv[1] == 'unlock':
+        unlock(int(sys.argv[2]))
+        return
     if len(sys.argv) < 3:
         raise ValueError('Expected boost/restore, channel, optional percent and minutes')
     action, channel = sys.argv[1:3]

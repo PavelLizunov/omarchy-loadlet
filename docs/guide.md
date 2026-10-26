@@ -269,9 +269,15 @@ IT8613E; the normal plugin installer does not deploy privileged executables:
 sudo install -Dm755 fan-control /usr/local/lib/loadlet/fan-control
 ~~~
 
-The UI invokes this fixed path through Polkit's pkexec, never a password field
-or sudoers permission. Requests allow only the four exposed channels, 60/80/100%
-and a 5/10/30-minute hold. A channel boost snapshots its original duty/mode,
+The UI invokes this fixed root-owned helper as an ordinary user. It first uses
+noninteractive sudo, honoring Omarchy's existing day grant. If authentication is
+needed, one Polkit pkexec unlock grants the authenticated caller 24 hours of
+passwordless fan requests only. The helper validates and atomically installs
+/etc/sudoers.d/60-loadlet-fans-UID with an absolute NOTAFTER deadline and exact
+boost/restore argument patterns; no general sudo or pkexec permission is added.
+Remove that file as root to revoke early. Expired files grant nothing; a new
+unlock replaces the deadline. Passwords never enter plugin code. Requests allow
+only the four exposed channels, 60/80/100% and a 5/10/30-minute hold. A channel boost snapshots its original duty/mode,
 starts one owned transient system service, and restores the snapshot on expiry,
 stop, or worker exit. Root-only state lives in /run/loadlet-fans. ExecStopPost
 attempts restoration if the worker is killed. The override can outlive the UI
