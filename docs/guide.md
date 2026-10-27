@@ -417,8 +417,12 @@ This observation is not generic board compatibility or a driver safety audit.
 
 ## Per-process GPU usage
 
-The process table includes GPU % in compact and expanded views. Click its heading
-or press `g` to sort. Missing measurements sort below measured values in either
+The compact process table includes an aggregate GPU % maximum. Expanded view
+replaces it with one percentage column per GPU, sorted by stable PCI identity
+and labeled with the model name. Hover its heading for the full name and PCI ID;
+identical models remain distinguishable by that ID. Click a heading to sort by
+that GPU. `g` still sorts by the aggregate maximum. Missing measurements sort
+below measured values in either
 direction and display a dash, never a fabricated zero. PID and start ticks tie
 readings to the sampled process identity. Stale readings are cleared.
 
@@ -429,8 +433,10 @@ drivers, unavailable process samples or sleeping GPUs remain unavailable. There
 is no NVIDIA CLI polling. For DRM drivers exposing per-client engine counters,
 two samples produce a per-process percentage using the existing engine formula.
 Duplicated file descriptors are deduplicated; shared DRM clients may be attributed
-to multiple processes. The maximum engine class and maximum GPU are shown, not a
-sum across parallel engines or adapters.
+to multiple processes. Each GPU column shows its maximum engine class. The
+compact aggregate uses the maximum GPU, not a sum across adapters. Both GPU
+percentages can therefore be visible for a process using both cards. Unavailable
+per-card values remain dashes even if the other GPU has a measurement.
 
 GPU collection now runs while the process table is visible even without a GPU
 summary tile. Existing closed-panel collection is unchanged. No measured battery

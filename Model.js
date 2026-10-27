@@ -571,7 +571,9 @@ function nextProcessGpus(previous, current) {
     var reading = nextGpus({sample:previous && previous.sample || 0, gpus:old ? [old] : []}, {sample:current.sample, gpus:[gpu]})[0]
     if (!reading || reading.usage < 0) return
     var key = gpu.pid + ":" + gpu.startTicks
-    result[key] = Math.max(number(result[key], -1), reading.usage)
+    if (!result[key]) result[key] = {usage:-1, byGpu:{}}
+    result[key].usage = Math.max(result[key].usage, reading.usage)
+    result[key].byGpu[gpu.id] = Math.max(number(result[key].byGpu[gpu.id], -1), reading.usage)
   })
   return result
 }
@@ -1776,6 +1778,7 @@ function processValue(process, key) {
   if (key === "memory") return number(process.memory)
   if (key === "power") return number(process.power, -1)
   if (key === "gpu") return number(process.gpu, -1)
+  if (String(key).indexOf("gpu:") === 0) return number(process.gpuById && process.gpuById[key.slice(4)], -1)
   if (key === "pid") return number(process.pid)
   if (key === "runtime") return number(process.elapsed)
   if (key === "name") return String(process.name || "").toLowerCase()
@@ -1796,9 +1799,9 @@ function filterAndSortProcesses(processes, query, sortKey, ascending) {
   var key = sortKey || "cpu"
   var direction = ascending ? 1 : -1
   values.sort(function(left, right) {
-    if (key === "gpu") {
-      var leftKnown = number(left.gpu, -1) >= 0
-      var rightKnown = number(right.gpu, -1) >= 0
+    if (key === "gpu" || String(key).indexOf("gpu:") === 0) {
+      var leftKnown = processValue(left, key) >= 0
+      var rightKnown = processValue(right, key) >= 0
       if (leftKnown !== rightKnown) return leftKnown ? -1 : 1
     }
     var a = processValue(left, key)

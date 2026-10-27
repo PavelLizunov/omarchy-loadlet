@@ -68,7 +68,7 @@ Panel {
         journalError: activity.journalError,
         heatThreshold: activity.heatThreshold,
         productName: "Loadlet",
-        iconRevision: "2.14.5",
+        iconRevision: "2.14.6",
         rightClickAction: "none",
         iconTooltip: button.tooltipText,
         iconConsumer: String(Qt.resolvedUrl("Panel.qml")),
@@ -320,7 +320,7 @@ Panel {
   readonly property var processes: activity.processes.map(function(process) {
     var key = process.pid + ":" + process.startTicks
     var usage = activity.processGpusFresh ? activity.processGpus[key] : undefined
-    return Object.assign({}, process, {gpu:usage === undefined ? -1 : usage})
+    return Object.assign({}, process, {gpu:usage ? usage.usage : -1, gpuById:usage ? usage.byGpu : ({})})
   })
   readonly property var metrics: activity.metrics
   readonly property bool processMetricsReady: activity.processMetricsReady
@@ -331,6 +331,14 @@ Panel {
   readonly property int colUserWidth: Style.space(86)
   readonly property int colCpuWidth: Style.space(64)
   readonly property int colGpuWidth: Style.space(64)
+  readonly property int colAdapterGpuWidth: Style.space(112)
+  readonly property var processGpuColumns: gpus.slice().sort(function(a, b) { return a.id < b.id ? -1 : a.id > b.id ? 1 : 0 })
+  readonly property real processGpuExtraWidth: expanded && processGpuColumns.length
+    ? processGpuColumns.length * (colAdapterGpuWidth + tableSpacing) - colGpuWidth - tableSpacing : 0
+  readonly property real processOptionalWidth: tableWidth - processGpuExtraWidth
+  function processGpuColumnsFor(compact) {
+    return compact || !processGpuColumns.length ? [{id:"",name:I18n.t("col_gpu",effectiveLanguage)}] : processGpuColumns
+  }
   readonly property int colRssWidth: Style.space(82)
   readonly property int colRamPctWidth: Style.space(56)
   readonly property int colTimeWidth: Style.space(68)
@@ -339,15 +347,17 @@ Panel {
   readonly property int tableSideMargin: Style.spacing.sm
   readonly property real processRowHeight: Math.max(Style.space(expanded ? 28 : 26), Style.font.bodySmall + Style.spacing.sm * 2)
   readonly property real tableWidth: Math.max(0, panel.contentWidth - panel.padding * 2 - Border.left(panel.borderSpec) - Border.right(panel.borderSpec))
-  readonly property bool showProcessPidColumn: tableWidth >= Style.space(500)
-  readonly property bool showProcessRamPercentColumn: tableWidth >= Style.space(560)
-  readonly property bool showProcessUserColumn: tableWidth >= Style.space(680)
-  readonly property bool showProcessTimeColumn: tableWidth >= Style.space(620)
+  readonly property bool showProcessPidColumn: processOptionalWidth >= Style.space(500)
+  readonly property bool showProcessRamPercentColumn: processOptionalWidth >= Style.space(560)
+  readonly property bool showProcessUserColumn: processOptionalWidth >= Style.space(680)
+  readonly property bool showProcessTimeColumn: processOptionalWidth >= Style.space(620)
 
   function processNameWidth(rowWidth, isCompact) {
     var inner = Math.max(0, rowWidth - tableSideMargin * 2)
-    var fixed = colCpuWidth + colGpuWidth + colRssWidth + colActionWidth
-    var gaps = 4
+    var gpuColumns = processGpuColumnsFor(isCompact)
+    var gpuWidth = isCompact || !processGpuColumns.length ? colGpuWidth : colAdapterGpuWidth
+    var fixed = colCpuWidth + gpuColumns.length * gpuWidth + colRssWidth + colActionWidth
+    var gaps = 3 + gpuColumns.length
     if (showProcessPidColumn) { fixed += colPidWidth; gaps++ }
     if (showProcessRamPercentColumn) { fixed += colRamPctWidth; gaps++ }
     if (!isCompact && showProcessUserColumn) { fixed += colUserWidth; gaps++ }
@@ -550,7 +560,8 @@ Panel {
   }
 
   function cycleSort(delta) {
-    var keys = ["cpu", "gpu", "memory", "pid", "runtime", "name"]
+    var keys = ["cpu", "gpu"].concat(root.expanded ? root.processGpuColumns.map(function(gpu) { return "gpu:" + gpu.id }) : [])
+      .concat(["memory", "pid", "runtime", "name"])
     var index = keys.indexOf(sortKey)
     if (index < 0) index = 0
     index = (index + delta + keys.length) % keys.length
@@ -3209,6 +3220,7 @@ Panel {
     id: headerRoot
     property bool compact: false
     implicitHeight: Math.max(Style.space(18), Style.font.bodySmall + Style.spacing.xs)
+      + (!compact && root.processGpuColumns.length ? Style.font.caption + Style.spacing.xs : 0)
 
     Row {
       id: headerRow
@@ -3245,11 +3257,17 @@ Panel {
         label: I18n.t("col_cpu", root.effectiveLanguage)
         alignment: Text.AlignRight
       }
-      ProcessSortCell {
-        width: root.colGpuWidth
-        sortKey: "gpu"
-        label: I18n.t("col_gpu", root.effectiveLanguage)
-        alignment: Text.AlignRight
+      Repeater {
+        model: root.processGpuColumnsFor(headerRoot.compact)
+        ProcessSortCell {
+          required property var modelData
+          width: modelData.id ? root.colAdapterGpuWidth : root.colGpuWidth
+          sortKey: modelData.id ? "gpu:" + modelData.id : "gpu"
+          label: modelData.id ? root.compactGpuName(modelData) : I18n.t("col_gpu", root.effectiveLanguage)
+          detail: modelData.id ? I18n.t("col_gpu", root.effectiveLanguage) : ""
+          tooltipText: modelData.id ? modelData.name + " · " + modelData.id : ""
+          alignment: Text.AlignRight
+        }
       }
       ProcessSortCell {
         width: root.colRssWidth
@@ -3283,8 +3301,10 @@ Panel {
     id: sortCell
     property string sortKey: ""
     property string label: ""
+    property string detail: ""
+    property string tooltipText: ""
     property int alignment: Text.AlignLeft
-    implicitHeight: labelText.implicitHeight
+    implicitHeight: labelText.implicitHeight + (detail ? detailText.implicitHeight + Style.spacing.xs : 0)
 
     ProcessCell {
       id: labelText
@@ -3293,12 +3313,33 @@ Panel {
       dimmed: root.sortKey !== sortCell.sortKey
       emphasized: root.sortKey === sortCell.sortKey
       alignment: sortCell.alignment
+      anchors.verticalCenter: undefined
+      anchors.top: parent.top
+    }
+    Text {
+      id: detailText
+      width: parent.width
+      anchors.top: labelText.bottom
+      anchors.topMargin: Style.spacing.xs
+      visible: sortCell.detail !== ""
+      text: sortCell.detail
+      textFormat: Text.PlainText
+      horizontalAlignment: sortCell.alignment
+      color: root.dim
+      font.family: Style.font.family
+      font.pixelSize: Style.font.caption
     }
 
     MouseArea {
+      id: sortMouse
       anchors.fill: parent
       hoverEnabled: true
       cursorShape: Qt.PointingHandCursor
+      PanelToolTip {
+        visible: sortMouse.containsMouse && sortCell.tooltipText !== ""
+        text: sortCell.tooltipText
+        fontFamily: Style.font.family
+      }
       onClicked: root.setSort(sortCell.sortKey)
     }
   }
@@ -3351,11 +3392,19 @@ Panel {
         emphasized: Number(processData.cpu || 0) >= 25
       }
 
-      ProcessCell {
-        width: root.colGpuWidth
-        text: processData.gpu !== undefined && processData.gpu >= 0 ? Number(processData.gpu).toFixed(1) + "%" : "—"
-        alignment: Text.AlignRight
-        emphasized: Number(processData.gpu) >= 25
+      Repeater {
+        model: root.processGpuColumnsFor(rowRoot.compact)
+        ProcessCell {
+          required property var modelData
+          readonly property real usage: modelData.id
+            ? Number(rowRoot.processData.gpuById && rowRoot.processData.gpuById[modelData.id] !== undefined
+              ? rowRoot.processData.gpuById[modelData.id] : -1)
+            : Number(rowRoot.processData.gpu === undefined ? -1 : rowRoot.processData.gpu)
+          width: modelData.id ? root.colAdapterGpuWidth : root.colGpuWidth
+          text: usage >= 0 ? usage.toFixed(1) + "%" : "—"
+          alignment: Text.AlignRight
+          emphasized: usage >= 25
+        }
       }
 
       ProcessCell {
