@@ -1,0 +1,193 @@
+{
+  "version": "2.14.7",
+  "origin": "actual-consumer inert offscreen fixture",
+  "qtVersion": "6.12.0",
+  "rendererVersion": "0.3.0",
+  "rendererSha256": "779c33b56b756bcf1cd8a02740574b31b5362c81a31d53b98485133a72079cac",
+  "locale": "ru_RU",
+  "backend": "software",
+  "sourceHashes": {
+    "Panel.qml": "034b12a048e60a1993169d95e613e8073bd3e2e9329e810ca3f69dad0835fc8c",
+    "Model.js": "ad3ac40c52d572193eb2041398e7000ccf85f588ea9bc346a5c0f8e6d3a081a1",
+    "I18n.js": "e6d20b58640e82e6cb6ee9c5ac28c7d1450477bc483f0a3c38c74066e50dce01",
+    "test/render-process-gpu.qml": "2b88c95451af311a5c5a576477239f8425d9dfbd10e6a6bcd092e69fb5a4b8b2",
+    "test/ui-checks.py": "145133e64cd229ad691e871a50306271c0347fb9c7289f886badc19acdbdc2f2"
+  },
+  "images": [
+    {
+      "image": "expanded-final.png",
+      "sha256": "6a79c907dfe08dde41a88ea3f8aedcbb75da5433df175d1263c090afb89325ec",
+      "width": 900,
+      "height": 682,
+      "dpr": 1,
+      "inspected": true,
+      "geometry": [
+        {
+          "id": "0",
+          "kind": "align",
+          "tolerance": 1,
+          "status": "PASS",
+          "expected": 327,
+          "measured": 327,
+          "deviation": 0,
+          "coordinateSpace": "logical-scene-axis-aligned"
+        },
+        {
+          "id": "1",
+          "kind": "align",
+          "tolerance": 1,
+          "status": "PASS",
+          "expected": 327,
+          "measured": 327,
+          "deviation": 0,
+          "coordinateSpace": "logical-scene-axis-aligned"
+        },
+        {
+          "id": "2",
+          "kind": "align",
+          "tolerance": 1,
+          "status": "PASS",
+          "expected": 520,
+          "measured": 520,
+          "deviation": 0,
+          "coordinateSpace": "logical-scene-axis-aligned"
+        },
+        {
+          "id": "3",
+          "kind": "align",
+          "tolerance": 1,
+          "status": "PASS",
+          "expected": 636,
+          "measured": 636,
+          "deviation": 0,
+          "coordinateSpace": "logical-scene-axis-aligned"
+        }
+      ],
+      "warnings": "** (qml-render:539415): WARNING **: 22:20:50.805: AT-SPI: Could not obtain desktop path or name\n\n\n** (qml-render:539415): WARNING **: 22:20:50.806: atk-bridge: GetRegisteredEvents returned message with unknown signature\n\n** (qml-render:539415): WARNING **: 22:20:50.806: atk-bridge: get_device_events_reply: unknown signature"
+    },
+    {
+      "image": "expanded-final-dpr2.png",
+      "sha256": "5dc489b9c8759a96cc2a302af10ac365e332e755db180176148cf9b780fea0e9",
+      "width": 900,
+      "height": 682,
+      "dpr": 2,
+      "inspected": true,
+      "geometry": [
+        {
+          "id": "0",
+          "kind": "align",
+          "tolerance": 1,
+          "status": "PASS",
+          "expected": 327,
+          "measured": 327,
+          "deviation": 0,
+          "coordinateSpace": "logical-scene-axis-aligned"
+        },
+        {
+          "id": "1",
+          "kind": "align",
+          "tolerance": 1,
+          "status": "PASS",
+          "expected": 327,
+          "measured": 327,
+          "deviation": 0,
+          "coordinateSpace": "logical-scene-axis-aligned"
+        },
+        {
+          "id": "2",
+          "kind": "align",
+          "tolerance": 1,
+          "status": "PASS",
+          "expected": 520,
+          "measured": 520,
+          "deviation": 0,
+          "coordinateSpace": "logical-scene-axis-aligned"
+        },
+        {
+          "id": "3",
+          "kind": "align",
+          "tolerance": 1,
+          "status": "PASS",
+          "expected": 636,
+          "measured": 636,
+          "deviation": 0,
+          "coordinateSpace": "logical-scene-axis-aligned"
+        }
+      ],
+      "warnings": "** (qml-render:539470): WARNING **: 22:20:51.191: AT-SPI: Could not obtain desktop path or name\n\n\n** (qml-render:539470): WARNING **: 22:20:51.193: atk-bridge: GetRegisteredEvents returned message with unknown signature\n\n** (qml-render:539470): WARNING **: 22:20:51.193: atk-bridge: get_device_events_reply: unknown signature"
+    },
+    {
+      "image": "constrained-final.png",
+      "sha256": "098d3498444c1a7b34ab8792b9dfadf3cd9e8869c817b9790a1a92c19f17d293",
+      "width": 780,
+      "height": 592,
+      "dpr": 1,
+      "inspected": true,
+      "geometry": [
+        {
+          "id": "0",
+          "kind": "align",
+          "tolerance": 1,
+          "status": "PASS",
+          "expected": 393,
+          "measured": 393,
+          "deviation": 0,
+          "coordinateSpace": "logical-scene-axis-aligned"
+        },
+        {
+          "id": "1",
+          "kind": "align",
+          "tolerance": 1,
+          "status": "PASS",
+          "expected": 472,
+          "measured": 472,
+          "deviation": 0,
+          "coordinateSpace": "logical-scene-axis-aligned"
+        },
+        {
+          "id": "2",
+          "kind": "align",
+          "tolerance": 1,
+          "status": "PASS",
+          "expected": 588,
+          "measured": 588,
+          "deviation": 0,
+          "coordinateSpace": "logical-scene-axis-aligned"
+        }
+      ],
+      "warnings": "** (qml-render:539499): WARNING **: 22:20:51.691: AT-SPI: Could not obtain desktop path or name\n\n\n** (qml-render:539499): WARNING **: 22:20:51.693: atk-bridge: GetRegisteredEvents returned message with unknown signature\n\n** (qml-render:539499): WARNING **: 22:20:51.693: atk-bridge: get_device_events_reply: unknown signature"
+    },
+    {
+      "image": "compact-final.png",
+      "sha256": "8ad2ac9700441f2dff1288e4f07e3e351f970ee501d5942472da341b3ed2604b",
+      "width": 480,
+      "height": 422,
+      "dpr": 1,
+      "inspected": true,
+      "geometry": [
+        {
+          "id": "0",
+          "kind": "align",
+          "tolerance": 1,
+          "status": "PASS",
+          "expected": 348,
+          "measured": 348,
+          "deviation": 0,
+          "coordinateSpace": "logical-scene-axis-aligned"
+        },
+        {
+          "id": "1",
+          "kind": "align",
+          "tolerance": 1,
+          "status": "PASS",
+          "expected": 198,
+          "measured": 198,
+          "deviation": 0,
+          "coordinateSpace": "logical-scene-axis-aligned"
+        }
+      ],
+      "warnings": "** (qml-render:539525): WARNING **: 22:20:52.018: AT-SPI: Could not obtain desktop path or name\n\n\n** (qml-render:539525): WARNING **: 22:20:52.019: atk-bridge: GetRegisteredEvents returned message with unknown signature\n\n** (qml-render:539525): WARNING **: 22:20:52.019: atk-bridge: get_device_events_reply: unknown signature"
+    }
+  ],
+  "diagnosticLimit": "Initial warningsPolicy=error render failed on AT-SPI/atk-bridge messages. Subsequent renders explicitly use report policy for this layout-only review. Accessibility remains unverified; no Qt/QML component diagnostics observed."
+}

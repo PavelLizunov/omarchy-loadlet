@@ -68,7 +68,7 @@ Panel {
         journalError: activity.journalError,
         heatThreshold: activity.heatThreshold,
         productName: "Loadlet",
-        iconRevision: "2.14.6",
+        iconRevision: "2.14.7",
         rightClickAction: "none",
         iconTooltip: button.tooltipText,
         iconConsumer: String(Qt.resolvedUrl("Panel.qml")),
@@ -696,6 +696,15 @@ Panel {
     var bracketed = name.match(/\[([^\]]+)\]/g)
     if (bracketed && bracketed.length) name = bracketed[bracketed.length - 1].slice(1, -1)
     return name || "GPU"
+  }
+
+  function processGpuHeading(gpu) {
+    var name = root.compactGpuName(gpu)
+    var model = name.match(/\b((?:RTX|GTX|RX|Arc)\s+\w+(?:\s+(?:Ti|SUPER|XTX|XT))?|Radeon\s+\d+\w*)\b/i)
+    if (model) return model[1]
+    if (name.length <= 12) return name
+    var index = root.processGpuColumns.findIndex(function(item) { return item.id === gpu.id })
+    return "GPU " + (index + 1)
   }
 
   function gpuUsageText(gpu) {
@@ -3246,9 +3255,13 @@ Panel {
         alignment: Text.AlignRight
       }
       ProcessCell {
+        objectName: "processHeader-user"
+        anchors.verticalCenter: undefined
+        anchors.top: parent.top
         visible: !headerRoot.compact && root.showProcessUserColumn
         width: root.colUserWidth
         text: I18n.t("col_user", root.effectiveLanguage)
+        leftPadding: Style.spacing.sm
         dimmed: true
       }
       ProcessSortCell {
@@ -3263,7 +3276,7 @@ Panel {
           required property var modelData
           width: modelData.id ? root.colAdapterGpuWidth : root.colGpuWidth
           sortKey: modelData.id ? "gpu:" + modelData.id : "gpu"
-          label: modelData.id ? root.compactGpuName(modelData) : I18n.t("col_gpu", root.effectiveLanguage)
+          label: modelData.id ? root.processGpuHeading(modelData) : I18n.t("col_gpu", root.effectiveLanguage)
           detail: modelData.id ? I18n.t("col_gpu", root.effectiveLanguage) : ""
           tooltipText: modelData.id ? modelData.name + " · " + modelData.id : ""
           alignment: Text.AlignRight
@@ -3299,6 +3312,7 @@ Panel {
 
   component ProcessSortCell: Item {
     id: sortCell
+    objectName: "processHeader-" + sortKey
     property string sortKey: ""
     property string label: ""
     property string detail: ""
@@ -3308,6 +3322,7 @@ Panel {
 
     ProcessCell {
       id: labelText
+      objectName: sortCell.objectName + "-label"
       width: parent.width
       text: root.sortLabel(sortCell.sortKey, sortCell.label)
       dimmed: root.sortKey !== sortCell.sortKey
@@ -3381,11 +3396,13 @@ Panel {
         visible: !rowRoot.compact && root.showProcessUserColumn
         width: root.colUserWidth
         text: String(processData.user || "")
+        leftPadding: Style.spacing.sm
         dimmed: true
       }
 
       ProcessCell {
         id: cpuValue
+        objectName: rowRoot.rowIndex === 0 ? "firstProcess-cpu" : ""
         width: root.colCpuWidth
         text: Number(processData.cpu || 0).toFixed(1) + "%"
         alignment: Text.AlignRight
@@ -3396,6 +3413,7 @@ Panel {
         model: root.processGpuColumnsFor(rowRoot.compact)
         ProcessCell {
           required property var modelData
+          objectName: rowRoot.rowIndex === 0 ? "firstProcess-gpu:" + modelData.id : ""
           readonly property real usage: modelData.id
             ? Number(rowRoot.processData.gpuById && rowRoot.processData.gpuById[modelData.id] !== undefined
               ? rowRoot.processData.gpuById[modelData.id] : -1)
@@ -3409,6 +3427,7 @@ Panel {
 
       ProcessCell {
         id: rssValue
+        objectName: rowRoot.rowIndex === 0 ? "firstProcess-memory" : ""
         width: root.colRssWidth
         text: Model.formatBytes(processData.rss || 0)
         alignment: Text.AlignRight

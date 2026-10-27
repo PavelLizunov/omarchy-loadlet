@@ -52,7 +52,8 @@ Left-click toggles the panel. Right-click has no action. Expand inside the panel
 for GPU, storage, search and the full sampled process list. No separate Task
 Manager application is launched or required. Each GPU has its own wrapping card.
 The compact process table shows a sortable GPU % maximum. Expanded view shows
-a separate sortable percentage column for each GPU, labeled with its model. Hover
+a separate sortable percentage column for each GPU, labeled with a short model
+name such as RTX5060Ti or Radeon610M. Hover
 the heading for its full name and PCI identity. Readings use NVIDIA per-process
 utilization or supported DRM engine counters. A dash means unavailable data,
 not zero usage.

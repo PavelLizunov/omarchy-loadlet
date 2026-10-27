@@ -419,7 +419,8 @@ This observation is not generic board compatibility or a driver safety audit.
 
 The compact process table includes an aggregate GPU % maximum. Expanded view
 replaces it with one percentage column per GPU, sorted by stable PCI identity
-and labeled with the model name. Hover its heading for the full name and PCI ID;
+and labeled with a short model name, such as RTX5060Ti or Radeon610M. Long
+unrecognized models use a stable GPU number. Hover its heading for the full name and PCI ID;
 identical models remain distinguishable by that ID. Click a heading to sort by
 that GPU. `g` still sorts by the aggregate maximum. Missing measurements sort
 below measured values in either
