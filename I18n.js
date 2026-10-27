@@ -3,6 +3,7 @@
 // Standard Omarchy plugin localization catalog (slovn.mx-ergo & slovn.cetra reference).
 var strings = {
   "en": {
+    "col_gpu": "GPU %",
     "fan_output_percent": "Fan output, 0–100% (not RPM)",
     "fan_save_output": "Save %",
     "fan_profile_hint": "Enter an exact integer percentage and save. It is reapplied after reboot. At 80°C or without CPU telemetry, output rises to 100%. Restore removes the saved profile.",
@@ -221,9 +222,10 @@ var strings = {
     "expand": "Expand details",
     "collapse": "Collapse details",
     "hints_compact": "e details  ·  ↑/↓ select  ·  x end task  ·  s settings  ·  ? hide",
-    "hints_expanded": "e collapse  ·  / search  ·  c/m/p/t/n sort  ·  ↑/↓ select  ·  x end task  ·  r refresh"
+    "hints_expanded": "e collapse  ·  / search  ·  c/g/m/p/t/n sort  ·  ↑/↓ select  ·  x end task  ·  r refresh"
   },
   "ru": {
+    "col_gpu": "GPU %",
     "fan_output_percent": "Уровень вентилятора, 0–100% (не об/мин)",
     "fan_save_output": "Сохранить %",
     "fan_profile_hint": "Введите точный целый процент и сохраните. Он восстановится после перезагрузки. При 80°C или потере температуры CPU включаются 100%. Возврат управления удаляет профиль.",
@@ -442,9 +444,10 @@ var strings = {
     "expand": "Развернуть",
     "collapse": "Свернуть",
     "hints_compact": "e подробнее  ·  ↑/↓ выбор  ·  x завершить  ·  s настройки  ·  ? скрыть",
-    "hints_expanded": "e свернуть  ·  / поиск  ·  c/m/p/t/n сорт.  ·  ↑/↓ выбор  ·  x завершить  ·  r обновить"
+    "hints_expanded": "e свернуть  ·  / поиск  ·  c/g/m/p/t/n сорт.  ·  ↑/↓ выбор  ·  x завершить  ·  r обновить"
   },
   "de": {
+    "col_gpu": "GPU %",
     "fan_output_percent": "Lüfterleistung, 0–100% (keine Drehzahl)",
     "fan_save_output": "% speichern",
     "fan_profile_hint": "Ganze Prozentzahl eingeben und speichern. Sie gilt auch nach einem Neustart. Ab 80°C oder ohne CPU-Temperatur werden 100% angefordert. Wiederherstellen entfernt das Profil.",
@@ -663,9 +666,10 @@ var strings = {
     "expand": "Erweitern",
     "collapse": "Einklappen",
     "hints_compact": "e Details  ·  ↑/↓ Auswahl  ·  x beenden  ·  s Einst.  ·  ? ausblenden",
-    "hints_expanded": "e einklappen  ·  / Suche  ·  c/m/p/t/n Sort.  ·  ↑/↓ Auswahl  ·  x beenden  ·  r aktual."
+    "hints_expanded": "e einklappen  ·  / Suche  ·  c/g/m/p/t/n Sort.  ·  ↑/↓ Auswahl  ·  x beenden  ·  r aktual."
   },
   "zh": {
+    "col_gpu": "GPU %",
     "fan_output_percent": "风扇输出，0–100%（非转速）",
     "fan_save_output": "保存百分比",
     "fan_profile_hint": "输入整数百分比并保存，重启后会重新应用。CPU 达到 80°C 或温度不可用时，输出升至 100%。恢复原控制会删除配置。",

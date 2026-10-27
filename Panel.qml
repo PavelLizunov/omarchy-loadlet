@@ -68,7 +68,7 @@ Panel {
         journalError: activity.journalError,
         heatThreshold: activity.heatThreshold,
         productName: "Loadlet",
-        iconRevision: "2.14.4",
+        iconRevision: "2.14.5",
         rightClickAction: "none",
         iconTooltip: button.tooltipText,
         iconConsumer: String(Qt.resolvedUrl("Panel.qml")),
@@ -317,7 +317,11 @@ Panel {
   readonly property var storageSnapshot: activity.storageSnapshot
   readonly property var gpuSnapshot: activity.gpuSnapshot
   readonly property var gpus: activity.gpus
-  readonly property var processes: activity.processes
+  readonly property var processes: activity.processes.map(function(process) {
+    var key = process.pid + ":" + process.startTicks
+    var usage = activity.processGpusFresh ? activity.processGpus[key] : undefined
+    return Object.assign({}, process, {gpu:usage === undefined ? -1 : usage})
+  })
   readonly property var metrics: activity.metrics
   readonly property bool processMetricsReady: activity.processMetricsReady
   readonly property bool hasSnapshot: snapshot.sample > 0
@@ -326,6 +330,7 @@ Panel {
   readonly property int colPidWidth: Style.space(56)
   readonly property int colUserWidth: Style.space(86)
   readonly property int colCpuWidth: Style.space(64)
+  readonly property int colGpuWidth: Style.space(64)
   readonly property int colRssWidth: Style.space(82)
   readonly property int colRamPctWidth: Style.space(56)
   readonly property int colTimeWidth: Style.space(68)
@@ -334,15 +339,15 @@ Panel {
   readonly property int tableSideMargin: Style.spacing.sm
   readonly property real processRowHeight: Math.max(Style.space(expanded ? 28 : 26), Style.font.bodySmall + Style.spacing.sm * 2)
   readonly property real tableWidth: Math.max(0, panel.contentWidth - panel.padding * 2 - Border.left(panel.borderSpec) - Border.right(panel.borderSpec))
-  readonly property bool showProcessPidColumn: tableWidth >= Style.space(400)
-  readonly property bool showProcessRamPercentColumn: tableWidth >= Style.space(420)
-  readonly property bool showProcessUserColumn: tableWidth >= Style.space(600)
-  readonly property bool showProcessTimeColumn: tableWidth >= Style.space(540)
+  readonly property bool showProcessPidColumn: tableWidth >= Style.space(500)
+  readonly property bool showProcessRamPercentColumn: tableWidth >= Style.space(560)
+  readonly property bool showProcessUserColumn: tableWidth >= Style.space(680)
+  readonly property bool showProcessTimeColumn: tableWidth >= Style.space(620)
 
   function processNameWidth(rowWidth, isCompact) {
     var inner = Math.max(0, rowWidth - tableSideMargin * 2)
-    var fixed = colCpuWidth + colRssWidth + colActionWidth
-    var gaps = 3
+    var fixed = colCpuWidth + colGpuWidth + colRssWidth + colActionWidth
+    var gaps = 4
     if (showProcessPidColumn) { fixed += colPidWidth; gaps++ }
     if (showProcessRamPercentColumn) { fixed += colRamPctWidth; gaps++ }
     if (!isCompact && showProcessUserColumn) { fixed += colUserWidth; gaps++ }
@@ -545,7 +550,7 @@ Panel {
   }
 
   function cycleSort(delta) {
-    var keys = ["cpu", "memory", "pid", "runtime", "name"]
+    var keys = ["cpu", "gpu", "memory", "pid", "runtime", "name"]
     var index = keys.indexOf(sortKey)
     if (index < 0) index = 0
     index = (index + delta + keys.length) % keys.length
@@ -836,7 +841,7 @@ Panel {
     backgroundEnabled: root.booleanSetting("iconIndicator", true)
     expanded: root.expanded
     sensorsActive: root.sensorsOpen && !root.settingsOpen
-    gpuEnabled: root.expanded || root.settingsOpen || root.compactTiles.some(function(key) { return key === "gpu" || key.indexOf("gpu:") === 0 })
+    gpuEnabled: !root.sensorsOpen || root.settingsOpen
     storageEnabled: root.expanded || root.compactTiles.indexOf("storage") >= 0
     sensorSummaryEnabled: !root.sensorsOpen && (root.expanded || root.compactTiles.some(function(key) {
       return key === "temperature" || key === "fans" || key === "gpu" || key.indexOf("gpu:") === 0
@@ -1004,6 +1009,7 @@ Panel {
         else if (key === "d" && root.expanded) root.cycleDisk(raw === "D" ? -1 : 1)
         else if (key === "v" && root.expanded) root.cycleStorage(raw === "V" ? -1 : 1)
         else if (key === "c") root.setSort("cpu")
+        else if (key === "g") root.setSort("gpu")
         else if (key === "m") root.setSort("memory")
         else if (key === "p") root.setSort("pid")
         else if (key === "t" && root.expanded) root.setSort("runtime")
@@ -3240,6 +3246,12 @@ Panel {
         alignment: Text.AlignRight
       }
       ProcessSortCell {
+        width: root.colGpuWidth
+        sortKey: "gpu"
+        label: I18n.t("col_gpu", root.effectiveLanguage)
+        alignment: Text.AlignRight
+      }
+      ProcessSortCell {
         width: root.colRssWidth
         sortKey: "memory"
         label: I18n.t("col_rss", root.effectiveLanguage)
@@ -3337,6 +3349,13 @@ Panel {
         text: Number(processData.cpu || 0).toFixed(1) + "%"
         alignment: Text.AlignRight
         emphasized: Number(processData.cpu || 0) >= 25
+      }
+
+      ProcessCell {
+        width: root.colGpuWidth
+        text: processData.gpu !== undefined && processData.gpu >= 0 ? Number(processData.gpu).toFixed(1) + "%" : "—"
+        alignment: Text.AlignRight
+        emphasized: Number(processData.gpu) >= 25
       }
 
       ProcessCell {

@@ -1426,6 +1426,12 @@ struct GpuAdapter {
   std::vector<FanReading> fans;
 };
 
+struct GpuProcessReading {
+  unsigned int pid;
+  double utilization;
+  unsigned long long timestamp;
+};
+
 struct NvidiaReading {
   std::string id;
   std::string name;
@@ -1435,6 +1441,7 @@ struct NvidiaReading {
   double frequency_mhz = -1;
   double temperature = -1;
   std::vector<FanReading> fans;
+  std::vector<GpuProcessReading> processes;
 };
 
 class NvidiaProvider {
@@ -1504,6 +1511,28 @@ public:
             reading.fans.push_back({0, speed});
         }
       }
+      if (!sensors && get_process_utilization_) {
+        const auto now = static_cast<unsigned long long>(
+            std::chrono::duration_cast<std::chrono::microseconds>(
+                std::chrono::system_clock::now().time_since_epoch()).count());
+        std::vector<NvmlProcessSample> samples(8192);
+        unsigned int count = samples.size();
+        if (get_process_utilization_(device, samples.data(), &count, now - 5000000ULL) == 0
+            && count <= samples.size()) {
+          std::unordered_map<unsigned int, NvmlProcessSample> latest;
+          for (unsigned int i = 0; i < count; ++i) {
+            const auto &sample = samples[i];
+            if (!sample.pid || sample.timestamp > now || now - sample.timestamp > 5000000ULL
+                || sample.sm > 100 || sample.encoder > 100 || sample.decoder > 100) continue;
+            const auto old = latest.find(sample.pid);
+            if (old == latest.end() || old->second.timestamp < sample.timestamp)
+              latest[sample.pid] = sample;
+          }
+          for (const auto &[pid, sample] : latest)
+            reading.processes.push_back({pid, static_cast<double>(
+                std::max({sample.sm, sample.encoder, sample.decoder})), sample.timestamp});
+        }
+      }
       if (!reading.id.empty())
         readings.push_back(std::move(reading));
     }
@@ -1515,6 +1544,15 @@ private:
   struct NvmlUtilization {
     unsigned int gpu;
     unsigned int memory;
+  };
+
+  struct NvmlProcessSample {
+    unsigned int pid;
+    unsigned long long timestamp;
+    unsigned int sm;
+    unsigned int memory;
+    unsigned int encoder;
+    unsigned int decoder;
   };
 
   struct NvmlMemory {
@@ -1529,6 +1567,7 @@ private:
   using GetName = int (*)(void *, char *, unsigned int);
   using GetUtilization = int (*)(void *, NvmlUtilization *);
   using GetMemory = int (*)(void *, NvmlMemory *);
+  using GetProcessUtilization = int (*)(void *, NvmlProcessSample *, unsigned int *, unsigned long long);
   using GetClock = int (*)(void *, unsigned int, unsigned int *);
   using GetValue = int (*)(void *, unsigned int *);
 
@@ -1541,6 +1580,7 @@ private:
   GetName get_name_ = nullptr;
   GetUtilization get_utilization_ = nullptr;
   GetMemory get_memory_ = nullptr;
+  GetProcessUtilization get_process_utilization_ = nullptr;
   GetClock get_clock_ = nullptr;
   GetClock get_temperature_ = nullptr;
   GetClock get_fan_speed_v2_ = nullptr;
@@ -1565,6 +1605,7 @@ private:
     get_name_ = Symbol<GetName>("nvmlDeviceGetName");
     get_utilization_ = Symbol<GetUtilization>("nvmlDeviceGetUtilizationRates");
     get_memory_ = Symbol<GetMemory>("nvmlDeviceGetMemoryInfo");
+    get_process_utilization_ = Symbol<GetProcessUtilization>("nvmlDeviceGetProcessUtilization");
     get_clock_ = Symbol<GetClock>("nvmlDeviceGetClockInfo");
     get_temperature_ = Symbol<GetClock>("nvmlDeviceGetTemperature");
     get_fan_speed_v2_ = Symbol<GetClock>("nvmlDeviceGetFanSpeed_v2");
@@ -1712,6 +1753,17 @@ public:
       EmitNumber(output, gpu.frequency_mhz);
       output << '\n';
     }
+    for (const auto &[gpu, process] : nvidia_processes_) {
+      const auto start = ProcessStart(process.pid);
+      if (!start) continue;
+      const auto now = std::chrono::duration<double>(
+          std::chrono::system_clock::now().time_since_epoch()).count();
+      const auto uptime = ParseDouble(UptimeSample(paths_)).value_or(0);
+      const auto ticks = SystemValue(_SC_CLK_TCK, 100);
+      if (uptime <= 0 || process.timestamp / 1000000.0 < now - uptime + *start / static_cast<double>(ticks)) continue;
+      output << "process-gpu\t" << gpu << '\t' << process.pid << '\t' << *start
+             << '\t' << process.utilization << '\n';
+    }
     EmitDrmClients(output);
   }
 
@@ -1744,6 +1796,16 @@ private:
   bool nvidia_present_ = false;
   std::vector<GpuAdapter> adapters_;
   std::vector<std::string> fdinfo_paths_;
+  std::vector<std::pair<std::string, GpuProcessReading>> nvidia_processes_;
+
+  std::optional<std::uint64_t> ProcessStart(unsigned int pid) const {
+    const auto raw = ReadText(Join(Join(paths_.proc, std::to_string(pid)), "stat"));
+    if (!raw) return std::nullopt;
+    const auto end = raw->rfind(") ");
+    if (end == std::string::npos) return std::nullopt;
+    const auto fields = SplitWhitespace(raw->substr(end + 2));
+    return fields.size() > 19 ? ParseUnsigned(fields[19]) : std::nullopt;
+  }
   Clock::time_point next_fd_discovery_{};
   std::chrono::milliseconds discovery_interval_;
 
@@ -1881,6 +1943,7 @@ private:
   }
 
   void ApplyNvidia(bool sensors) {
+    nvidia_processes_.clear();
     for (auto &gpu : adapters_) { gpu.temperature = -1; gpu.fans.clear(); }
     if (!nvidia_present_ && paths_.nvidia_fixture.empty())
       return;
@@ -1904,6 +1967,8 @@ private:
         adapters_.push_back(std::move(gpu));
         found = std::prev(adapters_.end());
       }
+      for (const auto &process : reading.processes)
+        nvidia_processes_.emplace_back(reading.id, process);
       found->vendor = "NVIDIA";
       found->driver = "nvidia";
       if (!reading.name.empty())
@@ -2037,6 +2102,7 @@ private:
     for (const auto &gpu : adapters_)
       known.insert(gpu.id);
     std::unordered_set<std::string> clients;
+    std::unordered_set<std::string> process_clients;
     std::unordered_map<std::string, double> dedicated;
     std::unordered_map<std::string, double> shared;
     std::vector<EngineRow> engines;
@@ -2050,6 +2116,16 @@ private:
       if (!known.count(sample->pdev))
         continue;
       const std::string client_key = sample->pdev + "\t" + sample->client;
+      const auto pid_name = BaseName(path.substr(0, path.rfind("/fdinfo/")));
+      const auto pid = ParseUnsigned(pid_name);
+      const auto start = pid ? ProcessStart(static_cast<unsigned int>(*pid)) : std::nullopt;
+      if (start && process_clients.insert(pid_name + "\t" + client_key).second) {
+        for (const auto &[name, value] : sample->engines)
+          output << "process-engine\t" << sample->pdev << '\t' << sample->client << '\t'
+                 << name << '\t' << std::llround(value.busy) << '\t'
+                 << std::llround(value.total) << '\t' << std::llround(value.capacity)
+                 << '\t' << value.kind << '\t' << *pid << '\t' << *start << '\n';
+      }
       if (!clients.insert(client_key).second)
         continue;
       for (const auto &[region, bytes] : sample->resident) {

@@ -1,17 +1,17 @@
 {
   "schemaVersion": 1,
   "platform": "linux-x86_64",
-  "sourceBaseCommit": "523cd5ec1400eff855ad2c1429f0853856203e21",
+  "sourceBaseCommit": "aa9c35886452c5ff01c13d4136378f3dddf0d1a1",
   "sha256": {
-    "activity-sampler": "614c0aefd9f1cd0c2003dc82c8695d87dd95cb4e20ed0affbdddb11f14d1687c",
-    "activity-sampler.cpp": "8076a72d0d76e550116d59d2a5f497b8b1939c5fd7aabb60f097a21ac8792db1",
+    "activity-sampler": "bdfb8c2f614d8b90333b0b75edf522dacd918cbebbe1741aa5d567a27905cb11",
+    "activity-sampler.cpp": "b5dfa85c4da31b9c5dcc0f7c2630dd29f528724f0c1930b3ca536e182d0a78ca",
     "DiagnosticJournal.h": "c0b2c5606ff36dc7bf5d27cc1b037721afb79dfc6709ebcef8e924f888b4d90d",
     "Makefile": "6b3111926c9218664abfa8d98348ab3836f5d96c14a1f90699b41f4c163ad56c"
   },
-  "size": 260216,
+  "size": 272504,
   "compiler": "GCC 16.2.1 20260810",
-  "buildCommand": "LC_ALL=C make -B activity-sampler",
-  "buildResult": "Native executable unchanged from 2.11.1 reproduction; only the install file list changed for the 2.12.0 QML map",
+  "buildCommand": "LC_ALL=C make activity-sampler",
+  "buildResult": "Built successfully for 2.14.5 per-process GPU telemetry; no reproduction, test or hardware checks run for this task",
   "dynamicRequirements": {
     "glibc": "2.34",
     "libstdc++": "GLIBCXX_3.4.32",
@@ -24,7 +24,7 @@
   "runtimeBuild": false,
   "runtimeDownload": false,
   "limits": [
-    "Fan helper expiry and rollback tested on temporary files, not hardware; real authentication remains unverified",
+    "Per-process NVIDIA and DRM runtime behavior is unverified on physical hardware",
     "x86_64 only; no prebuilt ARM support",
     "Maintainer listing approval is separate from source and binary evidence"
   ]

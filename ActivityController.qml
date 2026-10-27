@@ -47,6 +47,10 @@ Item {
   readonly property var storageSnapshot: _storageSnapshot
   readonly property var gpuSnapshot: _gpuSnapshot
   readonly property var gpus: _gpus
+  property var processGpus: ({})
+  property double processGpusUpdatedAt: 0
+  readonly property bool processGpusFresh: gpuEnabled && processGpusUpdatedAt > 0
+    && freshnessClock >= processGpusUpdatedAt && freshnessClock - processGpusUpdatedAt <= Math.max(10000, profile.gpus * 3)
   readonly property var processes: _processes
   readonly property var metrics: _metrics
   readonly property bool processMetricsReady: _processMetricsReady
@@ -148,7 +152,8 @@ Item {
       sensorsUpdatedAt = 0
       sensorHistory = ({})
     }
-    _gpus = []; _processes = []; _processMetricsReady = false
+    _gpus = []; processGpus = ({}); processGpusUpdatedAt = 0
+    _processes = []; _processMetricsReady = false
     cpuReady = false
     _metrics = Model.emptyMetrics()
     due = ({})
@@ -334,6 +339,9 @@ Item {
       if (gpu.schema !== 1 || gpu.sample <= 0) return false
       if (gpuEnabled) {
         _gpus = Model.nextGpus(previousGpu, gpu)
+        processGpus = Model.nextProcessGpus(previousGpu, gpu)
+        processGpusUpdatedAt = Date.now()
+        freshnessClock = processGpusUpdatedAt
         previousGpu = gpu; _gpuSnapshot = gpu
       }
     } else if (kind === "storage") {
@@ -388,6 +396,7 @@ Item {
     if (!expanded && !gpuEnabled) {
       previousGpu = Model.emptyGpuSnapshot()
       _gpus = []; _gpuSnapshot = Model.emptyGpuSnapshot()
+      processGpus = ({}); processGpusUpdatedAt = 0
     } else {
       due.gpus = 0
       due.storage = 0

@@ -415,6 +415,27 @@ about695 to1534, then duty40/mode2 were restored. Physical connector identity,
 acoustic/airflow change and automatic timed restoration remain unverified.
 This observation is not generic board compatibility or a driver safety audit.
 
+## Per-process GPU usage
+
+The process table includes GPU % in compact and expanded views. Click its heading
+or press `g` to sort. Missing measurements sort below measured values in either
+direction and display a dash, never a fabricated zero. PID and start ticks tie
+readings to the sampled process identity. Stale readings are cleared.
+
+The existing GPU request also collects recent NVIDIA process utilization through
+the optional NVML API, admitted only for an active device. The displayed value
+is the maximum of 3D/compute, encoder and decoder utilization. Unsupported
+drivers, unavailable process samples or sleeping GPUs remain unavailable. There
+is no NVIDIA CLI polling. For DRM drivers exposing per-client engine counters,
+two samples produce a per-process percentage using the existing engine formula.
+Duplicated file descriptors are deduplicated; shared DRM clients may be attributed
+to multiple processes. The maximum engine class and maximum GPU are shown, not a
+sum across parallel engines or adapters.
+
+GPU collection now runs while the process table is visible even without a GPU
+summary tile. Existing closed-panel collection is unchanged. No measured battery
+or physical-driver compatibility claim follows from this implementation.
+
 ## Sampling and limits
 
 The default Efficient profile samples resources every 3 seconds, processes every

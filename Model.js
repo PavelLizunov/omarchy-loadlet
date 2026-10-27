@@ -158,6 +158,7 @@ function emptyGpuSnapshot() {
   return {
     schema: 0,
     sample: 0,
+    processGpus: [],
     gpus: []
   }
 }
@@ -445,6 +446,20 @@ function parseGpuSnapshot(raw) {
         capacity: Math.max(1, number(fields[6], 1)),
         kind: String(fields[7] || "time")
       })
+    } else if (kind === "process-gpu") {
+      snapshot.processGpus.push({
+        id: String(fields[1]), pid: number(fields[2]), startTicks: number(fields[3]),
+        directUtilization: number(fields[4], -1), engines: []
+      })
+    } else if (kind === "process-engine") {
+      var processId = String(fields[8]) + ":" + String(fields[9]) + ":" + String(fields[1])
+      var processGpu = snapshot.processGpus.filter(function(item) { return item.processId === processId })[0]
+      if (!processGpu) {
+        processGpu = {processId:processId, id:String(fields[1]), pid:number(fields[8]), startTicks:number(fields[9]), directUtilization:-1, engines:[]}
+        snapshot.processGpus.push(processGpu)
+      }
+      processGpu.engines.push({client:String(fields[2]), name:String(fields[3]), busy:number(fields[4]),
+        total:number(fields[5], -1), capacity:Math.max(1, number(fields[6], 1)), kind:String(fields[7])})
     } else if (kind === "gpu-memory") {
       var memoryGpu = gpuSnapshotEntry(snapshot, fields[1])
       var memoryValue = Math.max(0, number(fields[3]))
@@ -542,6 +557,22 @@ function nextGpus(previous, current) {
       memoryKind: gpu.memoryKind
     })
   }
+  return result
+}
+
+function nextProcessGpus(previous, current) {
+  var before = previous && Array.isArray(previous.processGpus) ? previous.processGpus : []
+  var values = current && Array.isArray(current.processGpus) ? current.processGpus : []
+  var result = {}
+  values.forEach(function(gpu) {
+    var old = before.filter(function(item) {
+      return item.pid === gpu.pid && item.startTicks === gpu.startTicks && item.id === gpu.id
+    })[0]
+    var reading = nextGpus({sample:previous && previous.sample || 0, gpus:old ? [old] : []}, {sample:current.sample, gpus:[gpu]})[0]
+    if (!reading || reading.usage < 0) return
+    var key = gpu.pid + ":" + gpu.startTicks
+    result[key] = Math.max(number(result[key], -1), reading.usage)
+  })
   return result
 }
 
@@ -1744,6 +1775,7 @@ function processActionBlockReason(process, currentUser) {
 function processValue(process, key) {
   if (key === "memory") return number(process.memory)
   if (key === "power") return number(process.power, -1)
+  if (key === "gpu") return number(process.gpu, -1)
   if (key === "pid") return number(process.pid)
   if (key === "runtime") return number(process.elapsed)
   if (key === "name") return String(process.name || "").toLowerCase()
@@ -1764,6 +1796,11 @@ function filterAndSortProcesses(processes, query, sortKey, ascending) {
   var key = sortKey || "cpu"
   var direction = ascending ? 1 : -1
   values.sort(function(left, right) {
+    if (key === "gpu") {
+      var leftKnown = number(left.gpu, -1) >= 0
+      var rightKnown = number(right.gpu, -1) >= 0
+      if (leftKnown !== rightKnown) return leftKnown ? -1 : 1
+    }
     var a = processValue(left, key)
     var b = processValue(right, key)
     if (a < b) return -1 * direction
@@ -1899,6 +1936,7 @@ if (typeof module !== "undefined") {
     packageEnergyDelta: packageEnergyDelta,
     nextPackagePower: nextPackagePower,
     nextGpus: nextGpus,
+    nextProcessGpus: nextProcessGpus,
     counterPercent: counterPercent,
     counterRate: counterRate,
     memoryPercent: memoryPercent,

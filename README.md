@@ -51,6 +51,9 @@ brief optional motion without changing sampling cadence.
 Left-click toggles the panel. Right-click has no action. Expand inside the panel
 for GPU, storage, search and the full sampled process list. No separate Task
 Manager application is launched or required. Each GPU has its own wrapping card.
+The process table also shows a sortable
+GPU % column, using NVIDIA per-process utilization or supported DRM engine
+counters. A dash means unavailable data, not zero usage.
 
 The **Cooling** tab shows available hwmon temperatures and fan readings plus
 NVIDIA temperature/fan telemetry through the existing NVML provider. It reuses
