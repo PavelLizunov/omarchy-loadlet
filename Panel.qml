@@ -68,7 +68,7 @@ Panel {
         journalError: activity.journalError,
         heatThreshold: activity.heatThreshold,
         productName: "Loadlet",
-        iconRevision: "2.14.3",
+        iconRevision: "2.14.4",
         rightClickAction: "none",
         iconTooltip: button.tooltipText,
         iconConsumer: String(Qt.resolvedUrl("Panel.qml")),
@@ -97,11 +97,14 @@ Panel {
   property bool fansOpen: false
   property string fanStatusKey: ""
   property int fanDuration: 10
+  property var fanProfileOutputs: ({})
+  property var fanOutputDrafts: ({})
   property string pendingFanChannel: ""
   property int pendingFanSpeed: 100
   property string pendingFanAction: "boost"
   function fanAction(channel, speed, action) {
-    if (fanController.running || !/^pwm[2-5]$/.test(channel)) return
+    if (fanController.running || !/^pwm[2-5]$/.test(channel)
+        || !isFinite(speed) || Math.floor(speed) !== speed || speed < 0 || speed > 100) return
     pendingFanChannel = channel; pendingFanSpeed = speed; pendingFanAction = action
     fanStatusKey = "fan_action_pending"
     fanController.running = true
@@ -110,9 +113,23 @@ Panel {
     id: fanController
     command: root.pendingFanAction === "restore"
       ? ["/usr/local/lib/loadlet/fan-control", "request", "restore", root.pendingFanChannel]
-      : ["/usr/local/lib/loadlet/fan-control", "request", root.pendingFanAction, root.pendingFanChannel, String(root.pendingFanSpeed), String(root.pendingFanAction === "identify" ? 5 : root.fanDuration)]
+      : root.pendingFanAction === "save"
+        ? ["/usr/local/lib/loadlet/fan-control", "request", "save", root.pendingFanChannel, String(root.pendingFanSpeed)]
+        : ["/usr/local/lib/loadlet/fan-control", "request", root.pendingFanAction, root.pendingFanChannel, String(root.pendingFanSpeed), String(root.pendingFanAction === "identify" ? 5 : root.fanDuration)]
     onStarted: fanDeadline.restart()
-    onExited: function(code) { fanDeadline.stop(); root.fanStatusKey = code === 0 ? "fan_action_sent" : "fan_action_failed"; activity.refresh() }
+    onExited: function(code) {
+      fanDeadline.stop()
+      root.fanStatusKey = code === 0 ? (root.pendingFanAction === "save" ? "fan_profile_saved" : "fan_action_sent") : "fan_action_failed"
+      if (code === 0 && (root.pendingFanAction === "save" || root.pendingFanAction === "restore")) {
+        var outputs = Object.assign({}, root.fanProfileOutputs)
+        if (root.pendingFanAction === "save") outputs[root.pendingFanChannel] = root.pendingFanSpeed
+        else delete outputs[root.pendingFanChannel]
+        root.fanProfileOutputs = outputs
+        var change = {}; change["fanOutput_" + root.pendingFanChannel] = root.pendingFanAction === "save" ? root.pendingFanSpeed : -1
+        root.persistSettings(change)
+      }
+      activity.refresh()
+    }
   }
   Timer { id: fanDeadline; interval: 150000; onTriggered: { fanController.signal(9); root.fanStatusKey = "fan_action_failed" } }
   property int sensorWindowSeconds: 600
@@ -153,14 +170,33 @@ Panel {
     catch (error) { return ({}) }
   }
   readonly property var sensorPlaces: ["automatic", "cpu", "gpu", "memory", "storage", "motherboard", "fan_cpu", "fan_front", "fan_rear", "fan_top", "fan_ssd", "fan_bottom"]
-  function sensorKey(sensor) { return JSON.stringify([sensor.chip || "", sensor.location || "", sensor.label || ""]) }
+  function sensorKey(sensor) {
+    var chip = String(sensor.chip || "").replace(/^iwlwifi_\d+$/, "iwlwifi")
+    return JSON.stringify([chip, sensor.location || "", sensor.label || ""])
+  }
   function sensorPlace(sensor) {
-    var place = sensorAssignments[root.sensorKey(sensor)]
+    var key = root.sensorKey(sensor)
+    var place = sensorAssignments[key]
+    if (place === undefined) {
+      var legacy = Object.keys(sensorAssignments).filter(function(candidate) {
+        try {
+          var parts = JSON.parse(candidate)
+          return root.sensorKey({chip:parts[0],location:parts[1],label:parts[2]}) === key
+        } catch (error) { return false }
+      })
+      if (legacy.length) place = sensorAssignments[legacy[legacy.length - 1]]
+    }
     return sensorPlaces.indexOf(place) >= 0 ? place : "automatic"
   }
   function assignSensor(sensor, place) {
     if (sensorPlaces.indexOf(place) < 0) return
     var assignments = Object.assign({}, sensorAssignments)
+    Object.keys(assignments).forEach(function(key) {
+      try {
+        var parts = JSON.parse(key)
+        if (root.sensorKey({chip:parts[0],location:parts[1],label:parts[2]}) === root.sensorKey(sensor)) delete assignments[key]
+      } catch (error) {}
+    })
     if (place === "automatic") delete assignments[root.sensorKey(sensor)]
     else assignments[root.sensorKey(sensor)] = place
     root.selectedSensorId = sensor.id
@@ -334,6 +370,8 @@ Panel {
     return I18n.t(key === "temperature" ? "temperatures" : key, effectiveLanguage)
   }
   function sensorOwner(sensor) {
+    var manual = root.sensorPlace(sensor)
+    if (manual !== "automatic") return I18n.t("map_" + manual, effectiveLanguage)
     var category = String(sensor.category || "unknown")
     var owner = String(sensor.owner || "")
     var prefix = I18n.t("sensor_owner_" + category, effectiveLanguage)
@@ -1692,6 +1730,7 @@ Panel {
           onClicked: root.loadSensorHistory()
         }
         Dropdown {
+          id: sensorDropdown
           width: parent.width
           enabled: root.filteredSensors.length > 0
           objectName: "sensorDropdown"
@@ -1702,7 +1741,10 @@ Panel {
           })
           foreground: root.foreground; accent: root.accent
           fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
-          onChanged: function(value) { root.selectedSensorId = value }
+          onChanged: function(value) {
+            root.selectedSensorId = value
+            sensorDropdown.value = Qt.binding(function() { return root.selectedSensor ? root.selectedSensor.id : "" })
+          }
         }
         Row {
           width: parent.width
@@ -1785,6 +1827,7 @@ Panel {
           visible: !root.computerMapVisible
           spacing: Style.spacing.sm
           Dropdown {
+            id: fanChannelDropdown
             objectName: "fanChannelDropdown"
             width: parent.width
             label: I18n.t("map_channel",root.effectiveLanguage)
@@ -1794,7 +1837,10 @@ Panel {
               return {value:channel.id,label:channel.id+" · "+I18n.t("map_"+root.fanPlace(channel.id),root.effectiveLanguage)+" · "+I18n.t("fan_rpm",root.effectiveLanguage,channel.rpm)}
             })
             foreground: root.foreground; accent: root.accent; fontFamily:Style.font.family
-            onChanged: function(value) { root.focusedFanChannel=value; root.fanIdentificationOpen=false }
+            onChanged: function(value) {
+              root.focusedFanChannel=value; root.fanIdentificationOpen=false
+              fanChannelDropdown.value = Qt.binding(function() { return root.activeFanChannel })
+            }
           }
         }
         Text {
@@ -1805,12 +1851,13 @@ Panel {
           color: root.dim; font.family: Style.font.family; font.pixelSize: Style.font.caption
         }
         Repeater {
-          model: root.computerMapVisible ? [] : (activity.sensorSnapshot.controls || []).filter(function(channel) {
-            return channel.id === root.activeFanChannel
-          })
+          model: root.computerMapVisible || !root.activeFanChannel ? [] : [root.activeFanChannel]
           DetailSurface {
             id: fanChannelCard
-            required property var modelData
+            required property string modelData
+            readonly property var channel: (activity.sensorSnapshot.controls || []).filter(function(item) {
+              return item.id === fanChannelCard.modelData
+            })[0] || ({id:modelData,rpm:0,duty:0,mode:2})
             width: fanBody.width
             height: channelBody.implicitHeight + Style.spacing.md * 2
             Column {
@@ -1822,32 +1869,88 @@ Panel {
                 objectName: "fanAssignmentToggle"
                 height: Style.spacing.controlHeight
                 width: parent.width
-                text: I18n.t("map_assignment", root.effectiveLanguage, fanChannelCard.modelData.id)
+                text: I18n.t("map_assignment", root.effectiveLanguage, fanChannelCard.channel.id)
                 iconName: "settings"; selected: root.fanAssignmentOpen
                 foreground: root.foreground; accent: root.accent; fontFamily: Style.font.family
                 fontSize: Style.font.caption; bordered: true; focusable: true
                 onClicked: root.fanAssignmentOpen = !root.fanAssignmentOpen
               }
               Dropdown {
+                id: fanAssignmentDropdown
                 objectName: "fanAssignmentDropdown"
                 width: parent.width
                 visible: root.fanAssignmentOpen
-                label: I18n.t("map_assignment", root.effectiveLanguage, fanChannelCard.modelData.id)
-                value: root.fanPlace(fanChannelCard.modelData.id)
+                label: I18n.t("map_assignment", root.effectiveLanguage, fanChannelCard.channel.id)
+                value: root.fanPlace(fanChannelCard.channel.id)
                 options: root.fanPlaces.map(function(place) { return {value:place,label:I18n.t("map_" + place,root.effectiveLanguage)} })
                 foreground: root.foreground; accent: root.accent
                 fontFamily: Style.font.family
-                onChanged: function(place) { root.assignFan(fanChannelCard.modelData.id, place) }
+                onChanged: function(place) {
+                  root.assignFan(fanChannelCard.channel.id, place)
+                  fanAssignmentDropdown.value = Qt.binding(function() { return root.fanPlace(fanChannelCard.channel.id) })
+                }
               }
               Text {
                 width: parent.width
-                text: modelData.id + " · " + I18n.t("fan_rpm",root.effectiveLanguage,modelData.rpm)
-                  + " · " + Math.round(modelData.duty/255*100) + "% · "
-                  + I18n.t(modelData.mode === 2 ? "fan_mode_auto" : modelData.mode === 0 ? "fan_mode_full" : "fan_mode_manual",root.effectiveLanguage)
+                text: fanChannelCard.channel.id + " · " + I18n.t("fan_rpm",root.effectiveLanguage,fanChannelCard.channel.rpm)
+                  + " · " + Math.round(fanChannelCard.channel.duty/255*100) + "% · "
+                  + I18n.t(fanChannelCard.channel.mode === 2 ? "fan_mode_auto" : fanChannelCard.channel.mode === 0 ? "fan_mode_full" : "fan_mode_manual",root.effectiveLanguage)
                 textFormat: Text.PlainText; wrapMode: Text.Wrap
                 color: root.foreground
                 font.family: root.bar ? root.bar.fontFamily : Style.font.family
                 font.pixelSize: Style.font.bodySmall
+              }
+              Row {
+                width: parent.width
+                spacing: Style.spacing.sm
+                TextField {
+                  id: fanOutputInput
+                  objectName: "fanOutputInput"
+                  width: (parent.width - parent.spacing) / 2
+                  height: Style.spacing.controlHeight
+                  readonly property int savedOutput: Number(root.setting("fanOutput_" + fanChannelCard.channel.id,
+                    root.fanProfileOutputs[fanChannelCard.channel.id] === undefined ? -1 : root.fanProfileOutputs[fanChannelCard.channel.id]))
+                  text: root.fanOutputDrafts[fanChannelCard.channel.id] !== undefined
+                    ? root.fanOutputDrafts[fanChannelCard.channel.id]
+                    : String(savedOutput >= 0 ? savedOutput : Math.round(fanChannelCard.channel.duty / 255 * 100))
+                  validator: IntValidator { bottom: 0; top: 100 }
+                  inputMethodHints: Qt.ImhDigitsOnly
+                  selectByMouse: true
+                  color: root.foreground
+                  font.family: Style.font.family
+                  font.pixelSize: Style.font.body
+                  Accessible.name: I18n.t("fan_output_percent", root.effectiveLanguage)
+                  background: Rectangle {
+                    color: Host.Color.popups.background
+                    radius: Style.cornerRadius
+                    border.color: fanOutputInput.activeFocus ? root.accent : root.dim
+                    border.width: 1
+                  }
+                  onTextEdited: {
+                    var drafts = Object.assign({}, root.fanOutputDrafts)
+                    drafts[fanChannelCard.channel.id] = text
+                    root.fanOutputDrafts = drafts
+                  }
+                  onAccepted: if (acceptableInput) root.fanAction(fanChannelCard.channel.id, Number(text), "save")
+                }
+                SvgButton {
+                  objectName: "saveFanOutputButton"
+                  width: (parent.width - parent.spacing) / 2
+                  height: Style.spacing.controlHeight
+                  text: I18n.t("fan_save_output", root.effectiveLanguage)
+                  tooltipText: I18n.t("fan_output_percent", root.effectiveLanguage)
+                  iconName: "settings"
+                  foreground: root.foreground; accent: root.accent; fontFamily: Style.font.family
+                  bordered: true; focusable: true
+                  enabled: !fanController.running && fanOutputInput.acceptableInput
+                  onClicked: root.fanAction(fanChannelCard.channel.id, Number(fanOutputInput.text), "save")
+                }
+              }
+              Text {
+                width: parent.width
+                text: I18n.t("fan_profile_hint", root.effectiveLanguage)
+                textFormat: Text.PlainText; wrapMode: Text.Wrap
+                color: root.dim; font.family: Style.font.family; font.pixelSize: Style.font.caption
               }
               Row {
                 width: parent.width; spacing:Style.spacing.sm
@@ -1869,7 +1972,7 @@ Panel {
                   text:I18n.t("map_fan_history",root.effectiveLanguage);iconName:"overview"
                   foreground:root.foreground;accent:root.accent;fontFamily:Style.font.family
                   bordered:true;focusable:true
-                  onClicked:root.showFanHistory(fanChannelCard.modelData.id)
+                  onClicked:root.showFanHistory(fanChannelCard.channel.id)
                 }
               }
               Row {
@@ -1885,7 +1988,7 @@ Panel {
                     foreground: root.foreground; accent: root.accent
                     fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
                     focusable: true; bordered: true; enabled: !fanController.running
-                    onClicked: root.fanAction(channelBody.parent.modelData.id, modelData, "boost")
+                    onClicked: root.fanAction(fanChannelCard.channel.id, modelData, "boost")
                   }
                 }
               }
@@ -1902,7 +2005,7 @@ Panel {
                 visible: root.fanIdentificationOpen
                 width: parent.width
                 text: I18n.t("fan_trial_target", root.effectiveLanguage,
-                  fanChannelCard.modelData.id, I18n.t("map_" + root.fanPlace(fanChannelCard.modelData.id), root.effectiveLanguage))
+                  fanChannelCard.channel.id, I18n.t("map_" + root.fanPlace(fanChannelCard.channel.id), root.effectiveLanguage))
                 textFormat: Text.PlainText; wrapMode: Text.Wrap
                 color: root.foreground; font.family: Style.font.family; font.pixelSize: Style.font.caption
               }
@@ -1926,7 +2029,7 @@ Panel {
                   text:I18n.t(root.identificationPercent === 0 ? "fan_stop_trial" : "fan_run_trial",root.effectiveLanguage,root.identificationPercent);iconName:"fans"
                   foreground:root.urgent;accent:root.urgent;fontFamily:Style.font.family
                   bordered:true;focusable:true;enabled:!fanController.running
-                  onClicked:root.fanAction(fanChannelCard.modelData.id,root.identificationPercent,"identify")
+                  onClicked:root.fanAction(fanChannelCard.channel.id,root.identificationPercent,"identify")
                 }
               }
               Text {
@@ -1944,7 +2047,7 @@ Panel {
                 foreground: root.foreground; accent: root.accent
                 fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
                 focusable: true; bordered: true; enabled: !fanController.running
-                onClicked: root.fanAction(modelData.id,100,"restore")
+                onClicked: root.fanAction(fanChannelCard.channel.id,100,"restore")
               }
               Text {
                 visible: root.fanAssignmentOpen || root.fanIdentificationOpen
@@ -2002,6 +2105,7 @@ Panel {
       width: parent.width - Style.spacing.md * 2
       spacing: Style.spacing.xs
       Dropdown {
+        id: sensorAssignmentDropdown
         objectName: "sensorAssignmentDropdown"
         width: parent.width
         visible: root.sensorOptionsOpen
@@ -2010,7 +2114,10 @@ Panel {
         options: root.sensorPlaces.map(function(place) { return {value:place,label:I18n.t("map_" + place,root.effectiveLanguage)} })
         foreground: root.foreground; accent: root.accent
         fontFamily: Style.font.family
-        onChanged: function(place) { root.assignSensor(sensorCard.sensor, place) }
+        onChanged: function(place) {
+          root.assignSensor(sensorCard.sensor, place)
+          sensorAssignmentDropdown.value = Qt.binding(function() { return root.sensorPlace(sensorCard.sensor) })
+        }
       }
       Text {
         width: parent.width

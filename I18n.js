@@ -3,6 +3,10 @@
 // Standard Omarchy plugin localization catalog (slovn.mx-ergo & slovn.cetra reference).
 var strings = {
   "en": {
+    "fan_output_percent": "Fan output, 0–100% (not RPM)",
+    "fan_save_output": "Save %",
+    "fan_profile_hint": "Enter an exact integer percentage and save. It is reapplied after reboot. At 80°C or without CPU telemetry, output rises to 100%. Restore removes the saved profile.",
+    "fan_profile_saved": "Fan output saved. The profile remains active after closing Loadlet and after reboot.",
     "chart_live": "Live",
     "chart_short_hint": "Hover · click to pin",
     "chart_gap": "No samples here",
@@ -19,7 +23,7 @@ var strings = {
     "fan_stop_trial": "Stop for 5 s",
     "fan_run_trial": "Run %1% for 5 s",
     "fan_trial_target": "Trial channel: %1 · %2",
-    "fan_control_limits": "Percent is controller output, not a target RPM. Exact RPM and permanent stop are not supported. Location labels are saved; timed overrides are not reapplied after reboot. Closing Loadlet does not cancel the timer; Restore ends it early.",
+    "fan_control_limits": "Percent is controller output, not target RPM. Saved profiles persist after reboot. Timed boosts and five-second trials remain temporary; Restore removes the saved profile.",
     "map_open": "Show computer diagram",
     "map_close": "Hide computer diagram",
     "map_filter": "Filter: %1 · show all",
@@ -220,6 +224,10 @@ var strings = {
     "hints_expanded": "e collapse  ·  / search  ·  c/m/p/t/n sort  ·  ↑/↓ select  ·  x end task  ·  r refresh"
   },
   "ru": {
+    "fan_output_percent": "Уровень вентилятора, 0–100% (не об/мин)",
+    "fan_save_output": "Сохранить %",
+    "fan_profile_hint": "Введите точный целый процент и сохраните. Он восстановится после перезагрузки. При 80°C или потере температуры CPU включаются 100%. Возврат управления удаляет профиль.",
+    "fan_profile_saved": "Уровень сохранён. Профиль работает после закрытия Loadlet и после перезагрузки.",
     "chart_live": "Сейчас",
     "chart_short_hint": "Наведи · нажми для фиксации",
     "chart_gap": "Здесь нет замеров",
@@ -236,7 +244,7 @@ var strings = {
     "fan_stop_trial": "Остановить на 5 с",
     "fan_run_trial": "Включить %1% на 5 с",
     "fan_trial_target": "Проба канала: %1 · %2",
-    "fan_control_limits": "Проценты — уровень управления, а не заданные обороты. Точные об/мин и постоянная остановка не поддерживаются. Место сохраняется; временный режим после перезагрузки не включается заново. Закрытие Loadlet не отменяет таймер; «Вернуть прежнее управление» завершает его досрочно.",
+    "fan_control_limits": "Проценты — уровень управления, не заданные об/мин. Сохранённый профиль действует и после перезагрузки. Разгон по таймеру и пятисекундная проба остаются временными; возврат управления удаляет профиль.",
     "map_open": "Показать схему компьютера",
     "map_close": "Скрыть схему компьютера",
     "map_filter": "Фильтр: %1 · показать всё",
@@ -437,6 +445,10 @@ var strings = {
     "hints_expanded": "e свернуть  ·  / поиск  ·  c/m/p/t/n сорт.  ·  ↑/↓ выбор  ·  x завершить  ·  r обновить"
   },
   "de": {
+    "fan_output_percent": "Lüfterleistung, 0–100% (keine Drehzahl)",
+    "fan_save_output": "% speichern",
+    "fan_profile_hint": "Ganze Prozentzahl eingeben und speichern. Sie gilt auch nach einem Neustart. Ab 80°C oder ohne CPU-Temperatur werden 100% angefordert. Wiederherstellen entfernt das Profil.",
+    "fan_profile_saved": "Lüfterleistung gespeichert. Das Profil bleibt nach dem Schließen und nach einem Neustart aktiv.",
     "chart_live": "Live",
     "chart_short_hint": "Zeigen · Klick fixiert",
     "chart_gap": "Hier keine Messwerte",
@@ -453,7 +465,7 @@ var strings = {
     "fan_stop_trial": "5 s anhalten",
     "fan_run_trial": "%1% für 5 s",
     "fan_trial_target": "Testkanal: %1 · %2",
-    "fan_control_limits": "Prozent ist die Regelleistung, keine Ziel-Drehzahl. Exakte Drehzahlen und dauerhafter Stopp werden nicht unterstützt. Ortsnamen bleiben gespeichert; Zeitsteuerung startet nach Neustart nicht erneut. Schließen beendet den Timer nicht; Wiederherstellen beendet ihn vorzeitig.",
+    "fan_control_limits": "Prozent ist die Regelleistung, keine Ziel-Drehzahl. Gespeicherte Profile gelten nach Neustarts. Zeitweise Erhöhungen und Fünf-Sekunden-Tests bleiben befristet; Wiederherstellen entfernt das Profil.",
     "map_open": "Computerschema anzeigen",
     "map_close": "Computerschema ausblenden",
     "map_filter": "Filter: %1 · alle zeigen",
@@ -654,6 +666,10 @@ var strings = {
     "hints_expanded": "e einklappen  ·  / Suche  ·  c/m/p/t/n Sort.  ·  ↑/↓ Auswahl  ·  x beenden  ·  r aktual."
   },
   "zh": {
+    "fan_output_percent": "风扇输出，0–100%（非转速）",
+    "fan_save_output": "保存百分比",
+    "fan_profile_hint": "输入整数百分比并保存，重启后会重新应用。CPU 达到 80°C 或温度不可用时，输出升至 100%。恢复原控制会删除配置。",
+    "fan_profile_saved": "风扇输出已保存。关闭 Loadlet 或重启后仍有效。",
     "chart_live": "实时",
     "chart_short_hint": "悬停 · 点击固定",
     "chart_gap": "此处没有采样",
@@ -670,7 +686,7 @@ var strings = {
     "fan_stop_trial": "停转5秒",
     "fan_run_trial": "以 %1% 运行5秒",
     "fan_trial_target": "试运行通道：%1 · %2",
-    "fan_control_limits": "百分比为控制输出，并非目标转速。不支持精确转速或永久停转。位置标签会保存；重启后不重新应用临时控制。关闭 Loadlet 不取消计时；恢复原控制可提前结束。",
+    "fan_control_limits": "百分比为控制输出，并非目标转速。保存的配置在重启后仍有效。定时加速和五秒试运行仍为临时操作；恢复原控制会删除配置。",
     "map_open": "显示电脑示意图",
     "map_close": "隐藏电脑示意图",
     "map_filter": "筛选：%1 · 显示全部",

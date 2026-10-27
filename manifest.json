@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "slovn.activity-lite",
   "name": "Loadlet",
-  "version": "2.14.3",
+  "version": "2.14.4",
   "author": "slovn; based on Kristoffer Haugland's Activity Monitor",
   "license": "MIT",
   "description": "A calm, low-overhead glance at CPU, memory, GPU, storage, and processes — with a die that matches your chip",
@@ -47,9 +47,45 @@
       "fanPlace_pwm2": "unknown",
       "fanPlace_pwm3": "unknown",
       "fanPlace_pwm4": "unknown",
-      "fanPlace_pwm5": "unknown"
+      "fanPlace_pwm5": "unknown",
+      "fanOutput_pwm2": -1,
+      "fanOutput_pwm3": -1,
+      "fanOutput_pwm4": -1,
+      "fanOutput_pwm5": -1
     },
     "schema": [
+      {
+        "key": "fanOutput_pwm2",
+        "type": "integer",
+        "label": "Saved fan output for pwm2 (-1: no profile)",
+        "defaultValue": -1,
+        "min": -1,
+        "max": 100
+      },
+      {
+        "key": "fanOutput_pwm3",
+        "type": "integer",
+        "label": "Saved fan output for pwm3 (-1: no profile)",
+        "defaultValue": -1,
+        "min": -1,
+        "max": 100
+      },
+      {
+        "key": "fanOutput_pwm4",
+        "type": "integer",
+        "label": "Saved fan output for pwm4 (-1: no profile)",
+        "defaultValue": -1,
+        "min": -1,
+        "max": 100
+      },
+      {
+        "key": "fanOutput_pwm5",
+        "type": "integer",
+        "label": "Saved fan output for pwm5 (-1: no profile)",
+        "defaultValue": -1,
+        "min": -1,
+        "max": 100
+      },
       {
         "key": "compactRamStrip",
         "type": "boolean",

@@ -1,5 +1,5 @@
 #!/usr/bin/python3 -I
-"""Authenticated, timed IT8613 overrides; restore the original channel state."""
+"""Authenticated IT8613 profiles and timed trials with thermal fallback."""
 import json
 import fcntl
 import os
@@ -13,6 +13,46 @@ import time
 
 SELF = '/usr/local/lib/loadlet/fan-control'
 STATE = Path('/run/loadlet-fans')
+PROFILES = Path('/var/lib/loadlet-fans')
+PROFILE_UNIT = 'loadlet-fan-profile@{}.service'
+
+
+def profile_path(channel):
+    if not re.fullmatch(r'pwm[2-5]', channel):
+        raise ValueError('Invalid IT8613 channel')
+    return PROFILES/(channel+'.json')
+
+
+def save_profile(channel, percent):
+    PROFILES.mkdir(mode=0o700, exist_ok=True)
+    st = PROFILES.lstat()
+    if PROFILES.is_symlink() or st.st_uid != 0 or st.st_mode & 0o077:
+        raise ValueError('Unsafe profile directory')
+    file = profile_path(channel)
+    temporary = file.with_suffix('.tmp')
+    with temporary.open('w') as stream:
+        os.fchmod(stream.fileno(), 0o600)
+        json.dump({'percent': percent}, stream)
+        stream.flush()
+        os.fsync(stream.fileno())
+    os.replace(temporary, file)
+
+
+def resume_profile(channel):
+    if profile_path(channel).exists():
+        subprocess.run(['/usr/bin/systemctl', 'start', PROFILE_UNIT.format(channel)],
+                       check=True, timeout=15)
+
+
+def install_profile_unit():
+    Path('/etc/systemd/system/loadlet-fan-profile@.service').write_text(
+        '[Unit]\nDescription=Loadlet saved fan output for %i\n'
+        'After=systemd-modules-load.service\nStartLimitIntervalSec=0\n\n'
+        '[Service]\nType=exec\nExecStart='+SELF+' profile-worker %i\n'
+        'ExecStopPost='+SELF+' recover-profile %i\n'
+        'Restart=on-failure\nRestartSec=5\nTimeoutStopSec=5\n\n'
+        '[Install]\nWantedBy=multi-user.target\n')
+    subprocess.run(['/usr/bin/systemctl', 'daemon-reload'], check=True, timeout=15)
 
 
 def controller():
@@ -76,7 +116,7 @@ def cooling_floor(target):
     return 255 if not cpu or max(cpu) >= 80000 else target
 
 
-def worker(channel, percent, minutes, identify=False):
+def worker(channel, percent, minutes, identify=False, persistent=False):
     if identify and cooling_floor(0) != 0:
         raise ValueError("Identification unavailable: CPU is hot or telemetry is missing")
     pwm, mode = channel_files(channel)
@@ -104,11 +144,11 @@ def worker(channel, percent, minutes, identify=False):
         # Full speed during takeover avoids the driver's automatic-mode EBUSY.
         mode.write_text('0')
         mode.write_text('1')
-        if not identify:
+        if not identify and not persistent:
             target = 255 if previous['mode'] == 0 else max(previous['pwm'], target)
         pwm.write_text(str(cooling_floor(target)))
-        end = time.monotonic() + (5 if identify else minutes*60)
-        while not stopped and time.monotonic() < end:
+        end = None if persistent else time.monotonic() + (5 if identify else minutes*60)
+        while not stopped and (end is None or time.monotonic() < end):
             time.sleep(1)
             if not stopped:
                 value = cooling_floor(target)
@@ -124,7 +164,9 @@ def worker(channel, percent, minutes, identify=False):
 
 
 def request(args):
-    if not (len(args) == 2 and args[0] == 'restore' and re.fullmatch(r'pwm[2-5]', args[1])
+    if not (len(args) == 3 and args[0] == 'save' and re.fullmatch(r'pwm[2-5]', args[1])
+            and re.fullmatch(r'(?:[0-9]|[1-9][0-9]|100)', args[2])
+            or len(args) == 2 and args[0] == 'restore' and re.fullmatch(r'pwm[2-5]', args[1])
             or len(args) == 4 and args[0] == 'boost' and re.fullmatch(r'pwm[2-5]', args[1])
             and args[2] in ('60', '80', '100') and args[3] in ('5', '10', '30')
             or len(args) == 4 and args[0] == 'identify' and re.fullmatch(r'pwm[2-5]', args[1])
@@ -137,7 +179,8 @@ def request(args):
     if attempted.returncode == 0:
         print(attempted.stdout, end='')
         return
-    if attempted.returncode != 1 or 'a password is required' not in attempted.stderr:
+    if attempted.returncode != 1 or not any(message in attempted.stderr for message in
+            ('a password is required', 'not allowed to execute')):
         raise ValueError(attempted.stderr.strip() or 'Fan command failed')
     subprocess.run(['/usr/bin/pkexec', SELF, 'unlock', str(os.getuid())], check=True, timeout=60)
     subprocess.run(['/usr/bin/sudo', '-n', '--', *command], check=True, timeout=40)
@@ -155,6 +198,7 @@ def unlock(uid):
     expires = (datetime.now(timezone.utc) + timedelta(hours=24)).strftime('%Y%m%d%H%M%SZ')
     rule = (f'{username} ALL=(root) NOTAFTER={expires} NOPASSWD: '
             + SELF + ' ^boost pwm[2-5] (60|80|100) (5|10|30)$, '
+            + SELF + ' ^save pwm[2-5] ([0-9]|[1-9][0-9]|100)$, '
             + SELF + ' ^restore pwm[2-5]$, '
             + SELF + ' ^identify pwm[2-5] (0|5|10|20|30|40|50|60|80|100) 5$\n')
     import tempfile
@@ -186,7 +230,29 @@ def main():
     action, channel = sys.argv[1:3]
     channel_files(channel)
     unit = 'loadlet-fan-'+channel+'.service'
-    if action == 'restore' and len(sys.argv) == 3:
+    profile_unit = PROFILE_UNIT.format(channel)
+    if action == 'save' and len(sys.argv) == 4:
+        if not re.fullmatch(r'(?:[0-9]|[1-9][0-9]|100)', sys.argv[3]):
+            raise ValueError('Expected an integer percentage from 0 to 100')
+        percent = int(sys.argv[3])
+        install_profile_unit()
+        subprocess.run(['/usr/bin/systemctl', 'stop', unit], check=False, timeout=15,
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        subprocess.run(['/usr/bin/systemctl', 'stop', profile_unit], check=False, timeout=15,
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        restore(channel)
+        save_profile(channel, percent)
+        subprocess.run(['/usr/bin/systemctl', 'enable', '--now', profile_unit], check=True, timeout=15)
+        print('saved')
+    elif action == 'profile-worker' and len(sys.argv) == 3:
+        percent = json.loads(profile_path(channel).read_text())['percent']
+        if type(percent) is not int or not 0 <= percent <= 100:
+            raise ValueError('Invalid saved fan output')
+        worker(channel, percent, 0, persistent=True)
+    elif action == 'restore' and len(sys.argv) == 3:
+        profile_path(channel).unlink(missing_ok=True)
+        subprocess.run(['/usr/bin/systemctl', 'disable', '--now', profile_unit], check=False, timeout=15,
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         subprocess.run(['/usr/bin/systemctl', 'stop', unit], check=False, timeout=15,
                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         restore(channel)
@@ -202,6 +268,8 @@ def main():
             return
         subprocess.run(['/usr/bin/systemctl', 'stop', unit], check=False, timeout=15,
                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        subprocess.run(['/usr/bin/systemctl', 'stop', profile_unit], check=False, timeout=15,
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         restore(channel)
         subprocess.run(['/usr/bin/systemd-run', '--quiet', '--collect', '--unit='+unit,
                         '--property=Type=exec', '--property=TimeoutStopSec=5',
@@ -209,8 +277,10 @@ def main():
                         '--property=ExecStopPost='+SELF+' recover '+channel,
                         SELF, 'identify-worker' if identifying else 'worker', channel, str(percent), str(minutes)], check=True, timeout=15)
         print('boosted')
-    elif action == 'recover' and len(sys.argv) == 3:
+    elif action in ('recover', 'recover-profile') and len(sys.argv) == 3:
         restore(channel)
+        if action == 'recover':
+            resume_profile(channel)
     else:
         raise ValueError('Invalid operation')
 

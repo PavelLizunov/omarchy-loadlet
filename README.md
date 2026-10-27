@@ -36,7 +36,9 @@ optional editors. Version2.14.1 added a direct header Close button. Version2.14.
 keeps Category open after a choice, with the sensor and choice retained. Fan
 location choices still close their separate editor. Version2.14.3 adds a bottom
 fan point and manual assignment option. The retained screenshots predate these
-controls and diagram changes. [Vector design references](docs/vector-design.md).
+controls and diagram changes. Version2.14.4 adds saved exact-percentage fan
+profiles and applies manual sensor categories to their displayed names, preserving
+the sensor selector binding. [Vector design references](docs/vector-design.md).
 
 ## One icon, exact readings
 
@@ -88,8 +90,11 @@ executed as root. The normal monitor installation does not require it.
 Fans includes a separate 5-second identification trial from 0 to 100% duty, with
 restoration afterward. Choose0% then **Stop for5s** to request a brief stop;
 choosing the percentage alone does not apply it. Percent is controller output,
-not a target RPM. Exact RPM, permanent stop and reboot-persistent speed profiles
-are not supported; manually assigned location labels are saved. A 0% request may not physically stop every fan. Hot or
+not a target RPM. Enter an exact integer output from0to100% and use **Save %** for a persistent
+profile, reapplied after reboot. At80C or without CPU telemetry, it requests full
+output. **Restore previous control** removes that profile. Timed boosts and
+identification trials remain separate temporary actions. Exact RPM is not a
+setpoint; manually assigned location labels are saved. A 0% request may not physically stop every fan. Hot or
 missing CPU readings reject or cancel the trial. Ordinary timed boosts still
 never reduce the previous duty. Only one identification trial runs at a time.
 

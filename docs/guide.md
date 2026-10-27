@@ -341,10 +341,11 @@ noninteractive sudo, honoring Omarchy's existing day grant. If authentication is
 needed, one Polkit pkexec unlock grants the authenticated caller 24 hours of
 passwordless fan requests only. The helper validates and atomically installs
 /etc/sudoers.d/60-loadlet-fans-UID with an absolute NOTAFTER deadline and exact
-boost/restore/identification argument patterns; no general sudo or pkexec permission is added.
+save/boost/restore/identification argument patterns; no general sudo or pkexec permission is added.
 Remove that file as root to revoke early. Expired files grant nothing; a new
 unlock replaces the deadline. Passwords never enter plugin code. Requests allow
-only the four exposed channels, 60/80/100% and a 5/10/30-minute boost hold.
+only the four exposed channels. Saved profiles accept any integer from0to100%;
+separate boosts use60/80/100% and a5/10/30-minute hold.
 A separate identification trial accepts 0/5/10/20/30/40/50/60/80/100% for exactly
 5 seconds, then restores the saved state. Unlike a boost, this intentionally
 allows a lower duty, including zero. One identification worker holds an exclusive
@@ -361,18 +362,33 @@ spinning if its controller does not support stopping. Selecting a percentage
 alone does not apply it. Closing the trial editor or the entire Loadlet panel
 does not cancel an already-started service timer. Restore ends the override early.
 
-There is no exact-RPM setpoint, arbitrary permanent low-speed mode or persistent
-fan-stop setting. The percent controls request controller duty, not a measured
-RPM target. Ordinary boosts retain the prior-duty floor, so60% does not mean the
-fan must slow down to60% if it was already faster. Assigned locations persist in
-shell.json; transient trials and boosts are not reapplied after reboot. Actual
-post-reboot hardware behavior remains firmware/driver-owned, not established by
-saving a location label.
+Enter an exact integer percentage in Fans and press **Save %** or Enter. This
+is controller duty, not an exact-RPM setpoint. Unlike boosts, a saved output can
+reduce the current duty. Zero requests zero duty, not a guaranteed physical stop.
+At80C or without CPU temperature, the existing fallback requests100%; the saved
+output resumes when readings recover below80C. This is not a cooling guarantee.
+
+Profiles are root-owned JSON under /var/lib/loadlet-fans. The adapter installs
+and enables loadlet-fan-profile@pwmN.service, one instance per saved channel,
+so output is restored after reboot without the desktop shell. Missing drivers
+cause a five-second retry. Ordinary stop restores the captured prior duty/mode;
+ExecStopPost attempts recovery after a worker failure. **Restore previous control**
+deletes the saved profile and disables its service. The optional adapter remains
+a separate system installation; updating QML alone cannot add these operations.
+
+Timed boosts retain their prior-duty floor. Trials and boosts temporarily pause
+a saved profile, then resume it when the timer ends. They do not replace the
+saved output or get replayed after reboot. Assigned locations persist in shell.json.
+Reboot persistence is implemented by the enabled service; actual post-reboot and
+physical fan behavior still require user observation.
 
 Settings is split into Tiles, Icon, Sampling and History. The normal preferred
 frame fits each category without scrolling; constrained screens retain scrolling.
 Sensor assignment is under Category; choosing a category keeps the editor open.
-The Category button itself hides it when finished.
+The Category button itself hides it when finished. Manual categories update the
+device heading and selector label as well as the diagram filter. Raw driver
+identity remains visible in Category. Wi-Fi driver instance suffixes are excluded
+from saved assignment keys; existing matching keys are retained as a fallback.
 
 A channel boost snapshots its original duty/mode,
 starts one owned transient system service, and restores the snapshot on expiry,
