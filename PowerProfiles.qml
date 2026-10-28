@@ -5,6 +5,7 @@ import qs.Commons
 import qs.Commons as Host
 import qs.Ui
 import "I18n.js" as I18n
+import "ProfileCodec.js" as ProfileCodec
 
 Column {
   id: root
@@ -18,6 +19,7 @@ Column {
   property string selectedId: "idle"
   property var draft: ({})
   property var cpuCapabilities: ({policies:[]})
+  property bool capabilitiesReady: false
   property string statusKey: ""
   property string pendingId: ""
   property string pendingPayload: ""
@@ -25,11 +27,15 @@ Column {
   readonly property var automatic: cpuCapabilities.automatic || ({enabled:false,gaming:false,error:""})
   readonly property string automaticBaseId: settings.autoGameBaseProfile || (settings.activePowerProfile!=="games" ? settings.activePowerProfile || "idle" : "idle")
   property string pendingBaseId: ""
+  property bool operationExpired: false
   readonly property bool running: applyProcess.running
   readonly property var profiles: {
     try {
       var saved=JSON.parse(String(settings.powerProfiles || "[]"))
-      if (Array.isArray(saved) && saved.length) return saved
+      if (Array.isArray(saved) && saved.length && saved.length<=12
+          && saved.every(function(p){return p && typeof p.id==="string" && /^[A-Za-z0-9_-]{1,64}$/.test(p.id)
+            && typeof p.name==="string" && p.name.length<=40 && p.config && p.config.cpu
+            && p.config.fans && p.config.gpuFans})) return saved
     } catch(error) {}
     var fans={}
     channels.forEach(function(channel){
@@ -105,7 +111,7 @@ Column {
   function applyProfile(profile) {
     if (running) return
     pendingId=profile.id
-    pendingPayload=String(Qt.btoa(Array.from(JSON.stringify(profile.config),function(c){return c.charCodeAt(0)}))).replace(/\+/g,"-").replace(/\//g,"_")
+    pendingPayload=ProfileCodec.encode(profile.config)
     operation="apply";statusKey="profile_pending";applyProcess.running=true
   }
   Component.onCompleted: {
@@ -123,7 +129,11 @@ Column {
     onExited:statusDeadline.stop()
     stdout:StdioCollector { waitForEnd:true; onStreamFinished:{
       try {
-        if(text.length<65536)root.cpuCapabilities=JSON.parse(text)
+        if(text.length<65536){
+          var value=JSON.parse(text)
+          if(!value || !Array.isArray(value.policies))return
+          root.cpuCapabilities=value;root.capabilitiesReady=true
+        }
         if(root.editorOpen && !root.draft.id)root.selectProfile(root.selectedId)
       }catch(error){}
     } }
@@ -133,9 +143,10 @@ Column {
     command:root.operation==="restore" || root.operation==="auto-off"
       ? ["/usr/local/lib/loadlet/power-profile","request",root.operation]
       : ["/usr/local/lib/loadlet/power-profile","request",root.operation,root.pendingPayload]
-    onStarted:deadline.restart()
+    onStarted:{root.operationExpired=false;deadline.restart()}
     onExited:function(code){
       deadline.stop()
+      if(root.operationExpired){root.statusKey="profile_failed";return}
       root.statusKey=code===0 ? "profile_applied" : "profile_failed"
       if(code===0){
         if(root.operation==="apply" || root.operation==="restore")root.saveSettings({activePowerProfile:root.operation==="restore"?"":root.pendingId,autoGameProfiles:false})
@@ -149,7 +160,7 @@ Column {
     onTriggered:if(!statusProcess.running){statusDeadline.restart();statusProcess.running=true}
   }
   Timer { id:statusDeadline;interval:5000;onTriggered:statusProcess.signal(9) }
-  Timer { id:deadline;interval:360000;onTriggered:{applyProcess.signal(15);root.statusKey="profile_failed"} }
+  Timer { id:deadline;interval:360000;onTriggered:{root.operationExpired=true;applyProcess.signal(15);root.statusKey="profile_failed"} }
 
   Toggle {
     objectName:"autoGameProfilesToggle"
@@ -157,7 +168,7 @@ Column {
     label:I18n.t("profile_auto_games",root.language)
     description:I18n.t(root.automatic.error ? "profile_auto_error" : root.automatic.gaming ? "profile_auto_playing" : "profile_auto_hint",root.language)
     checked:root.automatic.enabled
-    enabled:!root.running
+    enabled:!root.running && root.capabilitiesReady
     foreground:root.foreground;accent:root.accent;fontFamily:Style.font.family
     onClicked:{
       if(root.automatic.enabled){root.operation="auto-off"}
@@ -167,7 +178,7 @@ Column {
           ||root.profiles.filter(function(p){return p.id==="idle"})[0]
         if(!game || !base){root.statusKey="profile_failed";return}
         root.pendingBaseId=base.id
-        root.pendingPayload=String(Qt.btoa(Array.from(JSON.stringify({game:game.config,base:base.config}),function(c){return c.charCodeAt(0)}))).replace(/\+/g,"-").replace(/\//g,"_")
+        root.pendingPayload=ProfileCodec.encode({game:game.config,base:base.config})
         root.operation="auto-config"
       }
       root.statusKey="profile_pending";applyProcess.running=true
@@ -185,7 +196,7 @@ Column {
         height:Style.spacing.controlHeight
         text:modelData.name
         iconName:modelData.icon || "fans"
-        selected:root.automatic.enabled ? modelData.id===(root.automatic.gaming ? "games" : root.automaticBaseId) : root.settings.activePowerProfile===modelData.id
+        selected:root.automatic.enabled ? (!root.automatic.error && modelData.id===(root.automatic.gaming ? "games" : root.automaticBaseId)) : root.settings.activePowerProfile===modelData.id
         foreground:root.foreground;accent:root.accent;fontFamily:Style.font.family
         bordered:true;focusable:true;enabled:!root.running
         onClicked:root.applyProfile(modelData)
@@ -237,6 +248,8 @@ Column {
     Toggle {
       objectName:"profileBoostToggle"
       width:parent.width
+      visible:root.cpuCapabilities.boost!==null && root.cpuCapabilities.boost!==undefined
+        || root.cpuCapabilities.noTurbo!==null && root.cpuCapabilities.noTurbo!==undefined
       label:I18n.t("profile_boost",root.language)
       checked:!!(root.draft.config && root.draft.config.cpu.boost)
       foreground:root.foreground;accent:root.accent;fontFamily:Style.font.family
@@ -317,7 +330,8 @@ Column {
         text:I18n.t("profile_delete",root.language);iconName:"close"
         foreground:root.foreground;accent:root.accent;fontFamily:Style.font.family
         bordered:true;focusable:true
-        enabled:root.profiles.length>1 && root.settings.activePowerProfile!==root.selectedId
+        enabled:!root.running && root.profiles.length>1 && root.settings.activePowerProfile!==root.selectedId
+          && !(root.automatic.enabled && (root.selectedId==="games" || root.selectedId===root.automaticBaseId))
         onClicked:{
           var remaining=root.profiles.filter(function(p){return p.id!==root.selectedId})
           root.saveSettings({powerProfiles:JSON.stringify(remaining)})

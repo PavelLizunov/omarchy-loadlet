@@ -44,7 +44,13 @@ for name, expected in visuals['sourceHashes'].items():
     assert actual == expected, name
 for name, expected in visuals['assetHashes'].items():
     assert sha(root / 'docs/images' / name) == expected, name
-assert (root / 'preview.png').read_bytes() == (root / 'docs/images/expanded.png').read_bytes()
+release_visuals = json.loads((root / 'docs/images/release-2.16.0/manifest.json').read_text())
+assert release_visuals['runtimeVersion'] == m['version']
+for name, expected in release_visuals['sourceHashes'].items():
+    assert sha(root / name) == expected, name
+for name, expected in release_visuals['assetHashes'].items():
+    assert sha(root / 'docs/images/release-2.16.0' / name) == expected, name
+assert (root / 'preview.png').read_bytes() == (root / 'docs/images/release-2.16.0/overview.png').read_bytes()
 video = json.loads((root / 'docs/video/qa.json').read_text())
 assert video['durationSeconds'] == 16 and video['fps'] == 30 and video['frames'] == 480
 assert video['silent'] and video['fullDecode'] == 'PASS' and video['fastStart'] == 'PASS'
@@ -62,15 +68,17 @@ inline = video['readmeAnimation']
 assert inline['path'] == 'docs/video/loadlet.webp' and inline['source'] == 'docs/video/loadlet.mp4'
 assert inline['sourceSha256'] == video['outputs']['loadlet.mp4']['sha256']
 readme = (root / 'README.md').read_text()
-assert f'<img src="{inline["path"]}" width="640" alt="' in readme
 assert 'PavelLizunov/omarchy-loadlet' in readme
 assert 'activity-lite.webp' not in readme and 'Repository remains private' not in readme
 install = 'omarchy plugin add https://github.com/PavelLizunov/omarchy-loadlet.git --enable'
-assert install in readme and readme.index(install) < readme.index('![Loadlet compact')
-user_install = readme.split('## Install\n', 1)[1].split('![Loadlet compact', 1)[0]
-assert 'make -' not in user_install and 'No compiler, make' in user_install
+assert install in readme and readme.index(install) < readme.index('## Use')
+assert '/releases)' in '\n'.join(readme.splitlines()[:12])
+assert len(readme.splitlines()) <= 100
+user_install = readme.split('## Install\n', 1)[1].split('## Use', 1)[0]
+assert 'make -' not in user_install and 'no compiler, make' in user_install
 assert 'docs/binary-provenance.md' in user_install
-assert 'Manual setup' in readme
+assert 'Optional system controls' in readme and '24-hour' in readme
+assert 'removal procedure' in readme and 'unsandboxed' in readme
 assert '[README install command](../README.md#install)' in (root / 'docs/guide.md').read_text()
 animation = (root / inline['path']).read_bytes()
 assert len(animation) == inline['bytes'] and hashlib.sha256(animation).hexdigest() == inline['sha256']
@@ -96,7 +104,7 @@ for name, item in assets['assets'].items():
     assert sha(root / 'docs/video/assets' / name) == item['sha256'], name
 for name, expected in assets['sourceHashes'].items():
     assert film_sha(name) == expected, name
-assert 'Historical 2.8.1 walkthrough' in readme
+assert 'historical' in (root / 'docs/video/README.md').read_text().lower()
 panel = (root / 'Panel.qml').read_text()
 assert f'iconRevision: "{m["version"]}"' in panel and 'productName: "Loadlet"' in panel
 assert 'rightClickAction: "none"' in panel

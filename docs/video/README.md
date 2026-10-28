@@ -2,12 +2,14 @@
 
 [Master MP4](loadlet.mp4) · [Messenger MP4](loadlet-web.mp4)
 
-A newly rendered silent16-second1280x720/30fps walkthrough of Loadlet2.8.1.
-Every product surface is the actual native QML consumer rendered offscreen with
-inert demonstration data. The selected symmetric Split die and new Loadlet headers
-are current. Cuts and camera moves are presentation, not native transitions or a
-live desktop recording. The complete640x360/15fps animatedWebP plays in the root
-README; both MP4 versions are downloadable.
+Historical silent16-second1280x720/30fps walkthrough of Loadlet2.8.1.
+Every product surface uses that release's native QML consumer rendered offscreen
+with inert demonstration data. It predates current sensors, GPU columns and
+profiles; it is not current-release visual evidence. Cuts and camera moves are
+presentation, not native transitions or a live desktop recording. The archived
+[animated WebP](loadlet.webp) and both MP4 versions remain downloadable. Current
+screenshots are linked from the root README. The following direction records the
+original production brief, not instructions for the current release.
 
 ## Direction
 

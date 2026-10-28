@@ -1,17 +1,17 @@
 {
   "schemaVersion": 1,
   "platform": "linux-x86_64",
-  "sourceBaseCommit": "4262636d6221ec5d494d62cf9d94c272a19538f1",
+  "sourceBaseCommit": "3db93da050465dcfb917102375eb4df5fb9e324d",
   "sha256": {
     "activity-sampler": "053db5d3be54c56a3ecfe9a2494fd3ea844bd9978cebf8b58b91c1525d1e507b",
     "activity-sampler.cpp": "bd7f838f93e34e1793811be1ad29c8f2d043ad8bc2218992ae8140db4b311c79",
     "DiagnosticJournal.h": "8666805d52cd5f46f7f519c0f21fccf61dfe1f7ae4895cda79f5f1739658b722",
-    "Makefile": "20f13bc4f7c5e9bf20d33f320e48e200bb91e7a39014b3b0fed197a80bcb7d78"
+    "Makefile": "02ca5edf008d0c6bb857d09de5665a9dd8d925be2511c6ce96e127493a954643"
   },
   "size": 272504,
   "compiler": "GCC 16.2.1 20260810",
   "buildCommand": "LC_ALL=C make activity-sampler",
-  "buildResult": "Built for full revision: configured sysfs root and journal retention corrections; task checks recorded separately",
+  "buildResult": "Rebuilt during 2.16.0 release audit; byte-identical to distributed executable",
   "dynamicRequirements": {
     "glibc": "2.34",
     "libstdc++": "GLIBCXX_3.4.32",

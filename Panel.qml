@@ -68,7 +68,7 @@ Panel {
         journalError: activity.journalError,
         heatThreshold: activity.heatThreshold,
         productName: "Loadlet",
-        iconRevision: "2.15.1",
+        iconRevision: "2.16.0",
         rightClickAction: "none",
         iconTooltip: button.tooltipText,
         iconConsumer: String(Qt.resolvedUrl("Panel.qml")),
@@ -125,7 +125,7 @@ Panel {
         if (root.pendingFanAction === "save") outputs[root.pendingFanChannel] = root.pendingFanSpeed
         else delete outputs[root.pendingFanChannel]
         root.fanProfileOutputs = outputs
-        var change = {activePowerProfile:""}; change["fanOutput_" + root.pendingFanChannel] = root.pendingFanAction === "save" ? root.pendingFanSpeed : -1
+        var change = {activePowerProfile:"",autoGameProfiles:false}; change["fanOutput_" + root.pendingFanChannel] = root.pendingFanAction === "save" ? root.pendingFanSpeed : -1
         root.persistSettings(change)
       }
       activity.refresh()

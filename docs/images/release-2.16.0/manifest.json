@@ -1,0 +1,117 @@
+{
+  "runtimeVersion": "2.16.0",
+  "sourceBaseCommit": "3db93da050465dcfb917102375eb4df5fb9e324d",
+  "origin": "Actual Panel.qml with inert I/O and native host display components",
+  "sourceHashes": {
+    "ActivityController.qml": "c5b8d5f8fc383a9d87fc17b3d2678b1bb7d16420391a844cfa021d3bc7be9623",
+    "ActivityIcon.qml": "9e799b388b1ee577d0738da6640a6890169a1ca3e0db70f2958a05f055a6bc3a",
+    "ChoiceDropdown.qml": "69c87335340a9c3514c07fd8083b25905f0b915f5a941b45263519c8b8c909a0",
+    "ComputerMap.qml": "5025bb8500e38a2be0965e2f69c0fb3d2ee69c7bb96a05bf0df003a0d51549c6",
+    "DiagnosticExport.qml": "f9d87bcfd76d30dda87462c24084694f8988869ef0519de64e466c29df443295",
+    "Panel.qml": "9c6e5e34ea894d385e2fa3179e74041973a0f67c2e9f867ac95fff05a9347c3e",
+    "PowerProfiles.qml": "1ddbef480219e67f966ac69788cee555aa99973ec9ccd888a9f818de8a6c593e",
+    "ProcessActionController.qml": "bdf4f5e85185ba82fa7d9481588a8a5dbf0c0e65264bbe12bfb5f2120d0eedcf",
+    "SensorHistoryChart.qml": "7fa12291067af62b3e2eb75e8da4825f51b2e8cb9cccdbb9adf9080b1026c8bd",
+    "Sparkline.qml": "af92bb46af457e7fa42f6379aeb04d0404036547c174d59ec5af042efa48b6fb",
+    "SvgIcon.qml": "e2c4d849f9e82117d4898761a34d7868b5ec0335fa16c151e8f73d23d82dedd6",
+    "ActivityIconSvg.js": "e183d251ef9eda24a6e0284db1d84f9812b13b3c1443b3a7fe57343473ad2eae",
+    "HeatPolicy.js": "5e2a3fb26eaa51a202127fb3439d231f1c5353979575b859fde147ae8bdb28b3",
+    "I18n.js": "901ec4349384ba01a38e7d7739fbe6b60e14b62c6436ab1d86c95719e33a464a",
+    "Messages.js": "924a8bdff7a38ef9347d730ea37cf9faff55ef9b65e2a4cc31923e75029757b5",
+    "Model.js": "ad3ac40c52d572193eb2041398e7000ccf85f588ea9bc346a5c0f8e6d3a081a1",
+    "ProfileCodec.js": "7a1097153245826d575cd38506bc6383d3484a116d37e68400cde91cec1677f5",
+    "test/render-release.qml": "b7f97e5be8cf255777b7be65d49ded1fc327e3f6040fc18286bf86493bc6a823",
+    "test/mock-data.js": "c2087d43c107d6b31413c2cf583844687c16ea0dbb486eb7593171639655a126",
+    "test/ui-checks.py": "e2368a3bea18a8c580b25c28d41654804c8c80d6efbc01566d934a25abfc58e5"
+  },
+  "assetHashes": {
+    "overview.png": "4fc6bbd549e081488583e1bca4a2d92f74b39a23a43928416930e46702d9c300",
+    "profiles.png": "da8ca5efb036f9d55a00fc1cf2f00cfd1c1cc168be881590b76b517606e0bb08",
+    "compact.png": "f301839f837b4742b7a7daa0abf3cdc91207963cb076221749471a2a1a5094d4",
+    "editor.png": "a7954c5f25320e98c3e92b5b6804d337560728f32c90119b775aada909fe855d",
+    "cooling.png": "7623b742a0e339d7ab33859c1921a019baafe28b79d1d59c4157d4db39357d28",
+    "settings.png": "61fd4dcff670b64f33c903c51af65ac0ffcbcefee418ab29d707371945a8b6f0"
+  },
+  "images": [
+    {
+      "file": "overview.png",
+      "state": {
+        "page": "overview"
+      },
+      "width": 900,
+      "height": 682,
+      "dpr": 1,
+      "capturedAt": "2026-10-28T22:14:55.263Z",
+      "inspected": true
+    },
+    {
+      "file": "profiles.png",
+      "state": {
+        "page": "fans"
+      },
+      "width": 900,
+      "height": 682,
+      "dpr": 1,
+      "capturedAt": "2026-10-28T22:14:55.900Z",
+      "inspected": true
+    },
+    {
+      "file": "compact.png",
+      "state": {
+        "page": "fans",
+        "expanded": false,
+        "language": "ru"
+      },
+      "width": 480,
+      "height": 422,
+      "dpr": 1,
+      "capturedAt": "2026-10-28T22:14:56.483Z",
+      "inspected": true
+    },
+    {
+      "file": "editor.png",
+      "state": {
+        "page": "fans",
+        "editor": true,
+        "language": "ru"
+      },
+      "width": 900,
+      "height": 682,
+      "dpr": 2,
+      "capturedAt": "2026-10-28T22:14:57.130Z",
+      "inspected": true
+    },
+    {
+      "file": "cooling.png",
+      "state": {
+        "page": "cooling",
+        "language": "ru"
+      },
+      "width": 900,
+      "height": 682,
+      "dpr": 1,
+      "capturedAt": "2026-10-28T22:11:24.789Z",
+      "inspected": true
+    },
+    {
+      "file": "settings.png",
+      "state": {
+        "page": "settings"
+      },
+      "width": 480,
+      "height": 422,
+      "dpr": 1,
+      "capturedAt": "2026-10-28T22:11:25.087Z",
+      "inspected": true
+    }
+  ],
+  "qt": "6.12.0",
+  "renderer": "0.3.0",
+  "backend": "offscreen software",
+  "warningsPolicy": "report",
+  "limits": [
+    "AT-SPI/atk-bridge host warnings fail strict warning policy; not accessibility acceptance",
+    "No compositor, desktop capture, live hardware or physical cooling claims",
+    "Compact Fans/editor scroll normally; fixed frame and keyboard reachability tested separately"
+  ]
+}

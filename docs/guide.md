@@ -436,9 +436,12 @@ Automatic game profiles use SteamAppId/SteamGameId and an actual game executable
 not GPU load or merely an open Steam launcher. A root-owned systemd worker checks
 every5seconds, keeps Games active through a15-second exit grace period, then
 restores the selected non-game preset (Quiet idle when Games is selected).
-Manual profile selection disables automation. The toggle enables/disables it with authentication;
+Manual profile selection or an individual fan action disables automation.
+The toggle enables/disables it with authentication;
 non-Steam games without Steam launch metadata are not detected. Editing Games
-requires disabling and enabling automation to capture the updated preset. The
+requires disabling and enabling automation to capture the updated preset.
+An unavailable or stale automation status is reported rather than highlighted
+as a successfully applied profile. The
 worker remains active with the panel closed and after reboot. Per-game CPU/fan
 settings are not inferred from load. No game-playthrough or reboot check is
 implied by installation.
@@ -474,6 +477,50 @@ physical PSU model and control/data connection are not established. Its internal
 fan is not equated with an IT8613 channel. No register guessing, firmware flashing
 or physical connector reassignment was performed. Those limits do not block the
 CPU, motherboard and observed NVIDIA controls.
+
+## Optional controls installation and removal
+
+The normal plugin installer does not change system files. To enable CPU/fan
+controls, review this source checkout and install its fixed adapters:
+
+```sh
+sudo install -Dm755 fan-control /usr/local/lib/loadlet/fan-control
+sudo install -Dm755 power-profile /usr/local/lib/loadlet/power-profile
+sudo install -Dm644 GameDetection.py /usr/local/lib/loadlet/GameDetection.py
+```
+
+Keep all three files from the same release. Updating the plugin does not update
+these root-owned files. Reapply a named profile to refresh unit definitions; if
+automation was enabled, disable and re-enable it after updating the adapters.
+Do not change saved fan percentages or CPU limits merely to update the helpers.
+
+The optional services are `loadlet-power-profile.service`,
+`loadlet-auto-game.service`, `loadlet-fan-profile@pwmN.service` and
+`loadlet-gpu-fan@PCI-ID.service`. Timed fan trials use `loadlet-fan-pwmN.service`.
+They are system services and can outlive the desktop shell. Authentication grants
+only validated operations on root-owned helpers for24hours; already-enabled
+services continue when that grant expires. Revoke a grant by removing only the
+matching `/etc/sudoers.d/60-loadlet-fans-UID` file as root.
+
+To remove optional controls, first disable automatic profiles and use Original
+control in the profile editor. Restore each separately saved motherboard channel
+as well. The equivalent commands for channels you actually configured are:
+
+```sh
+/usr/local/lib/loadlet/power-profile request restore
+/usr/local/lib/loadlet/fan-control request restore pwm2
+# Repeat for your other configured channels: pwm3, pwm4 or pwm5.
+```
+
+Only after restoration succeeds, remove the installed helper files and disabled
+Loadlet unit definitions as root, remove your matching sudoers grant, and run
+`sudo systemctl daemon-reload`. Do not delete recovery state or helper executables
+while their workers are still active. Original-control restoration restores the
+captured CPU snapshot and GPU automatic control; it is not a firmware reset.
+
+The plugin can then be removed with `omarchy plugin remove slovn.activity-lite`.
+User history under `~/.local/state/omarchy/activity-lite` and explicit exports are
+retained. Remove those directories yourself only if you no longer need the data.
 
 ## Per-process GPU usage
 

@@ -240,22 +240,22 @@ def apply(value, boot=False):
             subprocess.run([FANS, 'save', channel, str(percent)], check=True, timeout=45)
         for bus in set(previous_profile.get('gpuFans', {})) | set(value['gpuFans']):
             unit = 'loadlet-gpu-fan@'+bus+'.service'
-            subprocess.run(['systemctl', 'disable', '--now', unit], check=False, timeout=15,
+            subprocess.run(['/usr/bin/systemctl', 'disable', '--now', unit], check=False, timeout=15,
                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         atomic(STORE/'active.json', value)
         for bus in value['gpuFans']:
-            subprocess.run(['systemctl', 'enable', '--now', 'loadlet-gpu-fan@'+bus+'.service'], check=True, timeout=15)
+            subprocess.run(['/usr/bin/systemctl', 'enable', '--now', 'loadlet-gpu-fan@'+bus+'.service'], check=True, timeout=15)
     except BaseException:
         restore_cpu(previous)
         for channel, percent in prior_fans.items():
             args = ['restore', channel] if percent is None else ['save', channel, str(percent)]
             subprocess.run([FANS, *args], check=False, timeout=45)
         for bus in value['gpuFans']:
-            subprocess.run(['systemctl', 'disable', '--now', 'loadlet-gpu-fan@'+bus+'.service'], check=False, timeout=15)
+            subprocess.run(['/usr/bin/systemctl', 'disable', '--now', 'loadlet-gpu-fan@'+bus+'.service'], check=False, timeout=15)
         if previous_profile:
             atomic(STORE/'active.json', previous_profile)
             for bus in previous_profile.get('gpuFans', {}):
-                subprocess.run(['systemctl', 'enable', '--now', 'loadlet-gpu-fan@'+bus+'.service'], check=False, timeout=15)
+                subprocess.run(['/usr/bin/systemctl', 'enable', '--now', 'loadlet-gpu-fan@'+bus+'.service'], check=False, timeout=15)
         else:
             (STORE/'active.json').unlink(missing_ok=True)
         raise
@@ -271,7 +271,12 @@ def detector():
 
 def auto_status():
     try:
-        return json.loads(AUTO_STATUS.read_text())
+        value = json.loads(AUTO_STATUS.read_text())
+        if not isinstance(value, dict) or type(value.get('updated')) not in (int, float):
+            raise ValueError('Invalid automation status')
+        if not 0 <= time.monotonic() - value['updated'] <= 30:
+            return {'enabled': True, 'gaming': None, 'error': 'status_unavailable'}
+        return value
     except FileNotFoundError:
         return {'enabled': False, 'gaming': False, 'error': ''}
     except (OSError, ValueError):
@@ -279,9 +284,8 @@ def auto_status():
 
 
 def publish_auto(gaming=False, error=''):
-    value = {'enabled': True, 'gaming': gaming, 'error': error}
-    if auto_status() == value:
-        return
+    value = {'enabled': True, 'gaming': None if error else gaming, 'error': error,
+             'updated': time.monotonic()}
     atomic(AUTO_STATUS, value)
     os.chmod(AUTO_STATUS.parent, 0o755)
     os.chmod(AUTO_STATUS, 0o644)
@@ -349,29 +353,55 @@ def configure_auto(payload):
     if not base['cpu']:
         raise ValueError('A complete CPU baseline is required for automatic restoration')
     install_units()
-    subprocess.run(['systemctl', 'enable', 'loadlet-power-profile.service'], check=True, timeout=15)
+    prior = json.loads((STORE/'active.json').read_text()) if (STORE/'active.json').exists() else None
+    gaming = bool(detector().running_games(uid))
+    target = game if gaming else base
+    before_cpu = cpu_snapshot()
+    had_original = (STORE/'original-cpu.json').exists()
+    adapter = fan_adapter() if not prior and target['fans'] else None
+    before_fans = {channel: adapter.read_profile(channel) for channel in target['fans']} if adapter else {}
     atomic(STORE/'auto.json', {'uid': uid, 'game': game, 'base': base})
-    publish_auto()
-    Path('/etc/systemd/system/loadlet-auto-game.service').write_text(
-        '[Unit]\nDescription=Loadlet automatic game profile\nAfter=loadlet-power-profile.service\n'
-        '\n[Service]\nType=exec\nExecStart='+SELF+' auto-worker\nRestart=on-failure\nRestartSec=5\nTimeoutStopSec=240\n'
-        '\n[Install]\nWantedBy=multi-user.target\n')
-    subprocess.run(['systemctl', 'daemon-reload'], check=True, timeout=15)
-    subprocess.run(['systemctl', 'enable', '--now', 'loadlet-auto-game.service'], check=True, timeout=15)
+    try:
+        apply(target)
+        subprocess.run(['/usr/bin/systemctl', 'enable', 'loadlet-power-profile.service'], check=True, timeout=15)
+        subprocess.run(['/usr/bin/systemctl', 'enable', '--now', 'loadlet-auto-game.service'], check=True, timeout=15)
+        publish_auto(gaming)
+    except BaseException:
+        if existing:
+            atomic(STORE/'auto.json', existing)
+        else:
+            (STORE/'auto.json').unlink(missing_ok=True)
+            subprocess.run(['/usr/bin/systemctl', 'disable', '--now', 'loadlet-auto-game.service'], check=False, timeout=20)
+            AUTO_STATUS.unlink(missing_ok=True)
+        if prior:
+            apply(prior)
+        else:
+            apply({'cpu': {}, 'fans': {c: p for c, p in before_fans.items() if p is not None}, 'gpuFans': {}})
+            restore_cpu(before_cpu)
+            (STORE/'active.json').unlink(missing_ok=True)
+            if not had_original:
+                (STORE/'original-cpu.json').unlink(missing_ok=True)
+        raise
 
 
-def disable_auto():
+def disable_auto(restore_base=True):
     config = json.loads((STORE/'auto.json').read_text()) if (STORE/'auto.json').exists() else None
     if config:
-        subprocess.run(['systemctl', 'disable', '--now', 'loadlet-auto-game.service'], check=True, timeout=250,
+        subprocess.run(['/usr/bin/systemctl', 'disable', '--now', 'loadlet-auto-game.service'], check=True, timeout=250,
                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     if config:
-        apply(validate(config['base']))
+        if restore_base:
+            apply(validate(config['base']))
         (STORE/'auto.json').unlink(missing_ok=True)
     AUTO_STATUS.unlink(missing_ok=True)
 
 
 def install_units():
+    Path('/etc/systemd/system/loadlet-auto-game.service').write_text(
+        '[Unit]\nDescription=Loadlet automatic game profile\nAfter=loadlet-power-profile.service\n'
+        '\n[Service]\nType=exec\nExecStart='+SELF+' auto-worker\nRestart=on-failure\nRestartSec=5\n'
+        'RuntimeDirectory=loadlet-auto-game\nRuntimeDirectoryMode=0755\nTimeoutStopSec=240\n'
+        '\n[Install]\nWantedBy=multi-user.target\n')
     Path('/etc/systemd/system/loadlet-power-profile.service').write_text(
         '[Unit]\nDescription=Loadlet selected CPU and fan profile\nAfter=systemd-modules-load.service\n'
         '\n[Service]\nType=oneshot\nExecStart='+SELF+' apply-active\nRemainAfterExit=yes\n'
@@ -381,7 +411,29 @@ def install_units():
         '\n[Service]\nType=notify\nTimeoutStartSec=10\nExecStart='+SELF+' gpu-worker %i\n'
         'ExecStopPost='+SELF+' gpu-reset %i\nRestart=on-failure\nRestartSec=5\nTimeoutStopSec=5\n'
         '\n[Install]\nWantedBy=multi-user.target\n')
-    subprocess.run(['systemctl', 'daemon-reload'], check=True, timeout=15)
+    subprocess.run(['/usr/bin/systemctl', 'daemon-reload'], check=True, timeout=15)
+
+
+def request_run(command, timeout):
+    child = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                             text=True, env=dict(os.environ, LC_ALL='C'))
+    def cancel(*_):
+        child.terminate()
+    previous = signal.signal(signal.SIGTERM, cancel)
+    try:
+        try:
+            stdout, stderr = child.communicate(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            child.terminate()
+            try:
+                child.communicate(timeout=60)
+            except subprocess.TimeoutExpired:
+                child.kill()
+                child.communicate()
+            raise
+        return subprocess.CompletedProcess(command, child.returncode, stdout, stderr)
+    finally:
+        signal.signal(signal.SIGTERM, previous)
 
 
 def main():
@@ -396,10 +448,10 @@ def main():
                 and len(args[2]) <= 8192 and re.fullmatch(r'[A-Za-z0-9_=-]+', args[2])):
             raise ValueError('Invalid profile request')
         command = [SELF, *args[1:]]
-        result = subprocess.run(['sudo', '-n', '--', *command], capture_output=True, text=True, timeout=300, env=dict(os.environ, LC_ALL='C'))
+        result = request_run(['/usr/bin/sudo', '-n', '--', *command], 300)
         if result.returncode and ('a password is required' in result.stderr or 'not allowed to execute' in result.stderr):
-            subprocess.run(['pkexec', FANS, 'unlock', str(os.getuid())], check=True, timeout=60)
-            result = subprocess.run(['sudo', '-n', '--', *command], capture_output=True, text=True, timeout=300)
+            request_run(['/usr/bin/pkexec', FANS, 'unlock', str(os.getuid())], 60).check_returncode()
+            result = request_run(['/usr/bin/sudo', '-n', '--', *command], 300)
         if result.returncode:
             raise ValueError('Profile application failed')
         if hasattr(result, 'stdout') and result.stdout:
@@ -412,6 +464,10 @@ def main():
     if STORE.is_symlink() or st.st_uid != 0 or st.st_mode & 0o077:
         raise ValueError('Unsafe power profile directory')
     if args and args[0] in ('apply', 'apply-active', 'restore', 'auto-config', 'auto-off'):
+        def interrupt(*_):
+            signal.signal(signal.SIGTERM, signal.SIG_IGN)
+            raise InterruptedError('Profile operation interrupted')
+        signal.signal(signal.SIGTERM, interrupt)
         lock = os.open(STORE/'.apply.lock', os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
         fcntl.flock(lock, fcntl.LOCK_EX)
     if args == ['auto-worker']:
@@ -426,10 +482,10 @@ def main():
         if len(args[1]) > 8192 or not re.fullmatch(r'[A-Za-z0-9_=-]+', args[1]):
             raise ValueError('Invalid encoded profile')
         value = validate(json.loads(base64.urlsafe_b64decode(args[1])))
-        disable_auto()
+        disable_auto(restore_base=False)
         install_units()
         apply(value)
-        subprocess.run(['systemctl', 'enable', 'loadlet-power-profile.service'], check=True, timeout=15)
+        subprocess.run(['/usr/bin/systemctl', 'enable', 'loadlet-power-profile.service'], check=True, timeout=15)
     elif args == ['apply-active']:
         if (STORE/'active.json').exists():
             apply(json.loads((STORE/'active.json').read_text()), boot=True)
@@ -442,17 +498,17 @@ def main():
             value = validate(json.loads((STORE/'active.json').read_text()))
             gpu_worker(args[1], value['gpuFans'][args[1]])
     elif args == ['restore']:
-        disable_auto()
+        disable_auto(restore_base=False)
         value = json.loads((STORE/'active.json').read_text()) if (STORE/'active.json').exists() else {}
         for channel in value.get('fans', {}):
             subprocess.run([FANS, 'restore', channel], check=True, timeout=30)
         for bus in value.get('gpuFans', {}):
-            subprocess.run(['systemctl', 'disable', '--now', 'loadlet-gpu-fan@'+bus+'.service'], check=True, timeout=15)
+            subprocess.run(['/usr/bin/systemctl', 'disable', '--now', 'loadlet-gpu-fan@'+bus+'.service'], check=True, timeout=15)
         if (STORE/'original-cpu.json').exists():
             restore_cpu(json.loads((STORE/'original-cpu.json').read_text()))
         (STORE/'active.json').unlink(missing_ok=True)
         (STORE/'original-cpu.json').unlink(missing_ok=True)
-        subprocess.run(['systemctl', 'disable', 'loadlet-power-profile.service'], check=True, timeout=15)
+        subprocess.run(['/usr/bin/systemctl', 'disable', 'loadlet-power-profile.service'], check=True, timeout=15)
     else:
         raise ValueError('Invalid profile operation')
 

@@ -5,6 +5,7 @@ import qs.Commons
 import "imports/ActivityHost/Ui" as NativeHost
 import "plugin" as Plugin
 import "mock-data.js" as MockData
+import "plugin/ProfileCodec.js" as ProfileCodec
 
 Item {
   id: host
@@ -226,6 +227,17 @@ Item {
       plugin.assignSensor(a,'storage')
       compare(plugin.sensorPlace(a),'storage');compare(plugin.sensorPlace(b),'automatic')
     }
+    function test_profile_timeout_retains_failure() {
+      plugin.setExpanded(true);plugin.sensorsOpen=true;plugin.fansOpen=true
+      plugin.activityController.stop();MockData.populate(plugin.activityController);wait(20)
+      var profiles=named('powerProfiles')
+      profiles.applyProfile(profiles.profiles[1])
+      var proc=nodes(profiles).filter(function(n){return n.command&&n.command.indexOf('apply')>=0})[0]
+      profiles.operationExpired=true
+      proc.running=false;proc.exited(0)
+      compare(profiles.statusKey,'profile_failed')
+      profiles.operationExpired=false
+    }
     function test_power_profiles_create_save_apply_inert() {
       plugin.setExpanded(true);plugin.sensorsOpen=true;plugin.fansOpen=true
       plugin.activityController.stop();MockData.populate(plugin.activityController);wait(20)
@@ -237,9 +249,9 @@ Item {
       profiles.applyProfile(profiles.profiles.filter(function(p){return p.id==='idle'})[0]);wait(10)
       var proc=nodes(profiles).filter(function(n){return n.command&&n.command.indexOf('apply')>=0})[0]
       verify(!!proc);compare(proc.running,true)
-      var encoded=proc.command[3].replace(/-/g,'+').replace(/_/g,'/')
-      var bytes=Qt.atob(Array.from(encoded,function(c){return c.charCodeAt(0)}))
-      var config=JSON.parse(String(bytes))
+      var config=profiles.profiles.filter(function(p){return p.id==='idle'})[0].config
+      compare(proc.command[3],ProfileCodec.encode(config))
+      compare(ProfileCodec.encode({cpu:{boost:false}}),'eyJjcHUiOnsiYm9vc3QiOmZhbHNlfX0=')
       compare(config.cpu.boost,false);compare(config.cpu.maxMHz,1800)
       proc.running=false;proc.exited(0);wait(10)
       compare(plugin.settings.activePowerProfile,'idle')

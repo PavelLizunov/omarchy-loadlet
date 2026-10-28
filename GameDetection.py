@@ -18,14 +18,14 @@ def is_game(executable, arguments, environment):
     app = environment.get('SteamAppId') or environment.get('SteamGameId')
     if not app or not re.fullmatch(r'[1-9][0-9]{0,19}', app):
         return False
-    path = str(executable).lower()
-    if '/steamapps/common/' in path and not any(part in path for part in
-            ('/proton ', '/steamlinuxruntime', '/steamworks shared/', '/steamworks_shared/')):
-        return True
-    if name.startswith(('wine', 'python', 'bash', 'sh')):
+    if name.startswith(('wine', 'python')) or name in ('bash', 'sh', 'dash'):
         game_exes = [Path(arg.replace('\\', '/')).name.lower() for arg in arguments
                      if arg.lower().endswith('.exe')]
         return any(exe not in IGNORED for exe in game_exes)
+    path = str(executable).lower()
+    if '/steamapps/common/' in path and not any(part in path for part in
+            ('/proton', '/steamlinuxruntime', '/steamworks shared/', '/steamworks_shared/')):
+        return True
     return name.endswith('.exe') and name not in IGNORED
 
 

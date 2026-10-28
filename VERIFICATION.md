@@ -1,5 +1,12 @@
 # Loadlet verification
 
+## 2.16.0 consolidated release
+
+See [the current audit report](docs/release-2.16.0.md) for confirmed defects,
+82 passing QML results, core/package/install checks, current screenshots,
+installed/loaded identity and explicit real-game/hardware/Marketplace limits.
+Entries below are historical evidence, not current-release acceptance.
+
 ## 2.14.3 bottom fan position — 2026-10-26
 
 Added the missing bottom fan as a separate floor-mounted symbol and point11 in
