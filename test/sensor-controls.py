@@ -21,6 +21,8 @@ fan = load('fan_fixture', ROOT/'fan-control')
 report = load('report_fixture', ROOT/'activity-report')
 with tempfile.TemporaryDirectory(prefix='loadlet-controls-') as tmp:
     base = Path(tmp)
+    fan.PROFILES = base/'profiles'
+    fan.STATE = base
     pwm, mode, saved = base/'pwm2', base/'pwm2_enable', base/'pwm2.json'
     pwm.write_text('40'); mode.write_text('2')
     # No access to real sysfs, root helpers, services, or authentication.
@@ -54,7 +56,7 @@ with tempfile.TemporaryDirectory(prefix='loadlet-controls-') as tmp:
             raise AssertionError('Expected injected failure')
     assert pwm.read_text() == '200' and mode.read_text() == '1' and not saved.exists()
     with patch.object(fan, 'channel_files', return_value=(pwm, mode)), \
-         patch.object(fan, 'restore') as restore, patch.object(fan.os, 'geteuid', return_value=0), \
+         patch.object(fan, 'restore') as restore, patch.object(fan, 'state_path', return_value=saved), patch.object(fan.os, 'geteuid', return_value=0), \
          patch.object(fan.sys, 'argv', ['fan-control', 'boost', 'pwm2', '80', '5']), \
          patch.object(fan.subprocess, 'run') as run:
         fan.main()
@@ -85,13 +87,26 @@ with tempfile.TemporaryDirectory(prefix='loadlet-controls-') as tmp:
         else:
             raise AssertionError('Hot or missing CPU telemetry must reject identification')
     with patch.object(fan, 'channel_files', return_value=(pwm, mode)), \
-         patch.object(fan, 'restore'), patch.object(fan.os, 'geteuid', return_value=0), \
+         patch.object(fan, 'restore'), patch.object(fan, 'state_path', return_value=saved), patch.object(fan.os, 'geteuid', return_value=0), \
          patch.object(fan.sys, 'argv', ['fan-control', 'identify', 'pwm2', '0', '5']), \
          patch.object(fan.subprocess, 'run') as run:
         fan.main()
         command = run.call_args_list[-1].args[0]
         assert '--property=RuntimeMaxSec=10' in command
         assert command[-5:] == [fan.SELF, 'identify-worker', 'pwm2', '0', '5']
+    # A timed boost must not undercut a saved persistent profile.
+    fan.PROFILES.mkdir()
+    (fan.PROFILES/'pwm2.json').write_text('{"percent":80}')
+    pwm.write_text('40');mode.write_text('2')
+    with patch.object(fan, 'channel_files', return_value=(pwm,mode)), \
+         patch.object(fan, 'state_path', return_value=saved), \
+         patch.object(fan, 'cooling_floor', side_effect=lambda target:target) as floor, \
+         patch.object(fan.signal,'signal'),patch.object(fan.time,'sleep'), \
+         patch.object(fan.time,'monotonic',side_effect=[0,0,301]):
+        fan.worker('pwm2',60,5)
+    assert all(c.args==(204,) for c in floor.call_args_list)
+    assert not saved.exists()
+    (fan.PROFILES/'pwm2.json').unlink()
     print('PASS fan simulation: boost floor, exact zero duty, 5s restoration, thermal refusal and unit recovery; no hardware writes')
 
     folder = base/'omarchy/activity-lite/sensors'

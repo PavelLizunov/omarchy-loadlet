@@ -31,6 +31,7 @@ with tempfile.TemporaryDirectory(prefix='loadlet-raster-') as directory:
 import QtQuick
 QtObject {
   property real factor: 1
+  readonly property var easeOut: [0.23, 1.0, 0.32, 1.0, 1.0, 1.0]
   property var font: ({family:"monospace",body:12})
   property var bar: ({iconCanvas:16*factor,iconSize:12*factor,iconSlot:27*factor,iconFont:13*factor,sizeHorizontal:26*factor})
   function spaceReal(value) { return value*factor }

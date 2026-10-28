@@ -1,0 +1,62 @@
+{
+  "version": "2.15.0",
+  "origin": "actual-consumer inert offscreen",
+  "rendererVersion": "0.3.0",
+  "rendererSha256": "779c33b56b756bcf1cd8a02740574b31b5362c81a31d53b98485133a72079cac",
+  "qtVersion": "6.12.0",
+  "sourceHashes": {
+    "Panel.qml": "2ca33ee4fce58c7569a15ee130dc9208733aeeef9423b912c087f375d873d1c7",
+    "PowerProfiles.qml": "1051142d51938817d5b2515036349f05ae16886179581fb8f7fafbc52f31b445",
+    "ChoiceDropdown.qml": "69c87335340a9c3514c07fd8083b25905f0b915f5a941b45263519c8b8c909a0",
+    "SvgIcon.qml": "e2c4d849f9e82117d4898761a34d7868b5ec0335fa16c151e8f73d23d82dedd6",
+    "I18n.js": "e5a73aa3807c9c297acbae978b8c795ed996794241406da887ba0105ee6320c0",
+    "test/ui-checks.py": "c2d49d6135de3c0325244e5da97e8bce825e9f6e9ed8e7f8c20bdaad8319b6bf"
+  },
+  "images": [
+    {
+      "image": "profiles-final.png",
+      "sha256": "770b828efb28d7c68aef6d5084bf74958ac09bb2a9a90312446553a41057b1f8",
+      "width": 900,
+      "height": 682,
+      "dpr": 1,
+      "inspected": true,
+      "diagnostics": "** (qml-render:944759): WARNING **: 08:51:41.797: AT-SPI: Could not obtain desktop path or name\n\n\n** (qml-render:944759): WARNING **: 08:51:41.800: atk-bridge: GetRegisteredEvents returned message with unknown signature\n\n** (qml-render:944759): WARNING **: 08:51:41.800: atk-bridge: get_device_events_reply: unknown signature"
+    },
+    {
+      "image": "editor-final.png",
+      "sha256": "23454204f2561695a6eb86851f2e9893c9d993f28f7838a1c3007c38293c5add",
+      "width": 900,
+      "height": 682,
+      "dpr": 1,
+      "inspected": true,
+      "diagnostics": "** (qml-render:944788): WARNING **: 08:51:42.545: AT-SPI: Could not obtain desktop path or name\n\n\n** (qml-render:944788): WARNING **: 08:51:42.547: atk-bridge: GetRegisteredEvents returned message with unknown signature\n\n** (qml-render:944788): WARNING **: 08:51:42.547: atk-bridge: get_device_events_reply: unknown signature"
+    },
+    {
+      "image": "compact-final.png",
+      "sha256": "a8a723326ebf00dae463886a980eb7d3a59950116c222bafa81c4d6d5dfeee7a",
+      "width": 480,
+      "height": 422,
+      "dpr": 1,
+      "inspected": true,
+      "diagnostics": "** (qml-render:944818): WARNING **: 08:51:43.231: AT-SPI: Could not obtain desktop path or name\n\n\n** (qml-render:944818): WARNING **: 08:51:43.234: atk-bridge: GetRegisteredEvents returned message with unknown signature\n\n** (qml-render:944818): WARNING **: 08:51:43.234: atk-bridge: get_device_events_reply: unknown signature"
+    },
+    {
+      "image": "categories-final.png",
+      "sha256": "22f5c1938c11f86c791c41fcdb1503d2ac6c7e7133f6acfef997f0877a76e577",
+      "width": 900,
+      "height": 682,
+      "dpr": 1,
+      "inspected": true,
+      "diagnostics": "** (qml-render:944846): WARNING **: 08:51:43.885: AT-SPI: Could not obtain desktop path or name\n\n\n** (qml-render:944846): WARNING **: 08:51:43.887: atk-bridge: GetRegisteredEvents returned message with unknown signature\n\n** (qml-render:944846): WARNING **: 08:51:43.887: atk-bridge: get_device_events_reply: unknown signature"
+    },
+    {
+      "image": "editor-delivery.png",
+      "sha256": "23454204f2561695a6eb86851f2e9893c9d993f28f7838a1c3007c38293c5add",
+      "width": 900,
+      "height": 682,
+      "dpr": 1,
+      "inspected": true,
+      "diagnostics": "** (qml-render:951303): WARNING **: 08:56:48.519: AT-SPI: Could not obtain desktop path or name\n\n\n** (qml-render:951303): WARNING **: 08:56:48.521: atk-bridge: GetRegisteredEvents returned message with unknown signature\n\n** (qml-render:951303): WARNING **: 08:56:48.521: atk-bridge: get_device_events_reply: unknown signature"
+    }
+  ]
+}

@@ -101,6 +101,8 @@ def records(directory, start, end):
                         yield {'invalid_record': True}
                         continue
                     stamp = item.get('time') if isinstance(item, dict) else None
+                    if isinstance(stamp, (int, float)) and math.isfinite(stamp) and not start <= stamp <= end:
+                        continue
                     if not valid_record(item):
                         yield {'invalid_record': True}
                     elif isinstance(stamp, (int, float)) and start <= stamp <= end and item.get('schema') == 1:

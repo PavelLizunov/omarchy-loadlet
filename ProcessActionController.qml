@@ -100,6 +100,7 @@ Item {
   }
 
   function finish(exitCode) {
+    if (_activeAction === null) return
     actionDeadline.stop()
     var action = _activeAction
 
@@ -126,6 +127,11 @@ Item {
     _status = ""
     _failed = false
     clearStatus.stop()
+  }
+
+  Component.onDestruction: {
+    actionDeadline.stop()
+    if (signalProc.running) signalProc.signal(9)
   }
 
   onActiveChanged: if (!active) clearSessionState()

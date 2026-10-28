@@ -30,6 +30,10 @@ with tempfile.TemporaryDirectory(prefix='activity-diagnostic-') as tmp:
     run('journal-on\nglance\nthermals\nprocesses\ndiagnostics\njournal\njournal\njournal-off\n')
     directory=state/'omarchy/activity-lite/journal';files=list(directory.glob('samples-*.jsonl'))
     assert len(files)==1
+    old_record=directory/'samples-outside-window.jsonl'
+    old_record.write_text(json.dumps({'schema':99,'time':1})+'\n');old_record.chmod(0o600)
+    assert list(report.records(directory,10,20))==[], 'Out-of-window malformed schema must not pollute export'
+    old_record.unlink()
     rows=[json.loads(x) for x in files[0].read_text().splitlines()]
     assert len(rows)==1 and rows[0]['cpu_pct'] is None and rows[0]['boot_id']=='fixture-boot'
     assert stat.S_IMODE(files[0].stat().st_mode)==0o600

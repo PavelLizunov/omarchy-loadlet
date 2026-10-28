@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "slovn.activity-lite",
   "name": "Loadlet",
-  "version": "2.14.7",
+  "version": "2.15.0",
   "author": "slovn; based on Kristoffer Haugland's Activity Monitor",
   "license": "MIT",
   "description": "A calm, low-overhead glance at CPU, memory, GPU, storage, and processes — with a die that matches your chip",
@@ -26,6 +26,8 @@
     "defaultSection": "right",
     "defaults": {
       "locale": "ru",
+      "powerProfiles": "[]",
+      "activePowerProfile": "",
       "samplingSpeed": "Efficient",
       "historySamples": 60,
       "temperatureUnit": "Celsius",
@@ -54,6 +56,8 @@
       "fanOutput_pwm5": -1
     },
     "schema": [
+      {"key":"powerProfiles","type":"string","label":"Named CPU and fan profiles (JSON)","defaultValue":"[]"},
+      {"key":"activePowerProfile","type":"string","label":"Active power profile","defaultValue":""},
       {
         "key": "fanOutput_pwm2",
         "type": "integer",

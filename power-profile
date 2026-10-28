@@ -1,0 +1,342 @@
+#!/usr/bin/python3 -I
+"""Apply a validated Loadlet CPU/fan preset through the system-owned adapter."""
+import base64
+import ctypes
+import ctypes.util
+import importlib.machinery
+import importlib.util
+import json
+import fcntl
+import os
+import socket
+from pathlib import Path
+import re
+import signal
+import subprocess
+import sys
+import time
+
+SELF = '/usr/local/lib/loadlet/power-profile'
+STORE = Path('/var/lib/loadlet-power')
+CPU = Path('/sys/devices/system/cpu')
+FANS = '/usr/local/lib/loadlet/fan-control'
+
+
+def policies():
+    return sorted((CPU/'cpufreq').glob('policy[0-9]*'))
+
+
+def read(path):
+    try:
+        return path.read_text().strip()
+    except OSError:
+        return None
+
+
+def capabilities():
+    rows = []
+    for p in policies():
+        rows.append({k: read(p/k) for k in ('scaling_driver', 'scaling_governor',
+            'scaling_available_governors', 'energy_performance_preference',
+            'energy_performance_available_preferences', 'scaling_min_freq',
+            'scaling_max_freq', 'cpuinfo_min_freq', 'cpuinfo_max_freq')})
+    return {'policies': rows, 'boost': read(CPU/'cpufreq/boost'),
+            'noTurbo': read(CPU/'intel_pstate/no_turbo')}
+
+
+def validate(value):
+    if not isinstance(value, dict) or set(value) - {'fans', 'cpu', 'gpuFans'}:
+        raise ValueError('Invalid profile fields')
+    fans, cpu, gpus = value.get('fans', {}), value.get('cpu', {}), value.get('gpuFans', {})
+    if not isinstance(fans, dict) or len(fans) > 4 or not isinstance(cpu, dict) or not isinstance(gpus, dict) or len(gpus) > 8:
+        raise ValueError('Invalid profile')
+    for channel, percent in fans.items():
+        if not re.fullmatch(r'pwm[2-5]', channel) or type(percent) is not int or not 0 <= percent <= 100:
+            raise ValueError('Invalid fan output')
+    if set(cpu) - {'boost', 'governor', 'epp', 'maxMHz'}:
+        raise ValueError('Invalid CPU fields')
+    if cpu.get('boost') is not None and type(cpu['boost']) is not bool:
+        raise ValueError('Invalid boost state')
+    if cpu.get('governor', '') not in ('', 'powersave', 'performance', 'schedutil'):
+        raise ValueError('Invalid governor')
+    if cpu.get('epp', '') not in ('', 'performance', 'balance_performance', 'balance_power', 'power', 'default'):
+        raise ValueError('Invalid energy preference')
+    mhz = cpu.get('maxMHz', 0)
+    if type(mhz) is not int or not 0 <= mhz <= 10000:
+        raise ValueError('Invalid frequency limit')
+    for bus, percent in gpus.items():
+        if not re.fullmatch(r'[0-9a-f]{4}:[0-9a-f]{2}:[0-9a-f]{2}\.[0-7]', bus) or type(percent) is not int or not 0 <= percent <= 100:
+            raise ValueError('Invalid GPU fan output')
+    return {'fans': fans, 'cpu': cpu, 'gpuFans': gpus}
+
+
+def atomic(path, value):
+    path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+    temporary = path.with_suffix('.tmp')
+    with temporary.open('w') as f:
+        os.fchmod(f.fileno(), 0o600)
+        json.dump(value, f)
+        f.flush()
+        os.fsync(f.fileno())
+    os.replace(temporary, path)
+
+
+def cpu_snapshot():
+    return {str(p): read(p) for row in policies() for p in [row/n for n in
+        ('scaling_min_freq', 'scaling_max_freq', 'scaling_governor', 'energy_performance_preference')]
+        if read(p) is not None} | {str(p): read(p) for p in
+        (CPU/'cpufreq/boost', CPU/'intel_pstate/no_turbo') if read(p) is not None}
+
+
+def restore_cpu(snapshot):
+    # Re-enable the original boost range before restoring a higher frequency cap.
+    for name in ('boost', 'no_turbo'):
+        for path, value in snapshot.items():
+            if Path(path).name == name and Path(path).exists():
+                Path(path).write_text(value)
+    for row in policies():
+        low, high = row/'scaling_min_freq', row/'scaling_max_freq'
+        if str(low) in snapshot and str(high) in snapshot:
+            low.write_text(read(row/'cpuinfo_min_freq') or snapshot[str(low)])
+            high.write_text(snapshot[str(high)])
+            low.write_text(snapshot[str(low)])
+    for name in ('scaling_governor', 'energy_performance_preference'):
+        for path, value in snapshot.items():
+            if Path(path).name == name and Path(path).exists():
+                Path(path).write_text(value)
+
+
+def apply_cpu(cpu):
+    rows = policies()
+    if cpu and not rows:
+        raise ValueError('CPU frequency driver unavailable')
+    for row in rows:
+        governor = cpu.get('governor', '')
+        if governor and governor not in (read(row/'scaling_available_governors') or '').split():
+            raise ValueError('CPU governor unavailable')
+        mhz = cpu.get('maxMHz', 0)
+        if mhz and not int(read(row/'cpuinfo_min_freq') or 0) <= mhz*1000 <= int(read(row/'cpuinfo_max_freq') or 0):
+            raise ValueError('CPU frequency limit outside driver range')
+    boost = cpu.get('boost')
+    if boost is not None:
+        if (CPU/'cpufreq/boost').exists():
+            (CPU/'cpufreq/boost').write_text('1' if boost else '0')
+        elif (CPU/'intel_pstate/no_turbo').exists():
+            (CPU/'intel_pstate/no_turbo').write_text('0' if boost else '1')
+        else:
+            raise ValueError('Boost control unavailable')
+    for row in rows:
+        if cpu.get('governor'):
+            (row/'scaling_governor').write_text(cpu['governor'])
+        if cpu.get('epp'):
+            choices = (read(row/'energy_performance_available_preferences') or '').split()
+            if cpu['epp'] not in choices:
+                raise ValueError('Energy preference unavailable for the selected governor')
+            (row/'energy_performance_preference').write_text(cpu['epp'])
+        if cpu.get('maxMHz'):
+            high = cpu['maxMHz']*1000
+            low = min(int(read(row/'scaling_min_freq') or high), high)
+            (row/'scaling_min_freq').write_text(str(low))
+            (row/'scaling_max_freq').write_text(str(high))
+
+
+def fan_adapter():
+    loader = importlib.machinery.SourceFileLoader('loadlet_fans', FANS)
+    spec = importlib.util.spec_from_loader(loader.name, loader)
+    module = importlib.util.module_from_spec(spec)
+    loader.exec_module(module)
+    return module
+
+
+def gpu_device(bus):
+    library = ctypes.CDLL(ctypes.util.find_library('nvidia-ml') or 'libnvidia-ml.so.1')
+    if library.nvmlInit_v2() != 0:
+        raise ValueError('NVIDIA fan API unavailable')
+    device = ctypes.c_void_p()
+    if library.nvmlDeviceGetHandleByPciBusId_v2(bus.encode(), ctypes.byref(device)) != 0:
+        library.nvmlShutdown()
+        raise ValueError('GPU unavailable')
+    return library, device
+
+
+def gpu_worker(bus, percent):
+    lib, device = gpu_device(bus)
+    count = ctypes.c_uint()
+    if lib.nvmlDeviceGetNumFans(device, ctypes.byref(count)) != 0 or not 0 < count.value <= 8:
+        lib.nvmlShutdown()
+        raise ValueError('GPU fans unavailable')
+    stopped = False
+    def stop(*_):
+        nonlocal stopped
+        stopped = True
+    signal.signal(signal.SIGTERM, stop)
+    signal.signal(signal.SIGINT, stop)
+    minimum, maximum = ctypes.c_uint(), ctypes.c_uint()
+    limits = lib.nvmlDeviceGetMinMaxFanSpeed(device, ctypes.byref(minimum), ctypes.byref(maximum))
+    if limits != 0 or not minimum.value <= percent <= maximum.value:
+        lib.nvmlShutdown()
+        raise ValueError('GPU fan output outside driver limits')
+    try:
+        notified = False
+        while not stopped:
+            temperature = ctypes.c_uint()
+            hot = lib.nvmlDeviceGetTemperature(device, 0, ctypes.byref(temperature)) != 0 or temperature.value >= 80
+            for index in range(count.value):
+                if lib.nvmlDeviceSetFanSpeed_v2(device, index, 100 if hot else percent) != 0:
+                    raise ValueError('GPU rejected manual fan output')
+            if not notified and os.environ.get('NOTIFY_SOCKET'):
+                target = os.environ['NOTIFY_SOCKET']
+                with socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM) as notifier:
+                    notifier.connect('\0'+target[1:] if target.startswith('@') else target)
+                    notifier.sendall(b'READY=1')
+                notified = True
+            time.sleep(2)
+    finally:
+        for index in range(count.value):
+            lib.nvmlDeviceSetDefaultFanSpeed_v2(device, index)
+        lib.nvmlShutdown()
+
+
+def gpu_reset(bus):
+    lib, device = gpu_device(bus)
+    try:
+        count = ctypes.c_uint()
+        if lib.nvmlDeviceGetNumFans(device, ctypes.byref(count)) != 0:
+            raise ValueError('GPU fans unavailable')
+        for index in range(min(count.value, 8)):
+            if lib.nvmlDeviceSetDefaultFanSpeed_v2(device, index) != 0:
+                raise ValueError('GPU automatic fan restore failed')
+    finally:
+        lib.nvmlShutdown()
+
+
+def apply(value, boot=False):
+    value = validate(value)
+    original = STORE/'original-cpu.json'
+    previous = cpu_snapshot()
+    previous_profile = json.loads((STORE/'active.json').read_text()) if (STORE/'active.json').exists() else {}
+    changed_channels = set() if boot else set(value['fans']) | set(previous_profile.get('fans', {}))
+    adapter = fan_adapter() if changed_channels else None
+    prior_fans = {channel: adapter.read_profile(channel) for channel in changed_channels} if adapter else {}
+    for bus, percent in value['gpuFans'].items():
+        lib, device = gpu_device(bus)
+        try:
+            minimum, maximum = ctypes.c_uint(), ctypes.c_uint()
+            if lib.nvmlDeviceGetMinMaxFanSpeed(device, ctypes.byref(minimum), ctypes.byref(maximum)) != 0 or not minimum.value <= percent <= maximum.value:
+                raise ValueError('GPU fan output outside driver limits')
+        finally:
+            lib.nvmlShutdown()
+    if not original.exists():
+        atomic(original, previous)
+    baseline = json.loads(original.read_text())
+    try:
+        if value['cpu']:
+            restore_cpu(baseline)
+            apply_cpu(value['cpu'])
+        for channel in (set(previous_profile.get('fans', {})) - set(value['fans']) if not boot else set()):
+            subprocess.run([FANS, 'restore', channel], check=True, timeout=45)
+        for channel, percent in (value['fans'].items() if not boot else []):
+            subprocess.run([FANS, 'save', channel, str(percent)], check=True, timeout=45)
+        for bus in set(previous_profile.get('gpuFans', {})) | set(value['gpuFans']):
+            unit = 'loadlet-gpu-fan@'+bus+'.service'
+            subprocess.run(['systemctl', 'disable', '--now', unit], check=False, timeout=15,
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        atomic(STORE/'active.json', value)
+        for bus in value['gpuFans']:
+            subprocess.run(['systemctl', 'enable', '--now', 'loadlet-gpu-fan@'+bus+'.service'], check=True, timeout=15)
+    except BaseException:
+        restore_cpu(previous)
+        for channel, percent in prior_fans.items():
+            args = ['restore', channel] if percent is None else ['save', channel, str(percent)]
+            subprocess.run([FANS, *args], check=False, timeout=45)
+        for bus in value['gpuFans']:
+            subprocess.run(['systemctl', 'disable', '--now', 'loadlet-gpu-fan@'+bus+'.service'], check=False, timeout=15)
+        if previous_profile:
+            atomic(STORE/'active.json', previous_profile)
+            for bus in previous_profile.get('gpuFans', {}):
+                subprocess.run(['systemctl', 'enable', '--now', 'loadlet-gpu-fan@'+bus+'.service'], check=False, timeout=15)
+        else:
+            (STORE/'active.json').unlink(missing_ok=True)
+        raise
+
+
+def install_units():
+    Path('/etc/systemd/system/loadlet-power-profile.service').write_text(
+        '[Unit]\nDescription=Loadlet selected CPU and fan profile\nAfter=systemd-modules-load.service\n'
+        '\n[Service]\nType=oneshot\nExecStart='+SELF+' apply-active\nRemainAfterExit=yes\n'
+        '\n[Install]\nWantedBy=multi-user.target\n')
+    Path('/etc/systemd/system/loadlet-gpu-fan@.service').write_text(
+        '[Unit]\nDescription=Loadlet GPU fan output for %i\nAfter=systemd-modules-load.service\n'
+        '\n[Service]\nType=notify\nTimeoutStartSec=10\nExecStart='+SELF+' gpu-worker %i\n'
+        'ExecStopPost='+SELF+' gpu-reset %i\nRestart=on-failure\nRestartSec=5\nTimeoutStopSec=5\n'
+        '\n[Install]\nWantedBy=multi-user.target\n')
+    subprocess.run(['systemctl', 'daemon-reload'], check=True, timeout=15)
+
+
+def main():
+    args = sys.argv[1:]
+    if args == ['status']:
+        print(json.dumps(capabilities()))
+        return
+    if args and args[0] == 'request':
+        if not (len(args) == 2 and args[1] == 'restore' or len(args) == 3 and args[1] == 'apply'
+                and len(args[2]) <= 8192 and re.fullmatch(r'[A-Za-z0-9_=-]+', args[2])):
+            raise ValueError('Invalid profile request')
+        command = [SELF, *args[1:]]
+        result = subprocess.run(['sudo', '-n', '--', *command], capture_output=True, text=True, timeout=120, env=dict(os.environ, LC_ALL='C'))
+        if result.returncode and ('a password is required' in result.stderr or 'not allowed to execute' in result.stderr):
+            subprocess.run(['pkexec', FANS, 'unlock', str(os.getuid())], check=True, timeout=60)
+            result = subprocess.run(['sudo', '-n', '--', *command], capture_output=True, text=True, timeout=120)
+        if result.returncode:
+            raise ValueError('Profile application failed')
+        if hasattr(result, 'stdout') and result.stdout:
+            print(result.stdout, end='')
+        return
+    if os.geteuid() != 0:
+        raise PermissionError('System authentication required')
+    STORE.mkdir(mode=0o700, parents=True, exist_ok=True)
+    st = STORE.lstat()
+    if STORE.is_symlink() or st.st_uid != 0 or st.st_mode & 0o077:
+        raise ValueError('Unsafe power profile directory')
+    if args and args[0] in ('apply', 'apply-active', 'restore'):
+        lock = os.open(STORE/'.apply.lock', os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
+        fcntl.flock(lock, fcntl.LOCK_EX)
+    if len(args) == 2 and args[0] == 'apply':
+        if len(args[1]) > 8192 or not re.fullmatch(r'[A-Za-z0-9_=-]+', args[1]):
+            raise ValueError('Invalid encoded profile')
+        value = validate(json.loads(base64.urlsafe_b64decode(args[1])))
+        install_units()
+        apply(value)
+        subprocess.run(['systemctl', 'enable', 'loadlet-power-profile.service'], check=True, timeout=15)
+    elif args == ['apply-active']:
+        if (STORE/'active.json').exists():
+            apply(json.loads((STORE/'active.json').read_text()), boot=True)
+    elif len(args) == 2 and args[0] in ('gpu-worker', 'gpu-reset'):
+        if not re.fullmatch(r'[0-9a-f]{4}:[0-9a-f]{2}:[0-9a-f]{2}\.[0-7]', args[1]):
+            raise ValueError('Invalid GPU identity')
+        if args[0] == 'gpu-reset':
+            gpu_reset(args[1])
+        else:
+            value = validate(json.loads((STORE/'active.json').read_text()))
+            gpu_worker(args[1], value['gpuFans'][args[1]])
+    elif args == ['restore']:
+        value = json.loads((STORE/'active.json').read_text()) if (STORE/'active.json').exists() else {}
+        for channel in value.get('fans', {}):
+            subprocess.run([FANS, 'restore', channel], check=True, timeout=30)
+        for bus in value.get('gpuFans', {}):
+            subprocess.run(['systemctl', 'disable', '--now', 'loadlet-gpu-fan@'+bus+'.service'], check=True, timeout=15)
+        if (STORE/'original-cpu.json').exists():
+            restore_cpu(json.loads((STORE/'original-cpu.json').read_text()))
+        (STORE/'active.json').unlink(missing_ok=True)
+        (STORE/'original-cpu.json').unlink(missing_ok=True)
+        subprocess.run(['systemctl', 'disable', 'loadlet-power-profile.service'], check=True, timeout=15)
+    else:
+        raise ValueError('Invalid profile operation')
+
+
+if __name__ == '__main__':
+    try:
+        main()
+    except (OSError, ValueError, KeyError, subprocess.SubprocessError) as error:
+        print(str(error), file=sys.stderr)
+        sys.exit(1)

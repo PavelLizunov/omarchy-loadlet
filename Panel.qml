@@ -68,7 +68,7 @@ Panel {
         journalError: activity.journalError,
         heatThreshold: activity.heatThreshold,
         productName: "Loadlet",
-        iconRevision: "2.14.7",
+        iconRevision: "2.15.0",
         rightClickAction: "none",
         iconTooltip: button.tooltipText,
         iconConsumer: String(Qt.resolvedUrl("Panel.qml")),
@@ -125,7 +125,7 @@ Panel {
         if (root.pendingFanAction === "save") outputs[root.pendingFanChannel] = root.pendingFanSpeed
         else delete outputs[root.pendingFanChannel]
         root.fanProfileOutputs = outputs
-        var change = {}; change["fanOutput_" + root.pendingFanChannel] = root.pendingFanAction === "save" ? root.pendingFanSpeed : -1
+        var change = {activePowerProfile:""}; change["fanOutput_" + root.pendingFanChannel] = root.pendingFanAction === "save" ? root.pendingFanSpeed : -1
         root.persistSettings(change)
       }
       activity.refresh()
@@ -172,7 +172,9 @@ Panel {
   readonly property var sensorPlaces: ["automatic", "cpu", "gpu", "memory", "storage", "motherboard", "fan_cpu", "fan_front", "fan_rear", "fan_top", "fan_ssd", "fan_bottom"]
   function sensorKey(sensor) {
     var chip = String(sensor.chip || "").replace(/^iwlwifi_\d+$/, "iwlwifi")
-    return JSON.stringify([chip, sensor.location || "", sensor.label || ""])
+    if (!chip || !sensor.location || !sensor.label)
+      return JSON.stringify([chip, sensor.location || "", sensor.label || "", sensor.id || ""])
+    return JSON.stringify([chip, sensor.location, sensor.label])
   }
   function sensorPlace(sensor) {
     var key = root.sensorKey(sensor)
@@ -181,7 +183,7 @@ Panel {
       var legacy = Object.keys(sensorAssignments).filter(function(candidate) {
         try {
           var parts = JSON.parse(candidate)
-          return root.sensorKey({chip:parts[0],location:parts[1],label:parts[2]}) === key
+          return root.sensorKey({chip:parts[0],location:parts[1],label:parts[2],id:parts[3]}) === key
         } catch (error) { return false }
       })
       if (legacy.length) place = sensorAssignments[legacy[legacy.length - 1]]
@@ -194,15 +196,15 @@ Panel {
     Object.keys(assignments).forEach(function(key) {
       try {
         var parts = JSON.parse(key)
-        if (root.sensorKey({chip:parts[0],location:parts[1],label:parts[2]}) === root.sensorKey(sensor)) delete assignments[key]
+        if (root.sensorKey({chip:parts[0],location:parts[1],label:parts[2],id:parts[3]}) === root.sensorKey(sensor)) delete assignments[key]
       } catch (error) {}
     })
     if (place === "automatic") delete assignments[root.sensorKey(sensor)]
     else assignments[root.sensorKey(sensor)] = place
     root.selectedSensorId = sensor.id
     root.persistSettings({sensorAssignments:JSON.stringify(assignments)})
-    // Keep the edited sensor visible when its new category leaves the filter.
-    if (!root.sensorMatches(sensor, root.sensorPart)) root.sensorPart = ""
+    // Follow the assigned category instead of silently switching to all sensors.
+    root.sensorPart = place === "automatic" ? String(sensor.category || "") : place
   }
   function sensorMatches(sensor, part) {
     if (!part) return true
@@ -256,7 +258,7 @@ Panel {
   readonly property var coolingSensors: {
     var byId = {}
     savedSensors.forEach(function(sensor) { byId[sensor.id] = sensor })
-    currentSensors.forEach(function(sensor) { byId[sensor.id] = sensor })
+    currentSensors.forEach(function(sensor) { byId[sensor.id] = Object.assign({}, byId[sensor.id] || {}, sensor) })
     return Object.keys(byId).map(function(id) { return byId[id] })
   }
   readonly property var selectedSensor: filteredSensors.filter(function(sensor) { return sensor.id === root.selectedSensorId })[0] || filteredSensors[0] || null
@@ -387,6 +389,7 @@ Panel {
   function sensorOwner(sensor) {
     var manual = root.sensorPlace(sensor)
     if (manual !== "automatic") return I18n.t("map_" + manual, effectiveLanguage)
+      + (sensor.owner ? " · " + sensor.owner : "")
     var category = String(sensor.category || "unknown")
     var owner = String(sensor.owner || "")
     var prefix = I18n.t("sensor_owner_" + category, effectiveLanguage)
@@ -861,7 +864,7 @@ Panel {
     backgroundEnabled: root.booleanSetting("iconIndicator", true)
     expanded: root.expanded
     sensorsActive: root.sensorsOpen && !root.settingsOpen
-    gpuEnabled: !root.sensorsOpen || root.settingsOpen
+    gpuEnabled: !root.sensorsOpen || root.fansOpen || root.settingsOpen
     storageEnabled: root.expanded || root.compactTiles.indexOf("storage") >= 0
     sensorSummaryEnabled: !root.sensorsOpen && (root.expanded || root.compactTiles.some(function(key) {
       return key === "temperature" || key === "fans" || key === "gpu" || key.indexOf("gpu:") === 0
@@ -1618,6 +1621,7 @@ Panel {
           text: (index+1)+" · "+I18n.t("map_"+modelData,root.effectiveLanguage)
           foreground: root.foreground; accent: root.accent
           fontFamily: Style.font.family; fontSize: Style.font.caption; bordered:true;focusable:true
+          selected: root.sensorPart === modelData
           onClicked: root.selectPart(modelData)
         }
       }
@@ -1755,7 +1759,7 @@ Panel {
           fontSize: Style.font.caption; bordered: true; focusable: true; enabled: !root.historyPending
           onClicked: root.loadSensorHistory()
         }
-        Dropdown {
+        ChoiceDropdown {
           id: sensorDropdown
           width: parent.width
           enabled: root.filteredSensors.length > 0
@@ -1839,6 +1843,17 @@ Panel {
         objectName: "fanBody"
         width: parent.width
         spacing: Style.spacing.sm
+        PowerProfiles {
+          objectName: "powerProfiles"
+          width: parent.width
+          settings: root.settings
+          channels: activity.sensorSnapshot.controls || []
+          gpus: root.gpus
+          language: root.effectiveLanguage
+          foreground: root.foreground; accent: root.accent
+          onSaveSettings: function(values) { root.persistSettings(values) }
+          onApplied: activity.refresh()
+        }
         ComputerNavigator {}
         Text {
           width:parent.width
@@ -1852,7 +1867,7 @@ Panel {
           width: parent.width
           visible: !root.computerMapVisible
           spacing: Style.spacing.sm
-          Dropdown {
+          ChoiceDropdown {
             id: fanChannelDropdown
             objectName: "fanChannelDropdown"
             width: parent.width
@@ -1901,7 +1916,7 @@ Panel {
                 fontSize: Style.font.caption; bordered: true; focusable: true
                 onClicked: root.fanAssignmentOpen = !root.fanAssignmentOpen
               }
-              Dropdown {
+              ChoiceDropdown {
                 id: fanAssignmentDropdown
                 objectName: "fanAssignmentDropdown"
                 width: parent.width
@@ -1980,7 +1995,7 @@ Panel {
               }
               Row {
                 width: parent.width; spacing:Style.spacing.sm
-                Dropdown {
+                ChoiceDropdown {
                   id: fanDurationDropdown
                   objectName: "fanDurationDropdown"
                   width:(parent.width-parent.spacing)/2
@@ -2038,7 +2053,7 @@ Panel {
               Row {
                 visible: root.fanIdentificationOpen
                 width:parent.width;spacing:Style.spacing.sm
-                Dropdown {
+                ChoiceDropdown {
                   id: identifyPercentDropdown
                   objectName:"identifyPercentDropdown"
                   width:(parent.width-parent.spacing)/2
@@ -2130,7 +2145,7 @@ Panel {
       y: Style.spacing.md
       width: parent.width - Style.spacing.md * 2
       spacing: Style.spacing.xs
-      Dropdown {
+      ChoiceDropdown {
         id: sensorAssignmentDropdown
         objectName: "sensorAssignmentDropdown"
         width: parent.width
@@ -2344,7 +2359,7 @@ Panel {
                 foreground: root.foreground
                 fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
               }
-              Dropdown {
+              ChoiceDropdown {
                 width: parent.width
                 label: I18n.t("compact_tile_count", root.effectiveLanguage)
                 value: String(root.compactTileCount)
@@ -2364,7 +2379,7 @@ Panel {
               }
               Repeater {
                 model: root.compactTileCount
-                Dropdown {
+                ChoiceDropdown {
                   required property int index
                   width: parent.width
                   label: I18n.t("compact_tile_slot", root.effectiveLanguage, index + 1)
@@ -2390,7 +2405,7 @@ Panel {
                 columnSpacing: Style.spacing.xl
                 rowSpacing: Style.spacing.md
 
-                Dropdown {
+                ChoiceDropdown {
                   visible:root.settingsSection==="icon"
                   objectName: "iconShapeDropdown"
                   width: (preferenceGrid.width - preferenceGrid.columnSpacing * (preferenceGrid.columns - 1)) / preferenceGrid.columns
@@ -2405,7 +2420,7 @@ Panel {
                   onChanged: function(next) { root.persistSettings({ iconShape: Number(next) }) }
                 }
 
-                Dropdown {
+                ChoiceDropdown {
                   visible:root.settingsSection==="icon"
                   objectName: "iconLoadThresholdDropdown"
                   width: (preferenceGrid.width - preferenceGrid.columnSpacing * (preferenceGrid.columns - 1)) / preferenceGrid.columns
@@ -2420,7 +2435,7 @@ Panel {
                   onChanged: function(next) { root.persistSettings({ iconLoadThreshold: Number(next) }) }
                 }
 
-                Dropdown {
+                ChoiceDropdown {
                   visible:root.settingsSection==="icon"
                   objectName: "iconHeatDropdown"
                   width: (preferenceGrid.width - preferenceGrid.columnSpacing * (preferenceGrid.columns - 1)) / preferenceGrid.columns
@@ -2479,7 +2494,7 @@ Panel {
                   wrapMode: Text.WordWrap
                 }
 
-                Dropdown {
+                ChoiceDropdown {
                   visible:root.settingsSection==="sampling"
                   id: speedDropdown
                   width: (preferenceGrid.width - preferenceGrid.columnSpacing * (preferenceGrid.columns - 1)) / preferenceGrid.columns
@@ -2496,7 +2511,7 @@ Panel {
                   onChanged: function(next) { root.persistSettings({ samplingSpeed: next }) }
                 }
 
-                Dropdown {
+                ChoiceDropdown {
                   visible:root.settingsSection==="sampling"
                   width: (preferenceGrid.width - preferenceGrid.columnSpacing * (preferenceGrid.columns - 1)) / preferenceGrid.columns
                   label: I18n.t("history", root.effectiveLanguage)
@@ -2512,7 +2527,7 @@ Panel {
                   onChanged: function(next) { root.persistSettings({ historySamples: Number(next) }) }
                 }
 
-                Dropdown {
+                ChoiceDropdown {
                   visible:root.settingsSection==="sampling"
                   width: (preferenceGrid.width - preferenceGrid.columnSpacing * (preferenceGrid.columns - 1)) / preferenceGrid.columns
                   label: I18n.t("temp_unit", root.effectiveLanguage)
@@ -2593,7 +2608,7 @@ Panel {
                 font.family: root.bar ? root.bar.fontFamily : Style.font.family
                 font.pixelSize: Style.font.caption;wrapMode: Text.WordWrap
               }
-              Dropdown {
+              ChoiceDropdown {
                 objectName: "diagnosticPeriodDropdown"
                 width: parent.width
                 label: I18n.t("diagnostic_period",root.effectiveLanguage)

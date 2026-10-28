@@ -8,12 +8,14 @@ with the QML and Python helpers from this public repository.
 The distributed executable was rebuilt from `activity-sampler.cpp`,
 `DiagnosticJournal.h` and Makefile using GCC 16.2.1 20260810 on Linux x86_64
 for motherboard sensor/control discovery, background history, NVIDIA fixes and
-2.14.5 per-process GPU utilization. `make activity-sampler` completed successfully.
+2.15.0 per-process GPU utilization and journal/sysfs corrections. `make activity-sampler` completed successfully.
 The current 272504-byte executable has SHA256
-`bdfb8c2f614d8b90333b0b75edf522dacd918cbebbe1741aa5d567a27905cb11`.
+`053db5d3be54c56a3ecfe9a2494fd3ea844bd9978cebf8b58b91c1525d1e507b`.
 The exact build-input hashes are recorded in the machine-readable provenance.
-No tests, binary reproduction, hardware probes or additional review were run for
-this update. Earlier 2.11.1 check results do not establish acceptance of these bytes.
+The full local make check gate passed for this revision. Three scoped Gemini
+source investigations were reconciled with source and regression scenarios;
+physical CPU/NVIDIA controls were checked separately. Reproducible binary
+comparison and remote CI remain separate from the successful local build.
 Remote CI reproduction remains separate from this local build result.
 
 [Machine-readable provenance](binary-provenance.json) binds source, header,

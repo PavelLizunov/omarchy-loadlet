@@ -47,7 +47,7 @@ struct DiagnosticJournalChecks {
     timespec age[2]{{std::time(nullptr)-8*86400,0},{std::time(nullptr)-8*86400,0}};
     assert(utimensat(j.dir_,"samples-000000-old.jsonl",age,0)==0);
     assert(j.Prune(0));assert(faccessat(j.dir_,"samples-000000-old.jsonl",F_OK,0)!=0);
-    for(int i=0;i<21;i++) {
+    for(int i=0;i<43;i++) {
       auto name="samples-"+std::to_string(std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::system_clock::now().time_since_epoch()).count())+"-"+std::to_string(i)+".jsonl";
       int fd=openat(j.dir_,name.c_str(),O_CREAT|O_EXCL|O_WRONLY,0600);assert(fd>=0);assert(ftruncate(fd,1024*1024)==0);close(fd);
     }
@@ -66,7 +66,8 @@ struct DiagnosticJournalChecks {
     // Late/invalid collection must clear freshness, not keep prior payload.
     j.Observe("thermals","error\tcapacity\n");assert(j.thermal_at_==Clock::time_point{});
     j.Disable();assert(!j.enabled);
-    assert(j.Enable());assert(j.previous_cpu_sample_==0);j.Disable();
+    assert(j.Enable());assert(j.previous_cpu_sample_==0);
+    assert(j.cpu_window_=="null");assert(j.cpu_=="null");j.Disable();
     std::cout<<"PASS journal mathematics, PID reuse, timing admission, retention, missing data and reset\n";
   }
 };

@@ -116,6 +116,8 @@ public:
     file_ = lock_ = dir_ = -1;
     buffer_.clear();
     previous_total_=previous_idle_=0;previous_cpu_sample_=0;
+    cpu_window_=cpu_=memory_=temperature_=processes_=context_="null";
+    collection_error_.clear(); last_sensor_write_=0;
     previous_processes_.clear();
     process_sample_="null";processes_truncated_=false;
     resource_at_=thermal_at_=process_at_=context_at_=sample_at_=Clock::time_point{};
@@ -178,7 +180,7 @@ public:
     record << "{\"schema\":1,\"time\":" << seconds << ",\"boot_id\":" << JsonString(boot_)
       << ",\"uptime\":" << UptimeSample(paths_) << ",\"cpu_pct\":" << (valid(resource_at_,35) ? cpu_ : "null")
       << ",\"collection_error\":" << JsonString(collection_error_)
-      << ",\"cpu_window_seconds\":" << cpu_window_
+      << ",\"cpu_window_seconds\":" << (valid(resource_at_,35) ? cpu_window_ : "null")
       << ",\"memory\":" << (valid(resource_at_,35) ? memory_ : "null")
       << ",\"temperature_c\":" << (valid(thermal_at_,35) ? temperature_ : "null")
       << ",\"resource_age_ms\":" << age(resource_at_) << ",\"thermal_age_ms\":" << age(thermal_at_)
@@ -239,8 +241,10 @@ private:
   bool Prune(std::size_t upcoming) {
     struct Entry { std::string name; std::size_t size; time_t modified; };
     std::vector<Entry> entries; std::size_t total=0;
-    DIR *directory=fdopendir(dup(dir_));
-    if (!directory) return false;
+    const int directory_fd=fcntl(dir_,F_DUPFD_CLOEXEC,0);
+    if (directory_fd<0) return false;
+    DIR *directory=fdopendir(directory_fd);
+    if (!directory) {close(directory_fd);return false;}
     rewinddir(directory);
     unsigned int seen=0;
     while (auto *entry=readdir(directory)) {
@@ -248,7 +252,7 @@ private:
       std::string name(entry->d_name);
       if (!StartsWith(name,"samples-") || !EndsWith(name,".jsonl")) continue;
       struct stat s{};
-      if (fstatat(dir_,name.c_str(),&s,AT_SYMLINK_NOFOLLOW)!=0 || !S_ISREG(s.st_mode) || s.st_uid!=getuid() || s.st_nlink!=1 || s.st_size<0 || static_cast<std::uint64_t>(s.st_size)>20*1024*1024 || total>20*1024*1024*2ULL) { closedir(directory); return false; }
+      if (fstatat(dir_,name.c_str(),&s,AT_SYMLINK_NOFOLLOW)!=0 || !S_ISREG(s.st_mode) || s.st_uid!=getuid() || s.st_nlink!=1 || s.st_size<0 || static_cast<std::uint64_t>(s.st_size)>20*1024*1024) { closedir(directory); return false; }
       entries.push_back({name,static_cast<std::size_t>(s.st_size),s.st_mtime}); total+=static_cast<std::size_t>(s.st_size);
     }
     closedir(directory);

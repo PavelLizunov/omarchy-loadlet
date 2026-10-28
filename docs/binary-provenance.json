@@ -1,17 +1,17 @@
 {
   "schemaVersion": 1,
   "platform": "linux-x86_64",
-  "sourceBaseCommit": "aa9c35886452c5ff01c13d4136378f3dddf0d1a1",
+  "sourceBaseCommit": "4262636d6221ec5d494d62cf9d94c272a19538f1",
   "sha256": {
-    "activity-sampler": "bdfb8c2f614d8b90333b0b75edf522dacd918cbebbe1741aa5d567a27905cb11",
-    "activity-sampler.cpp": "b5dfa85c4da31b9c5dcc0f7c2630dd29f528724f0c1930b3ca536e182d0a78ca",
-    "DiagnosticJournal.h": "c0b2c5606ff36dc7bf5d27cc1b037721afb79dfc6709ebcef8e924f888b4d90d",
-    "Makefile": "6b3111926c9218664abfa8d98348ab3836f5d96c14a1f90699b41f4c163ad56c"
+    "activity-sampler": "053db5d3be54c56a3ecfe9a2494fd3ea844bd9978cebf8b58b91c1525d1e507b",
+    "activity-sampler.cpp": "bd7f838f93e34e1793811be1ad29c8f2d043ad8bc2218992ae8140db4b311c79",
+    "DiagnosticJournal.h": "8666805d52cd5f46f7f519c0f21fccf61dfe1f7ae4895cda79f5f1739658b722",
+    "Makefile": "20f13bc4f7c5e9bf20d33f320e48e200bb91e7a39014b3b0fed197a80bcb7d78"
   },
   "size": 272504,
   "compiler": "GCC 16.2.1 20260810",
   "buildCommand": "LC_ALL=C make activity-sampler",
-  "buildResult": "Built successfully for 2.14.5 per-process GPU telemetry; no reproduction, test or hardware checks run for this task",
+  "buildResult": "Built for full revision: configured sysfs root and journal retention corrections; task checks recorded separately",
   "dynamicRequirements": {
     "glibc": "2.34",
     "libstdc++": "GLIBCXX_3.4.32",

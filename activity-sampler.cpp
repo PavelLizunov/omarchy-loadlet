@@ -1086,7 +1086,7 @@ public:
       output << '\t' << sensor.category << '\t' << sensor.owner << '\t'
              << sensor.location << '\n';
     }
-    const auto board = ReadLine("/sys/class/dmi/id/board_name").value_or("");
+    const auto board = ReadLine(Join(paths_.sys, "class/dmi/id/board_name")).value_or("");
     if (board == "DRFXI") {
       for (const auto &hwmon : DirectoryNames(Join(paths_.sys, "class/hwmon"))) {
         const auto path = Join(Join(paths_.sys, "class/hwmon"), hwmon);

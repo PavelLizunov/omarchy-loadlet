@@ -104,6 +104,15 @@ setpoint; manually assigned location labels are saved. A 0% request may not phys
 missing CPU readings reject or cancel the trial. Ordinary timed boosts still
 never reduce the previous duty. Only one identification trial runs at a time.
 
+Named profiles now combine motherboard fan output, optional NVIDIA fan output,
+CPU turbo boost, governor/energy preference and a maximum CPU frequency. Fans
+provides quick icon buttons for Current settings, Quiet idle and Games; its
+profile editor can save, duplicate and remove presets. Saving is separate from
+applying. Quiet idle disables boost and requests powersave/power; no acoustic or
+energy reduction is guaranteed. The optional root-owned `power-profile` adapter
+must be installed alongside `fan-control`. See the guide for actual supported
+controls, persistence and restoration.
+
 Process actions use sampled PID/start time and ownership guards. Force kill needs
 separate confirmation. There is no automatic escalation or privileged helper.
 Diagnostic history is local, opt-in and off by default; exports prepare evidence

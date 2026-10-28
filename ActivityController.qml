@@ -223,7 +223,10 @@ Item {
       if (storageEnabled && kinds.indexOf("storage") < 0) kinds.push("storage")
       if (sensorSummaryEnabled) kinds.push("sensors")
     }
-    if (active && sensorsActive) kinds = ["sensors", "glance", "thermals"]
+    if (active && sensorsActive) {
+      kinds = ["sensors", "glance", "thermals"]
+      if (gpuEnabled) kinds.push("gpus")
+    }
     if (sensorRecording && kinds.indexOf("sensors") < 0) kinds.push("sensors")
     if (sensorRecording !== sensorWriterEnabled) {
       var recordingKind = sensorRecording ? "sensors-on" : "sensors-off"

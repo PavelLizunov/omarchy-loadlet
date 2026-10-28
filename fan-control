@@ -1,5 +1,6 @@
 #!/usr/bin/python3 -I
 """Authenticated IT8613 profiles and timed trials with thermal fallback."""
+from contextlib import contextmanager
 import json
 import fcntl
 import os
@@ -7,6 +8,7 @@ import pwd
 from pathlib import Path
 import re
 import signal
+import socket
 import subprocess
 import sys
 import time
@@ -23,7 +25,25 @@ def profile_path(channel):
     return PROFILES/(channel+'.json')
 
 
+def read_profile(channel):
+    file = profile_path(channel)
+    try:
+        content = file.read_text()
+    except FileNotFoundError:
+        return None
+    try:
+        data = json.loads(content)
+        percent = data['percent']
+    except (ValueError, KeyError, TypeError):
+        raise ValueError('Invalid saved fan output')
+    if type(percent) is not int or not 0 <= percent <= 100:
+        raise ValueError('Invalid saved fan output')
+    return percent
+
+
 def save_profile(channel, percent):
+    if type(percent) is not int or not 0 <= percent <= 100:
+        raise ValueError('Invalid saved fan output')
     PROFILES.mkdir(mode=0o700, exist_ok=True)
     st = PROFILES.lstat()
     if PROFILES.is_symlink() or st.st_uid != 0 or st.st_mode & 0o077:
@@ -38,6 +58,29 @@ def save_profile(channel, percent):
     os.replace(temporary, file)
 
 
+def switching_path(channel):
+    if not re.fullmatch(r'pwm[2-5]', channel):
+        raise ValueError('Invalid IT8613 channel')
+    return STATE / ('.' + channel + '.switching')
+
+
+@contextmanager
+def switching(channel):
+    state_path(channel)
+    marker = switching_path(channel)
+    lock = os.open(STATE/('.'+channel+'.lock'), os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
+    try:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        fd = os.open(marker, os.O_CREAT | os.O_WRONLY | os.O_TRUNC | os.O_NOFOLLOW, 0o600)
+        os.close(fd)
+        try:
+            yield
+        finally:
+            marker.unlink(missing_ok=True)
+    finally:
+        os.close(lock)
+
+
 def resume_profile(channel):
     if profile_path(channel).exists():
         subprocess.run(['/usr/bin/systemctl', 'start', PROFILE_UNIT.format(channel)],
@@ -48,7 +91,7 @@ def install_profile_unit():
     Path('/etc/systemd/system/loadlet-fan-profile@.service').write_text(
         '[Unit]\nDescription=Loadlet saved fan output for %i\n'
         'After=systemd-modules-load.service\nStartLimitIntervalSec=0\n\n'
-        '[Service]\nType=exec\nExecStart='+SELF+' profile-worker %i\n'
+        '[Service]\nType=notify\nTimeoutStartSec=10\nExecStart='+SELF+' profile-worker %i\n'
         'ExecStopPost='+SELF+' recover-profile %i\n'
         'Restart=on-failure\nRestartSec=5\nTimeoutStopSec=5\n\n'
         '[Install]\nWantedBy=multi-user.target\n')
@@ -59,8 +102,11 @@ def controller():
     if Path('/sys/class/dmi/id/board_name').read_text().strip() != 'DRFXI':
         raise ValueError('This installed adapter supports DRFXI / IT8613 only')
     for path in Path('/sys/class/hwmon').glob('hwmon*'):
-        if (path/'name').read_text().strip() == 'it8613':
-            return path.resolve()
+        try:
+            if (path/'name').read_text().strip() == 'it8613':
+                return path.resolve()
+        except OSError:
+            continue
     raise ValueError('IT8613 driver is not loaded')
 
 
@@ -128,9 +174,20 @@ def worker(channel, percent, minutes, identify=False, persistent=False):
         identification_lock = os.open(STATE/".identify.lock", os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
         fcntl.flock(identification_lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
     previous = dict(pwm=int(pwm.read_text()), mode=int(mode.read_text()))
-    with state.open('x') as stream:
-        os.chmod(state, 0o600)
-        json.dump(previous, stream)
+    temporary = state.with_name(f'.{state.name}.{os.getpid()}.tmp')
+    try:
+        with temporary.open('w') as stream:
+            os.fchmod(stream.fileno(), 0o600)
+            json.dump(previous, stream)
+            stream.flush()
+            os.fsync(stream.fileno())
+        try:
+            os.link(temporary, state)
+        except FileExistsError:
+            raise ValueError('A previous override has not been restored')
+    finally:
+        if temporary.exists():
+            temporary.unlink()
     stopped = False
 
     def stop(signum, frame):
@@ -145,16 +202,24 @@ def worker(channel, percent, minutes, identify=False, persistent=False):
         mode.write_text('0')
         mode.write_text('1')
         if not identify and not persistent:
+            saved = read_profile(channel)
+            if saved is not None:
+                target = max(target, round(saved * 255 / 100))
             target = 255 if previous['mode'] == 0 else max(previous['pwm'], target)
         pwm.write_text(str(cooling_floor(target)))
+        if persistent and os.environ.get('NOTIFY_SOCKET'):
+            address = os.environ['NOTIFY_SOCKET']
+            with socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM) as notifier:
+                notifier.connect('\0'+address[1:] if address.startswith('@') else address)
+                notifier.sendall(b'READY=1')
         end = None if persistent else time.monotonic() + (5 if identify else minutes*60)
         while not stopped and (end is None or time.monotonic() < end):
             time.sleep(1)
             if not stopped:
                 value = cooling_floor(target)
+                pwm.write_text(str(value))
                 if identify and value != target:
                     break
-                pwm.write_text(str(value))
     finally:
         try:
             restore(channel)
@@ -200,7 +265,9 @@ def unlock(uid):
             + SELF + ' ^boost pwm[2-5] (60|80|100) (5|10|30)$, '
             + SELF + ' ^save pwm[2-5] ([0-9]|[1-9][0-9]|100)$, '
             + SELF + ' ^restore pwm[2-5]$, '
-            + SELF + ' ^identify pwm[2-5] (0|5|10|20|30|40|50|60|80|100) 5$\n')
+            + SELF + ' ^identify pwm[2-5] (0|5|10|20|30|40|50|60|80|100) 5$, '
+            + '/usr/local/lib/loadlet/power-profile ^apply [A-Za-z0-9_=-]+$, '
+            + '/usr/local/lib/loadlet/power-profile ^restore$\n')
     import tempfile
     fd, temporary = tempfile.mkstemp(prefix='.loadlet-', dir='/etc/sudoers.d')
     try:
@@ -236,17 +303,18 @@ def main():
             raise ValueError('Expected an integer percentage from 0 to 100')
         percent = int(sys.argv[3])
         install_profile_unit()
-        subprocess.run(['/usr/bin/systemctl', 'stop', unit], check=False, timeout=15,
-                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        subprocess.run(['/usr/bin/systemctl', 'stop', profile_unit], check=False, timeout=15,
-                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        restore(channel)
-        save_profile(channel, percent)
-        subprocess.run(['/usr/bin/systemctl', 'enable', '--now', profile_unit], check=True, timeout=15)
+        with switching(channel):
+            subprocess.run(['/usr/bin/systemctl', 'stop', unit], check=False, timeout=15,
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            subprocess.run(['/usr/bin/systemctl', 'stop', profile_unit], check=False, timeout=15,
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            restore(channel)
+            save_profile(channel, percent)
+            subprocess.run(['/usr/bin/systemctl', 'enable', '--now', profile_unit], check=True, timeout=15)
         print('saved')
     elif action == 'profile-worker' and len(sys.argv) == 3:
-        percent = json.loads(profile_path(channel).read_text())['percent']
-        if type(percent) is not int or not 0 <= percent <= 100:
+        percent = read_profile(channel)
+        if percent is None:
             raise ValueError('Invalid saved fan output')
         worker(channel, percent, 0, persistent=True)
     elif action == 'restore' and len(sys.argv) == 3:
@@ -266,21 +334,28 @@ def main():
         if action in ('worker','identify-worker'):
             worker(channel, percent, minutes, identify=identifying)
             return
-        subprocess.run(['/usr/bin/systemctl', 'stop', unit], check=False, timeout=15,
-                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        subprocess.run(['/usr/bin/systemctl', 'stop', profile_unit], check=False, timeout=15,
-                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        restore(channel)
-        subprocess.run(['/usr/bin/systemd-run', '--quiet', '--collect', '--unit='+unit,
-                        '--property=Type=exec', '--property=TimeoutStopSec=5',
-                        '--property=RuntimeMaxSec='+str(10 if identifying else minutes*60+15),
-                        '--property=ExecStopPost='+SELF+' recover '+channel,
-                        SELF, 'identify-worker' if identifying else 'worker', channel, str(percent), str(minutes)], check=True, timeout=15)
+        with switching(channel):
+            subprocess.run(['/usr/bin/systemctl', 'stop', unit], check=False, timeout=15,
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            subprocess.run(['/usr/bin/systemctl', 'stop', profile_unit], check=False, timeout=15,
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            restore(channel)
+            subprocess.run(['/usr/bin/systemd-run', '--quiet', '--collect', '--unit='+unit,
+                            '--property=Type=exec', '--property=TimeoutStopSec=5',
+                            '--property=RuntimeMaxSec='+str(10 if identifying else minutes*60+15),
+                            '--property=ExecStopPost='+SELF+' recover '+channel,
+                            SELF, 'identify-worker' if identifying else 'worker', channel, str(percent), str(minutes)], check=True, timeout=15)
         print('boosted')
     elif action in ('recover', 'recover-profile') and len(sys.argv) == 3:
         restore(channel)
         if action == 'recover':
-            resume_profile(channel)
+            marker = switching_path(channel)
+            try:
+                marker_exists = marker.exists()
+            except OSError:
+                marker_exists = False
+            if not marker_exists:
+                resume_profile(channel)
     else:
         raise ValueError('Invalid operation')
 

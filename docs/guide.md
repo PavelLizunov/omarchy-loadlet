@@ -384,7 +384,8 @@ physical fan behavior still require user observation.
 
 Settings is split into Tiles, Icon, Sampling and History. The normal preferred
 frame fits each category without scrolling; constrained screens retain scrolling.
-Sensor assignment is under Category; choosing a category keeps the editor open.
+Sensor assignment is under Category; choosing a category keeps the editor open
+and follows that category filter instead of silently switching to all sensors.
 The Category button itself hides it when finished. Manual categories update the
 device heading and selector label as well as the diagram filter. Raw driver
 identity remains visible in Category. Wi-Fi driver instance suffixes are excluded
@@ -414,6 +415,53 @@ fan/PWM channels. A bounded pwm2 full-duty request changed reported RPM from
 about695 to1534, then duty40/mode2 were restored. Physical connector identity,
 acoustic/airflow change and automatic timed restoration remain unverified.
 This observation is not generic board compatibility or a driver safety audit.
+
+## Named CPU and cooling profiles
+
+Fans provides Current settings, Quiet idle and Games with distinct icons. Click
+one to apply it; the settings icon opens its editor. Profiles can be named,
+duplicated, saved and deleted (up to12). An active profile cannot be deleted.
+Saving edits does not apply them. Changing a single fan output clears the active
+profile highlight, since it no longer represents the saved named configuration.
+
+Each preset stores exact motherboard percentages, optional NVIDIA percentages,
+CPU boost, powersave/performance mode with its corresponding energy preference,
+and a maximum CPU frequency in MHz. Zero frequency means the original limit,
+not zero processor speed. The driver validates every frequency and preference;
+unsupported choices fail rather than silently succeeding. Quiet idle uses boost
+off and powersave/power. Games permits boost and performance. Default fan values
+come from the current saved outputs, never invented quiet or gaming speeds.
+
+The optional root-owned helper is installed separately:
+
+```sh
+sudo install -Dm755 power-profile /usr/local/lib/loadlet/power-profile
+```
+
+The existing authenticated fan unlock grants exact validated profile apply and
+restore requests for24hours. The helper snapshots CPU values, serializes applies,
+checks service readiness, and restores prior CPU/fan settings if an application
+step fails. The active profile is root-owned under /var/lib/loadlet-power;
+loadlet-power-profile.service replays its CPU policy after boot. Motherboard
+fan instances retain their existing boot persistence. Original control restores
+the captured CPU settings, removes the named active configuration and returns
+GPU fans to automatic control. A successful systemd enable is not an observed
+successful physical reboot.
+
+NVIDIA support uses the driver's NVML interface, not X11/Coolbits. On the observed
+RTX5060Ti one fan is exposed, with a reported manual range30–100%. A bounded30%
+request and readback succeeded, then automatic policy was restored. Below-minimum
+requests fail. A missing GPU percentage means automatic control; no fake manual
+control is provided for the integrated Radeon610M. Manual NVIDIA mode runs an
+owned per-device service, requests100% at80C/missing GPU temperature and restores
+automatic control on exit or recovery. Physical RPM and acoustic effects remain
+unmeasured.
+
+No digital PSU controller was found in the observed USB/hwmon inventory. The
+physical PSU model and control/data connection are not established. Its internal
+fan is not equated with an IT8613 channel. No register guessing, firmware flashing
+or physical connector reassignment was performed. Those limits do not block the
+CPU, motherboard and observed NVIDIA controls.
 
 ## Per-process GPU usage
 

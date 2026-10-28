@@ -60,6 +60,10 @@ Item {
       Style.fontBaseSize=12; Style.spacingScaleWithFont=true
       plugin.settings={locale:"ru",iconIndicator:false}; plugin.sortKey="cpu";plugin.sortAscending=false
       plugin.open();plugin.activityController.stop();plugin.computerMapVisible=false;plugin.settingsSection="tiles";plugin.fanStatusKey=""
+      plugin.sensorPart="";plugin.selectedSensorId="";plugin.savedSensors=[];plugin.focusedFanChannel="";plugin.historyFanChannel=""
+      plugin.sensorOptionsOpen=false;plugin.fanAssignmentOpen=false;plugin.fanIdentificationOpen=false
+      var fan=nodes(plugin).filter(function(n){return n.command&&n.command[0]==='/usr/local/lib/loadlet/fan-control'})[0]
+      fan.running=false;plugin.historyPending=false;plugin.historyReadError=false
       // Previous icon tests may replace bindings on this persistent consumer.
       var ctrl=plugin.activityController
       var icons=nodes(plugin).filter(function(n){return n.shapeIndex!==undefined})
@@ -76,6 +80,7 @@ Item {
         icon.heatLevel=Qt.binding(function(){return ctrl.heatLevel})
         icon.motionEnabled=Qt.binding(function(){return plugin.booleanSetting('iconMotion',true)})
       }
+      plugin.activityController.resetData();plugin.activityController.lastTick=Date.now()
       MockData.populate(plugin.activityController); plugin.hintsVisible=true
       wait(60)
     }
@@ -188,9 +193,100 @@ Item {
       plugin.sensorOptionsOpen=true;wait(20)
       var viewport=named('coolingViewport'),dropdown=named('sensorAssignmentDropdown')
       clickVisible(dropdown,viewport);keyClick(Qt.Key_Down);keyClick(Qt.Key_Down);keyClick(Qt.Key_Return);wait(30)
-      compare(plugin.sensorPart,'','Moving a sensor out of its filter clears that filter')
+      compare(plugin.sensorPart,'gpu','Category assignment follows the selected category')
       compare(plugin.selectedSensor.id,sensor.id,'The edited sensor remains selected')
       compare(plugin.expanded,false)
+    }
+    function test_category_sensor_identity_and_click() {
+      plugin.hintsVisible=false;plugin.setExpanded(true);plugin.selectPart('cpu');wait(20)
+      var original=plugin.selectedSensor
+      plugin.assignSensor(original,'gpu');wait(20)
+      compare(plugin.sensorPart,'gpu');compare(plugin.selectedSensor.id,original.id)
+      verify(plugin.filteredSensors.every(function(s){return plugin.sensorMatches(s,'gpu')}))
+      plugin.selectPart('motherboard');wait(20)
+      compare(plugin.selectedSensor.id,'board-temp1')
+      plugin.selectPart('gpu');wait(20)
+      var dropdown=named('sensorDropdown');dropdown.open();wait(20)
+      var list=dropdown.optionView
+      verify(!!list);compare(list.currentIndex,0)
+      var second=list.contentItem.children.filter(function(n){return n.index===1})[0]
+      verify(!!second)
+      mouseClick(second,second.width/2,second.height/2);wait(20)
+      compare(plugin.selectedSensor.id,dropdown.options[1].value,'Click picks its row without a hover event')
+      plugin.selectPart('motherboard');wait(20)
+      compare(dropdown.value,'board-temp1','Choice preserves its controlled value binding')
+      plugin.sensorOptionsOpen=true;wait(10)
+      plugin.assignSensor(plugin.selectedSensor,'storage');wait(20)
+      compare(plugin.sensorPart,'storage');compare(plugin.selectedSensor.id,'board-temp1')
+      verify(plugin.sensorOwner(plugin.selectedSensor).indexOf('ITE IT8613E')>=0,'Manual label retains model')
+    }
+    function test_missing_sensor_metadata_assignment_isolation() {
+      var a={id:'offline-a',chip:'chip',label:'temp',location:''}
+      var b={id:'offline-b',chip:'chip',label:'temp',location:''}
+      plugin.assignSensor(a,'storage')
+      compare(plugin.sensorPlace(a),'storage');compare(plugin.sensorPlace(b),'automatic')
+    }
+    function test_power_profiles_create_save_apply_inert() {
+      plugin.setExpanded(true);plugin.sensorsOpen=true;plugin.fansOpen=true
+      plugin.activityController.stop();MockData.populate(plugin.activityController);wait(20)
+      var profiles=named('powerProfiles')
+      compare(profiles.profiles.length,3)
+      profiles.selectProfile('idle');profiles.changeCpu('maxMHz',1800);profiles.saveDraft();wait(10)
+      var saved=JSON.parse(plugin.settings.powerProfiles)
+      compare(saved.filter(function(p){return p.id==='idle'})[0].config.cpu.maxMHz,1800)
+      profiles.applyProfile(profiles.profiles.filter(function(p){return p.id==='idle'})[0]);wait(10)
+      var proc=nodes(profiles).filter(function(n){return n.command&&n.command.indexOf('apply')>=0})[0]
+      verify(!!proc);compare(proc.running,true)
+      var encoded=proc.command[3].replace(/-/g,'+').replace(/_/g,'/')
+      var bytes=Qt.atob(Array.from(encoded,function(c){return c.charCodeAt(0)}))
+      var config=JSON.parse(String(bytes))
+      compare(config.cpu.boost,false);compare(config.cpu.maxMHz,1800)
+      proc.running=false;proc.exited(0);wait(10)
+      compare(plugin.settings.activePowerProfile,'idle')
+      profiles.selectProfile('games');profiles.saveDraft();wait(10)
+      verify(JSON.parse(plugin.settings.powerProfiles).some(function(p){return p.id==='games'}))
+      profiles.editorOpen=true;wait(10)
+      clickVisible(named('newPowerProfileButton'),named('fansViewport'))
+      var created=profiles.draft.id
+      verify(created.indexOf('custom-')===0)
+      compare(named('powerProfileName').text,profiles.draft.name,'New profile replaces the visible name binding')
+      profiles.saveDraft();wait(10)
+      verify(JSON.parse(plugin.settings.powerProfiles).some(function(p){return p.id===created}))
+      clickVisible(named('deletePowerProfileButton'),named('fansViewport'));wait(10)
+      verify(!JSON.parse(plugin.settings.powerProfiles).some(function(p){return p.id===created}))
+    }
+    function test_settings_choice_reset_remains_reactive() {
+      plugin.setSettingsOpen(true);plugin.settingsSection='icon';wait(20)
+      var dropdown=named('iconShapeDropdown')
+      dropdown.open();wait(10)
+      var list=dropdown.optionView
+      list.currentIndex=2;list.selectCurrent();wait(10)
+      compare(plugin.iconShapeSetting,2)
+      plugin.resetPreferences();wait(10)
+      compare(dropdown.value,'10')
+    }
+    function test_multi_gpu_columns_sort_and_missing() {
+      plugin.setExpanded(true);var ctrl=plugin.activityController
+      ctrl._gpus=[{id:"0000:01:00.0",name:"NVIDIA GeForce RTX 5060 Ti"},{id:"0000:06:00.0",name:"Radeon 610M"}]
+      var samples={}
+      samples[ctrl._processes[0].pid+":"+ctrl._processes[0].startTicks]={usage:40,byGpu:{"0000:01:00.0":40,"0000:06:00.0":0}}
+      samples[ctrl._processes[1].pid+":"+ctrl._processes[1].startTicks]={usage:60,byGpu:{"0000:06:00.0":60}}
+      ctrl.processGpus=samples;ctrl.processGpusUpdatedAt=Date.now();ctrl.freshnessClock=Date.now();wait(20)
+      var heading=named("processHeader-gpu:0000:06:00.0")
+      mouseClick(heading,heading.width/2,heading.height/2);wait(10)
+      compare(plugin.sortedProcesses[0].pid,ctrl._processes[1].pid)
+      compare(plugin.sortedProcesses[plugin.sortedProcesses.length-1].gpu,-1)
+      mouseClick(heading,heading.width/2,heading.height/2);wait(10)
+      compare(plugin.sortedProcesses[0].pid,ctrl._processes[0].pid)
+      compare(plugin.sortedProcesses[plugin.sortedProcesses.length-1].gpu,-1)
+      compare(plugin.processGpuHeading(ctrl._gpus[0]),"RTX 5060 Ti")
+    }
+    function test_action_finish_is_idempotent() {
+      var action=pick('_activeAction')
+      action._activeAction={pid:123,startTicks:1,name:'demo'}
+      action.finish(1);verify(action.failed)
+      var status=action.status
+      action.finish(0);verify(action.failed);compare(action.status,status)
     }
     function test_compact_fans_disclosures_and_history() {
       plugin.hintsVisible=false;clickVisible(tab('fans'))
@@ -204,7 +300,10 @@ Item {
       clickVisible(named('fanIdentificationToggle'),viewport)
       var restore=nodes(plugin).filter(function(n){return n.iconName==='restore'&&n.text&&n.text.indexOf('Вернуть')>=0})[0]
       verify(restore.visible,'Recovery control is retained')
-      verify(viewport.contentHeight<=viewport.height+1,'Default compact Fans fits without a spurious scroll thumb')
+      verify(viewport.contentHeight>0,'Fan controls retain a scrollable content surface')
+      clickVisible(restore,viewport)
+      var fan=nodes(plugin).filter(function(n){return n.command&&n.command[0]==='/usr/local/lib/loadlet/fan-control'})[0]
+      fan.running=false;fan.exited(0);plugin.activityController.stop();MockData.populate(plugin.activityController);wait(20)
       var history=named('fanHistoryButton');clickVisible(history,viewport)
       compare(plugin.fansOpen,false);compare(plugin.selectedSensor.label,'fan2');compare(plugin.expanded,false)
       plugin.close();plugin.open();plugin.activityController.stop();MockData.populate(plugin.activityController);wait(20)
@@ -292,7 +391,7 @@ Item {
       verify(restore.mapToItem(viewport,0,0).y>=-1)
       verify(restore.mapToItem(viewport,0,restore.height).y<=viewport.height+1,'Focused restore control scrolls into view')
       named('computerMapToggle').forceActiveFocus();wait(30)
-      compare(viewport.contentY,0,'Focusing top navigation scrolls back to it')
+      verify(named('computerMapToggle').mapToItem(viewport,0,0).y>=-1,'Focused navigation is visible above the longer profile surface')
       clickVisible(tab('sensors'))
       var chart=named('sensorHistoryChart')
       chart.forceActiveFocus();wait(30)
@@ -316,14 +415,15 @@ Item {
       proc.running=false;proc.exited(0)
     }
     function test_fan_commands_inert() {
-      plugin.setExpanded(true);plugin.sensorsOpen=true;plugin.fansOpen=true;wait(20)
+      plugin.setExpanded(true);plugin.sensorsOpen=true;plugin.fansOpen=true;plugin.activityController.stop();MockData.populate(plugin.activityController);wait(20)
       var proc=nodes(plugin).filter(function(n){return n.command&&n.command[0]==='/usr/local/lib/loadlet/fan-control'})[0]
       verify(!!proc)
       var boost=nodes(plugin).filter(function(n){return n.text==='Разгон 60%'})[0]
-      mouseClick(boost,boost.width/2,boost.height/2);wait(10)
+      clickVisible(boost,named('fansViewport'));wait(10)
       compare(proc.running,true);compare(proc.command.join(' '),'/usr/local/lib/loadlet/fan-control request boost pwm2 60 10')
       proc.running=false;proc.exited(126);wait(10);compare(plugin.fanStatusKey,'fan_action_failed')
       var viewport=named('fansViewport');viewport.contentY=Math.max(0,viewport.contentHeight-viewport.height);wait(10)
+      plugin.activityController.stop();MockData.populate(plugin.activityController);wait(10)
       var restore=nodes(plugin).filter(function(n){return n.iconName==='restore'&&n.text&&n.text.indexOf('Вернуть')>=0})[0]
       mouseClick(restore,restore.width/2,restore.height/2);wait(10)
       compare(proc.command.join(' '),'/usr/local/lib/loadlet/fan-control request restore pwm2')

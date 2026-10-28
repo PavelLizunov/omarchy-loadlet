@@ -8,6 +8,8 @@ Image {
   property color tint: Host.Color.popups.text
   // Small original outline symbols; no font or external asset dependency.
   readonly property var paths: ({
+    quiet: '<path d="M16 3a9 9 0 1 0 5 14A8 8 0 0 1 16 3Z"/>',
+    games: '<path d="M7 7h10c5 0 6 12 3 13-2 1-4-4-6-4h-4c-2 0-4 5-6 4C1 19 2 7 7 7Z M7 10v5m-2-2h4m7-2h.01m2 3h.01"/>',
     overview: '<path d="M3 3v18h18M7 16v-5m5 5V7m5 9v-3"/>',
     temperature: '<path d="M9 14.5V5a3 3 0 0 1 6 0v9.5a5 5 0 1 1-6 0Z"/><path d="M12 8v10"/><circle cx="12" cy="18" r="1"/>',
     fans: '<circle cx="12" cy="12" r="2"/><path d="M10 10C4 9 4 3 8 3c4 0 5 4 4 7m2 0c1-6 7-6 7-2 0 4-4 5-7 4m0 2c6 1 6 7 2 7-4 0-5-4-4-7m-2 0c-1 6-7 6-7 2 0-4 4-5 7-4"/>',

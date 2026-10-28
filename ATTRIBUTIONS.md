@@ -8,6 +8,10 @@ The original LICENSE is retained, including the fork copyright line.
 
 Selected ideas and code adaptations:
 
+- Omarchy Quattro Ui/Dropdown.qml (installed4.5.0rc2, MIT): ChoiceDropdown.qml
+  retains the native control and corrects clicked-row selection and controlled
+  value ownership. The host installation is not modified.
+
 - [sum117](https://github.com/sum117/omarchy-activity-monitor), commits
   `500ced953a4a8d622d4fe221ce14e482683971ee` and
   `e559afc2b32a11e096c22774d824726011cb8035`: separate TERM/KILL actions,
