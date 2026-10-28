@@ -4,6 +4,10 @@
 var strings = {
   "en": {
     "profile_delete": "Delete profile",
+    "profile_auto_games": "Automatic game profiles",
+    "profile_auto_hint": "Steam/Proton games switch to Games; exit restores previous settings. Manual profile selection disables automation.",
+    "profile_auto_playing": "Game detected: Games profile active",
+    "profile_auto_error": "Automatic switching failed. Try enabling again.",
     "profile_current": "Current settings",
     "profile_idle": "Quiet idle",
     "profile_games": "Games",
@@ -246,6 +250,10 @@ var strings = {
   },
   "ru": {
     "profile_delete": "Удалить профиль",
+    "profile_auto_games": "Автопрофиль для игр",
+    "profile_auto_hint": "Игры Steam и Proton включают «Игры». После выхода вернутся прежние настройки. Ручной выбор профиля отключает автоматику.",
+    "profile_auto_playing": "Обнаружена игра: включён профиль «Игры»",
+    "profile_auto_error": "Не удалось переключить профиль. Включите автоматику заново.",
     "profile_current": "Текущие настройки",
     "profile_idle": "Тихий простой",
     "profile_games": "Игры",
@@ -488,6 +496,10 @@ var strings = {
   },
   "de": {
     "profile_delete": "Profil löschen",
+    "profile_auto_games": "Automatische Spielprofile",
+    "profile_auto_hint": "Steam-/Proton-Spiele aktivieren Spiele; danach gelten die vorherigen Einstellungen. Manuelle Profilwahl beendet die Automatik.",
+    "profile_auto_playing": "Spiel erkannt: Spielprofil aktiv",
+    "profile_auto_error": "Automatischer Wechsel fehlgeschlagen. Erneut aktivieren.",
     "profile_current": "Aktuelle Einstellungen",
     "profile_idle": "Leiser Leerlauf",
     "profile_games": "Spiele",
@@ -730,6 +742,10 @@ var strings = {
   },
   "zh": {
     "profile_delete": "删除配置",
+    "profile_auto_games": "自动游戏配置",
+    "profile_auto_hint": "Steam/Proton 游戏启用游戏配置，退出后恢复原设置。手动选择配置会关闭自动切换。",
+    "profile_auto_playing": "检测到游戏：已启用游戏配置",
+    "profile_auto_error": "自动切换失败。请重新启用。",
     "profile_current": "当前设置",
     "profile_idle": "安静空闲",
     "profile_games": "游戏",

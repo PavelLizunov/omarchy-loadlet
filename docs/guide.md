@@ -395,8 +395,8 @@ A channel boost snapshots its original duty/mode,
 starts one owned transient system service, and restores the snapshot on expiry,
 stop, or worker exit. Root-only state lives in /run/loadlet-fans. ExecStopPost
 attempts restoration if the worker is killed. The override can outlive the UI
-so closing the panel does not cancel post-game cooldown. There is no automatic
-end-of-game detector or automatic channel-to-connector assignment.
+so closing the panel does not cancel a timed cooldown. Automatic game detection
+is separate from these timed boosts; channel-to-connector assignment stays manual.
 
 IT8613 rejects duty writes in automatic mode. Takeover goes through full speed
 before setting manual duty, without a fan-stop calibration. Requests never
@@ -432,10 +432,22 @@ unsupported choices fail rather than silently succeeding. Quiet idle uses boost
 off and powersave/power. Games permits boost and performance. Default fan values
 come from the current saved outputs, never invented quiet or gaming speeds.
 
+Automatic game profiles use SteamAppId/SteamGameId and an actual game executable,
+not GPU load or merely an open Steam launcher. A root-owned systemd worker checks
+every5seconds, keeps Games active through a15-second exit grace period, then
+restores the selected non-game preset (Quiet idle when Games is selected).
+Manual profile selection disables automation. The toggle enables/disables it with authentication;
+non-Steam games without Steam launch metadata are not detected. Editing Games
+requires disabling and enabling automation to capture the updated preset. The
+worker remains active with the panel closed and after reboot. Per-game CPU/fan
+settings are not inferred from load. No game-playthrough or reboot check is
+implied by installation.
+
 The optional root-owned helper is installed separately:
 
 ```sh
 sudo install -Dm755 power-profile /usr/local/lib/loadlet/power-profile
+sudo install -Dm644 GameDetection.py /usr/local/lib/loadlet/GameDetection.py
 ```
 
 The existing authenticated fan unlock grants exact validated profile apply and

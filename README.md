@@ -108,7 +108,9 @@ Named profiles now combine motherboard fan output, optional NVIDIA fan output,
 CPU turbo boost, governor/energy preference and a maximum CPU frequency. Fans
 provides quick icon buttons for Current settings, Quiet idle and Games; its
 profile editor can save, duplicate and remove presets. Saving is separate from
-applying. Quiet idle disables boost and requests powersave/power; no acoustic or
+applying. Automatic Steam/Proton detection can activate Games and restore the
+previous configuration after exit, including with the panel closed. Quiet idle
+disables boost and requests powersave/power; no acoustic or
 energy reduction is guaranteed. The optional root-owned `power-profile` adapter
 must be installed alongside `fan-control`. See the guide for actual supported
 controls, persistence and restoration.

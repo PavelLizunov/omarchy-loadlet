@@ -20,6 +20,7 @@ SELF = '/usr/local/lib/loadlet/power-profile'
 STORE = Path('/var/lib/loadlet-power')
 CPU = Path('/sys/devices/system/cpu')
 FANS = '/usr/local/lib/loadlet/fan-control'
+AUTO_STATUS = Path('/run/loadlet-auto-game/status.json')
 
 
 def policies():
@@ -260,6 +261,116 @@ def apply(value, boot=False):
         raise
 
 
+def detector():
+    loader = importlib.machinery.SourceFileLoader('loadlet_game_detection', str(Path(SELF).with_name('GameDetection.py')))
+    spec = importlib.util.spec_from_loader(loader.name, loader)
+    module = importlib.util.module_from_spec(spec)
+    loader.exec_module(module)
+    return module
+
+
+def auto_status():
+    try:
+        return json.loads(AUTO_STATUS.read_text())
+    except FileNotFoundError:
+        return {'enabled': False, 'gaming': False, 'error': ''}
+    except (OSError, ValueError):
+        return {'enabled': False, 'gaming': False, 'error': 'status_unavailable'}
+
+
+def publish_auto(gaming=False, error=''):
+    value = {'enabled': True, 'gaming': gaming, 'error': error}
+    if auto_status() == value:
+        return
+    atomic(AUTO_STATUS, value)
+    os.chmod(AUTO_STATUS.parent, 0o755)
+    os.chmod(AUTO_STATUS, 0o644)
+
+
+def auto_worker():
+    detection = detector()
+    stopped = False
+    def stop(*_):
+        nonlocal stopped
+        stopped = True
+    signal.signal(signal.SIGTERM, stop)
+    signal.signal(signal.SIGINT, stop)
+    last_game = 0
+    while not stopped:
+        try:
+            config = json.loads((STORE/'auto.json').read_text())
+            games = detection.running_games(config['uid'])
+            if games:
+                last_game = time.monotonic()
+            gaming = bool(games) or last_game > 0 and time.monotonic() - last_game < 15
+            lock = os.open(STORE/'.apply.lock', os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
+            try:
+                try:
+                    fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                except BlockingIOError:
+                    time.sleep(1)
+                    continue
+                # Re-read under the mutation lock; disabling can race detection.
+                if not (STORE/'auto.json').exists():
+                    break
+                config = json.loads((STORE/'auto.json').read_text())
+                target = config['game'] if gaming else config['base']
+                active = json.loads((STORE/'active.json').read_text()) if (STORE/'active.json').exists() else None
+                if active != target:
+                    apply(target)
+                publish_auto(gaming)
+            finally:
+                os.close(lock)
+        except FileNotFoundError:
+            if not (STORE/'auto.json').exists():
+                break
+            publish_auto(error='automatic_apply_failed')
+        except (OSError, ValueError, KeyError, subprocess.SubprocessError):
+            publish_auto(error='automatic_apply_failed')
+        for _ in range(5):
+            if stopped:
+                break
+            time.sleep(1)
+
+
+def configure_auto(payload):
+    caller = os.environ.get('SUDO_UID') or os.environ.get('PKEXEC_UID')
+    uid = int(caller or 0)
+    if uid <= 0:
+        raise ValueError('Automatic profiles require an authenticated desktop owner')
+    value = json.loads(base64.urlsafe_b64decode(payload))
+    if not isinstance(value, dict) or set(value) != {'game', 'base'}:
+        raise ValueError('Invalid automatic profile configuration')
+    game = validate(value['game'])
+    existing = json.loads((STORE/'auto.json').read_text()) if (STORE/'auto.json').exists() else None
+    if existing and existing['uid'] != uid:
+        raise ValueError('Automatic profiles belong to another account')
+    base = validate(value['base'])
+    if not base['cpu']:
+        raise ValueError('A complete CPU baseline is required for automatic restoration')
+    install_units()
+    subprocess.run(['systemctl', 'enable', 'loadlet-power-profile.service'], check=True, timeout=15)
+    atomic(STORE/'auto.json', {'uid': uid, 'game': game, 'base': base})
+    publish_auto()
+    Path('/etc/systemd/system/loadlet-auto-game.service').write_text(
+        '[Unit]\nDescription=Loadlet automatic game profile\nAfter=loadlet-power-profile.service\n'
+        '\n[Service]\nType=exec\nExecStart='+SELF+' auto-worker\nRestart=on-failure\nRestartSec=5\nTimeoutStopSec=240\n'
+        '\n[Install]\nWantedBy=multi-user.target\n')
+    subprocess.run(['systemctl', 'daemon-reload'], check=True, timeout=15)
+    subprocess.run(['systemctl', 'enable', '--now', 'loadlet-auto-game.service'], check=True, timeout=15)
+
+
+def disable_auto():
+    config = json.loads((STORE/'auto.json').read_text()) if (STORE/'auto.json').exists() else None
+    if config:
+        subprocess.run(['systemctl', 'disable', '--now', 'loadlet-auto-game.service'], check=True, timeout=250,
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    if config:
+        apply(validate(config['base']))
+        (STORE/'auto.json').unlink(missing_ok=True)
+    AUTO_STATUS.unlink(missing_ok=True)
+
+
 def install_units():
     Path('/etc/systemd/system/loadlet-power-profile.service').write_text(
         '[Unit]\nDescription=Loadlet selected CPU and fan profile\nAfter=systemd-modules-load.service\n'
@@ -276,17 +387,19 @@ def install_units():
 def main():
     args = sys.argv[1:]
     if args == ['status']:
-        print(json.dumps(capabilities()))
+        value = capabilities()
+        value['automatic'] = auto_status()
+        print(json.dumps(value))
         return
     if args and args[0] == 'request':
-        if not (len(args) == 2 and args[1] == 'restore' or len(args) == 3 and args[1] == 'apply'
+        if not (len(args) == 2 and args[1] in ('restore', 'auto-off') or len(args) == 3 and args[1] in ('apply', 'auto-config')
                 and len(args[2]) <= 8192 and re.fullmatch(r'[A-Za-z0-9_=-]+', args[2])):
             raise ValueError('Invalid profile request')
         command = [SELF, *args[1:]]
-        result = subprocess.run(['sudo', '-n', '--', *command], capture_output=True, text=True, timeout=120, env=dict(os.environ, LC_ALL='C'))
+        result = subprocess.run(['sudo', '-n', '--', *command], capture_output=True, text=True, timeout=300, env=dict(os.environ, LC_ALL='C'))
         if result.returncode and ('a password is required' in result.stderr or 'not allowed to execute' in result.stderr):
             subprocess.run(['pkexec', FANS, 'unlock', str(os.getuid())], check=True, timeout=60)
-            result = subprocess.run(['sudo', '-n', '--', *command], capture_output=True, text=True, timeout=120)
+            result = subprocess.run(['sudo', '-n', '--', *command], capture_output=True, text=True, timeout=300)
         if result.returncode:
             raise ValueError('Profile application failed')
         if hasattr(result, 'stdout') and result.stdout:
@@ -298,13 +411,22 @@ def main():
     st = STORE.lstat()
     if STORE.is_symlink() or st.st_uid != 0 or st.st_mode & 0o077:
         raise ValueError('Unsafe power profile directory')
-    if args and args[0] in ('apply', 'apply-active', 'restore'):
+    if args and args[0] in ('apply', 'apply-active', 'restore', 'auto-config', 'auto-off'):
         lock = os.open(STORE/'.apply.lock', os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
         fcntl.flock(lock, fcntl.LOCK_EX)
-    if len(args) == 2 and args[0] == 'apply':
+    if args == ['auto-worker']:
+        auto_worker()
+    elif len(args) == 2 and args[0] == 'auto-config':
+        if len(args[1]) > 8192 or not re.fullmatch(r'[A-Za-z0-9_=-]+', args[1]):
+            raise ValueError('Invalid automatic profile payload')
+        configure_auto(args[1])
+    elif args == ['auto-off']:
+        disable_auto()
+    elif len(args) == 2 and args[0] == 'apply':
         if len(args[1]) > 8192 or not re.fullmatch(r'[A-Za-z0-9_=-]+', args[1]):
             raise ValueError('Invalid encoded profile')
         value = validate(json.loads(base64.urlsafe_b64decode(args[1])))
+        disable_auto()
         install_units()
         apply(value)
         subprocess.run(['systemctl', 'enable', 'loadlet-power-profile.service'], check=True, timeout=15)
@@ -320,6 +442,7 @@ def main():
             value = validate(json.loads((STORE/'active.json').read_text()))
             gpu_worker(args[1], value['gpuFans'][args[1]])
     elif args == ['restore']:
+        disable_auto()
         value = json.loads((STORE/'active.json').read_text()) if (STORE/'active.json').exists() else {}
         for channel in value.get('fans', {}):
             subprocess.run([FANS, 'restore', channel], check=True, timeout=30)

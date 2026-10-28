@@ -267,7 +267,9 @@ def unlock(uid):
             + SELF + ' ^restore pwm[2-5]$, '
             + SELF + ' ^identify pwm[2-5] (0|5|10|20|30|40|50|60|80|100) 5$, '
             + '/usr/local/lib/loadlet/power-profile ^apply [A-Za-z0-9_=-]+$, '
-            + '/usr/local/lib/loadlet/power-profile ^restore$\n')
+            + '/usr/local/lib/loadlet/power-profile ^restore$, '
+            + '/usr/local/lib/loadlet/power-profile ^auto-config [A-Za-z0-9_=-]+$, '
+            + '/usr/local/lib/loadlet/power-profile ^auto-off$\n')
     import tempfile
     fd, temporary = tempfile.mkstemp(prefix='.loadlet-', dir='/etc/sudoers.d')
     try:

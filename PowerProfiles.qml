@@ -22,6 +22,9 @@ Column {
   property string pendingId: ""
   property string pendingPayload: ""
   property string operation: "apply"
+  readonly property var automatic: cpuCapabilities.automatic || ({enabled:false,gaming:false,error:""})
+  readonly property string automaticBaseId: settings.autoGameBaseProfile || (settings.activePowerProfile!=="games" ? settings.activePowerProfile || "idle" : "idle")
+  property string pendingBaseId: ""
   readonly property bool running: applyProcess.running
   readonly property var profiles: {
     try {
@@ -127,19 +130,49 @@ Column {
   }
   Process {
     id: applyProcess
-    command:root.operation==="restore"
-      ? ["/usr/local/lib/loadlet/power-profile","request","restore"]
-      : ["/usr/local/lib/loadlet/power-profile","request","apply",root.pendingPayload]
+    command:root.operation==="restore" || root.operation==="auto-off"
+      ? ["/usr/local/lib/loadlet/power-profile","request",root.operation]
+      : ["/usr/local/lib/loadlet/power-profile","request",root.operation,root.pendingPayload]
     onStarted:deadline.restart()
     onExited:function(code){
       deadline.stop()
       root.statusKey=code===0 ? "profile_applied" : "profile_failed"
-      if(code===0){root.saveSettings({activePowerProfile:root.operation==="restore"?"":root.pendingId});root.applied()}
+      if(code===0){
+        if(root.operation==="apply" || root.operation==="restore")root.saveSettings({activePowerProfile:root.operation==="restore"?"":root.pendingId,autoGameProfiles:false})
+        else root.saveSettings(root.operation==="auto-config" ? {autoGameProfiles:true,autoGameBaseProfile:root.pendingBaseId} : {autoGameProfiles:false,activePowerProfile:root.automaticBaseId})
+        root.applied();statusDeadline.restart();statusProcess.running=true
+      }
     }
   }
+  Timer {
+    interval:5000;repeat:true;running:root.visible
+    onTriggered:if(!statusProcess.running){statusDeadline.restart();statusProcess.running=true}
+  }
   Timer { id:statusDeadline;interval:5000;onTriggered:statusProcess.signal(9) }
-  Timer { id:deadline;interval:150000;onTriggered:{applyProcess.signal(15);root.statusKey="profile_failed"} }
+  Timer { id:deadline;interval:360000;onTriggered:{applyProcess.signal(15);root.statusKey="profile_failed"} }
 
+  Toggle {
+    objectName:"autoGameProfilesToggle"
+    width:parent.width
+    label:I18n.t("profile_auto_games",root.language)
+    description:I18n.t(root.automatic.error ? "profile_auto_error" : root.automatic.gaming ? "profile_auto_playing" : "profile_auto_hint",root.language)
+    checked:root.automatic.enabled
+    enabled:!root.running
+    foreground:root.foreground;accent:root.accent;fontFamily:Style.font.family
+    onClicked:{
+      if(root.automatic.enabled){root.operation="auto-off"}
+      else {
+        var game=root.profiles.filter(function(p){return p.id==="games"})[0]
+        var base=root.profiles.filter(function(p){return p.id===root.settings.activePowerProfile && p.id!=="games"})[0]
+          ||root.profiles.filter(function(p){return p.id==="idle"})[0]
+        if(!game || !base){root.statusKey="profile_failed";return}
+        root.pendingBaseId=base.id
+        root.pendingPayload=String(Qt.btoa(Array.from(JSON.stringify({game:game.config,base:base.config}),function(c){return c.charCodeAt(0)}))).replace(/\+/g,"-").replace(/\//g,"_")
+        root.operation="auto-config"
+      }
+      root.statusKey="profile_pending";applyProcess.running=true
+    }
+  }
   Flow {
     width:parent.width
     spacing:Style.spacing.xs
@@ -152,7 +185,7 @@ Column {
         height:Style.spacing.controlHeight
         text:modelData.name
         iconName:modelData.icon || "fans"
-        selected:root.settings.activePowerProfile===modelData.id
+        selected:root.automatic.enabled ? modelData.id===(root.automatic.gaming ? "games" : root.automaticBaseId) : root.settings.activePowerProfile===modelData.id
         foreground:root.foreground;accent:root.accent;fontFamily:Style.font.family
         bordered:true;focusable:true;enabled:!root.running
         onClicked:root.applyProfile(modelData)
