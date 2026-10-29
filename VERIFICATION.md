@@ -1,5 +1,30 @@
 # Loadlet verification
 
+## Compact map correction — 2.17.1 checkpoint
+
+The user's production compact screenshot exposed a cramped drawing with
+intersecting CPU/fan targets. The earlier offscreen compact image showed the
+same problem but was incorrectly accepted. Source cause: labels reserved64% of
+all widths, leaving about150logical units for the illustration.
+
+Compact labels now use short localized names and multiline values. At471x405
+fixture size the drawing is243units wide; CPU/fan and bottom/SSD hit rectangles
+do not overlap. Below436font-scaled content units, the full-width drawing and
+two-column labels stack vertically instead. Expanded geometry is unchanged.
+
+86UI cases and4locale/272key checks pass, including compact-size and stacked
+navigation coverage. Four inspected current-source images cover light compact,
+dark DPR2 compact, expanded and narrow layouts. Existing actual-consumer adapters
+remain inert. See docs/images/compact-map-2.17.1/manifest.json for source hashes
+and geometric checks. AT-SPI/atk-bridge warnings use report policy; no screen-reader
+or independent-review claim. Historical2.17.0 imagery is pinned to its commit.
+
+Installed22runtime files under runtime-2.17.1-compact-map-20261029. Existing shared
+shell reports that exact consumer,2.17.1,ready,error empty,panel closed. Settings
+remained byte-identical. No root-helper, preset, assignment or fan-output change.
+User acceptance of the revised compact layout remains pending; no general audit
+or new hardware test was performed. Source delivered on a separate checkpoint.
+
 ## Profile UX and live map — 2.17.0 checkpoint
 
 [Focused delivery and limits](docs/profile-ux-2.17.0.md). Local UI runner passes

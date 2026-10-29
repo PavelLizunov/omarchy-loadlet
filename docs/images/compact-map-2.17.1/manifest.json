@@ -1,0 +1,750 @@
+{
+  "runtimeVersion": "2.17.1",
+  "sourceBaseCommit": "f09d5b796e4401d7296236c8d5eda122a4e76bea",
+  "origin": "Actual Panel.qml; inert process/file/IPC, synthetic dense readings, fixture-only light or dark palette",
+  "sourceHashes": {
+    "ActivityController.qml": "c5b8d5f8fc383a9d87fc17b3d2678b1bb7d16420391a844cfa021d3bc7be9623",
+    "ActivityIcon.qml": "9e799b388b1ee577d0738da6640a6890169a1ca3e0db70f2958a05f055a6bc3a",
+    "ChoiceDropdown.qml": "69c87335340a9c3514c07fd8083b25905f0b915f5a941b45263519c8b8c909a0",
+    "ComputerMap.qml": "c8fac6b4248b4643e119c286f80128af5bc0aa52431e7ae2cda97047650c9133",
+    "DiagnosticExport.qml": "f9d87bcfd76d30dda87462c24084694f8988869ef0519de64e466c29df443295",
+    "Panel.qml": "8951d31081c1aba34869b503a16b763558be18ff4ba5298b6134f6d45526ac40",
+    "PowerProfiles.qml": "c0332fb86fa4701cd3acaad7b4694bfa782ea5ba303a7476e53e5d6494241d1d",
+    "ProcessActionController.qml": "bdf4f5e85185ba82fa7d9481588a8a5dbf0c0e65264bbe12bfb5f2120d0eedcf",
+    "SensorHistoryChart.qml": "7fa12291067af62b3e2eb75e8da4825f51b2e8cb9cccdbb9adf9080b1026c8bd",
+    "Sparkline.qml": "af92bb46af457e7fa42f6379aeb04d0404036547c174d59ec5af042efa48b6fb",
+    "SvgIcon.qml": "e2c4d849f9e82117d4898761a34d7868b5ec0335fa16c151e8f73d23d82dedd6",
+    "ActivityIconSvg.js": "e183d251ef9eda24a6e0284db1d84f9812b13b3c1443b3a7fe57343473ad2eae",
+    "HeatPolicy.js": "5e2a3fb26eaa51a202127fb3439d231f1c5353979575b859fde147ae8bdb28b3",
+    "I18n.js": "bb9cc9e363998d6814a11c8c99350ebce4455792fcf0a1ff6816fe0dc7dc5fe6",
+    "Messages.js": "924a8bdff7a38ef9347d730ea37cf9faff55ef9b65e2a4cc31923e75029757b5",
+    "Model.js": "ad3ac40c52d572193eb2041398e7000ccf85f588ea9bc346a5c0f8e6d3a081a1",
+    "ProfileCodec.js": "7a1097153245826d575cd38506bc6383d3484a116d37e68400cde91cec1677f5",
+    "test/render-compact-map.qml": "e055a7348c2ccf14b92825e1bc8a46a1d2947ee7b631fb629323d8c46609e679",
+    "test/mock-data.js": "c2087d43c107d6b31413c2cf583844687c16ea0dbb486eb7593171639655a126",
+    "test/ui-checks.py": "e2368a3bea18a8c580b25c28d41654804c8c80d6efbc01566d934a25abfc58e5"
+  },
+  "assetHashes": {
+    "compact.png": "d3849349d58fe0d627146a51f47b542229d8f20f79c1da55de065dd34e0784ee",
+    "compact-dark.png": "1f52a12b80fd80f1ef82f52ff3a5c7d076ac7420412f2e1b3c63b74620f81119",
+    "expanded.png": "05d0b5050401156b401b9a56c1fda02ed0927288fc89f1fea578cd52077d395f",
+    "narrow.png": "9c325750ea18db1abbec49729fb988ea9601028a447bbd0b0f73344c63ba03aa"
+  },
+  "images": [
+    {
+      "width": 471,
+      "height": 405,
+      "dpr": 1,
+      "locale": "ru_RU",
+      "initialProperties": {},
+      "capturedAt": "2026-10-29T16:17:29.130Z",
+      "sha256": "d3849349d58fe0d627146a51f47b542229d8f20f79c1da55de065dd34e0784ee",
+      "measurements": {
+        "computerMap": {
+          "activeFocus": false,
+          "clip": false,
+          "coordinateSpace": "logical-scene-axis-aligned",
+          "enabled": true,
+          "height": 264,
+          "implicitHeight": 264,
+          "implicitWidth": 0,
+          "visible": true,
+          "width": 439,
+          "x": 16,
+          "y": 122
+        },
+        "computerMapDrawing": {
+          "activeFocus": false,
+          "clip": false,
+          "coordinateSpace": "logical-scene-axis-aligned",
+          "enabled": true,
+          "height": 174.95999999999998,
+          "implicitHeight": 0,
+          "implicitWidth": 0,
+          "visible": true,
+          "width": 243,
+          "x": 114,
+          "y": 166.52
+        },
+        "mapLegendPart0": {
+          "activeFocus": false,
+          "clip": false,
+          "coordinateSpace": "logical-scene-axis-aligned",
+          "enabled": true,
+          "height": 41,
+          "implicitHeight": 14,
+          "implicitWidth": 22,
+          "visible": true,
+          "width": 94,
+          "x": 16,
+          "y": 122
+        },
+        "mapLegendPart10": {
+          "activeFocus": false,
+          "clip": false,
+          "coordinateSpace": "logical-scene-axis-aligned",
+          "enabled": true,
+          "height": 41,
+          "implicitHeight": 14,
+          "implicitWidth": 22,
+          "visible": true,
+          "width": 94,
+          "x": 16,
+          "y": 342
+        },
+        "mapTarget-cpu": {
+          "activeFocus": false,
+          "clip": false,
+          "coordinateSpace": "logical-scene-axis-aligned",
+          "enabled": true,
+          "height": 24,
+          "implicitHeight": 0,
+          "implicitWidth": 0,
+          "visible": true,
+          "width": 24,
+          "x": 206.49,
+          "y": 205.2584
+        },
+        "mapTarget-fan_bottom": {
+          "activeFocus": false,
+          "clip": false,
+          "coordinateSpace": "logical-scene-axis-aligned",
+          "enabled": true,
+          "height": 24,
+          "implicitHeight": 0,
+          "implicitWidth": 0,
+          "visible": true,
+          "width": 24,
+          "x": 221.55599999999998,
+          "y": 298.86199999999997
+        },
+        "mapTarget-fan_cpu": {
+          "activeFocus": false,
+          "clip": false,
+          "coordinateSpace": "logical-scene-axis-aligned",
+          "enabled": true,
+          "height": 24,
+          "implicitHeight": 0,
+          "implicitWidth": 0,
+          "visible": true,
+          "width": 24,
+          "x": 206.49,
+          "y": 229.75279999999998
+        },
+        "mapTarget-fan_ssd": {
+          "activeFocus": false,
+          "clip": false,
+          "coordinateSpace": "logical-scene-axis-aligned",
+          "enabled": true,
+          "height": 24,
+          "implicitHeight": 0,
+          "implicitWidth": 0,
+          "visible": true,
+          "width": 24,
+          "x": 259.95000000000005,
+          "y": 294.488
+        }
+      },
+      "geometryResults": [
+        {
+          "id": "0",
+          "kind": "inside",
+          "tolerance": 1,
+          "status": "PASS",
+          "expected": "all bounds inside container",
+          "measured": {
+            "left": 0,
+            "right": -345,
+            "top": 0,
+            "bottom": -223
+          },
+          "deviation": 0,
+          "coordinateSpace": "logical-scene-axis-aligned"
+        },
+        {
+          "id": "1",
+          "kind": "inside",
+          "tolerance": 1,
+          "status": "PASS",
+          "expected": "all bounds inside container",
+          "measured": {
+            "left": 0,
+            "right": -345,
+            "top": -220,
+            "bottom": -3
+          },
+          "deviation": 0,
+          "coordinateSpace": "logical-scene-axis-aligned"
+        },
+        {
+          "id": "2",
+          "kind": "noOverlap",
+          "tolerance": 1,
+          "status": "PASS",
+          "expected": "intersection penetration <= tolerance",
+          "measured": {
+            "x": 24,
+            "y": 0
+          },
+          "deviation": 0,
+          "coordinateSpace": "logical-scene-axis-aligned"
+        },
+        {
+          "id": "3",
+          "kind": "noOverlap",
+          "tolerance": 1,
+          "status": "PASS",
+          "expected": "intersection penetration <= tolerance",
+          "measured": {
+            "x": 0,
+            "y": 19.626000000000033
+          },
+          "deviation": 0,
+          "coordinateSpace": "logical-scene-axis-aligned"
+        }
+      ],
+      "file": "compact.png",
+      "inspected": true
+    },
+    {
+      "width": 480,
+      "height": 422,
+      "dpr": 2,
+      "locale": "ru_RU",
+      "initialProperties": {
+        "light": false,
+        "language": "en"
+      },
+      "capturedAt": "2026-10-29T16:17:30.026Z",
+      "sha256": "1f52a12b80fd80f1ef82f52ff3a5c7d076ac7420412f2e1b3c63b74620f81119",
+      "measurements": {
+        "computerMap": {
+          "activeFocus": false,
+          "clip": false,
+          "coordinateSpace": "logical-scene-axis-aligned",
+          "enabled": true,
+          "height": 264,
+          "implicitHeight": 264,
+          "implicitWidth": 0,
+          "visible": true,
+          "width": 448,
+          "x": 16,
+          "y": 122
+        },
+        "computerMapDrawing": {
+          "activeFocus": false,
+          "clip": false,
+          "coordinateSpace": "logical-scene-axis-aligned",
+          "enabled": true,
+          "height": 181.44,
+          "implicitHeight": 0,
+          "implicitWidth": 0,
+          "visible": true,
+          "width": 252,
+          "x": 114,
+          "y": 163.28
+        },
+        "mapLegendPart0": {
+          "activeFocus": false,
+          "clip": false,
+          "coordinateSpace": "logical-scene-axis-aligned",
+          "enabled": true,
+          "height": 41,
+          "implicitHeight": 14,
+          "implicitWidth": 22,
+          "visible": true,
+          "width": 94,
+          "x": 16,
+          "y": 122
+        },
+        "mapLegendPart10": {
+          "activeFocus": false,
+          "clip": false,
+          "coordinateSpace": "logical-scene-axis-aligned",
+          "enabled": true,
+          "height": 41,
+          "implicitHeight": 14,
+          "implicitWidth": 22,
+          "visible": true,
+          "width": 94,
+          "x": 16,
+          "y": 342
+        },
+        "mapTarget-cpu": {
+          "activeFocus": false,
+          "clip": false,
+          "coordinateSpace": "logical-scene-axis-aligned",
+          "enabled": true,
+          "height": 24,
+          "implicitHeight": 0,
+          "implicitWidth": 0,
+          "visible": true,
+          "width": 24,
+          "x": 210.36,
+          "y": 203.8976
+        },
+        "mapTarget-fan_bottom": {
+          "activeFocus": false,
+          "clip": false,
+          "coordinateSpace": "logical-scene-axis-aligned",
+          "enabled": true,
+          "height": 24,
+          "implicitHeight": 0,
+          "implicitWidth": 0,
+          "visible": true,
+          "width": 24,
+          "x": 225.98399999999998,
+          "y": 300.96799999999996
+        },
+        "mapTarget-fan_cpu": {
+          "activeFocus": false,
+          "clip": false,
+          "coordinateSpace": "logical-scene-axis-aligned",
+          "enabled": true,
+          "height": 24,
+          "implicitHeight": 0,
+          "implicitWidth": 0,
+          "visible": true,
+          "width": 24,
+          "x": 210.36,
+          "y": 229.29919999999998
+        },
+        "mapTarget-fan_ssd": {
+          "activeFocus": false,
+          "clip": false,
+          "coordinateSpace": "logical-scene-axis-aligned",
+          "enabled": true,
+          "height": 24,
+          "implicitHeight": 0,
+          "implicitWidth": 0,
+          "visible": true,
+          "width": 24,
+          "x": 265.8,
+          "y": 296.432
+        }
+      },
+      "geometryResults": [
+        {
+          "id": "0",
+          "kind": "inside",
+          "tolerance": 1,
+          "status": "PASS",
+          "expected": "all bounds inside container",
+          "measured": {
+            "left": 0,
+            "right": -354,
+            "top": 0,
+            "bottom": -223
+          },
+          "deviation": 0,
+          "coordinateSpace": "logical-scene-axis-aligned"
+        },
+        {
+          "id": "1",
+          "kind": "inside",
+          "tolerance": 1,
+          "status": "PASS",
+          "expected": "all bounds inside container",
+          "measured": {
+            "left": 0,
+            "right": -354,
+            "top": -220,
+            "bottom": -3
+          },
+          "deviation": 0,
+          "coordinateSpace": "logical-scene-axis-aligned"
+        },
+        {
+          "id": "2",
+          "kind": "noOverlap",
+          "tolerance": 1,
+          "status": "PASS",
+          "expected": "intersection penetration <= tolerance",
+          "measured": {
+            "x": 24,
+            "y": 0
+          },
+          "deviation": 0,
+          "coordinateSpace": "logical-scene-axis-aligned"
+        },
+        {
+          "id": "3",
+          "kind": "noOverlap",
+          "tolerance": 1,
+          "status": "PASS",
+          "expected": "intersection penetration <= tolerance",
+          "measured": {
+            "x": 0,
+            "y": 19.464000000000055
+          },
+          "deviation": 0,
+          "coordinateSpace": "logical-scene-axis-aligned"
+        }
+      ],
+      "file": "compact-dark.png",
+      "inspected": true
+    },
+    {
+      "width": 900,
+      "height": 682,
+      "dpr": 1,
+      "locale": "ru_RU",
+      "initialProperties": {
+        "expanded": true
+      },
+      "capturedAt": "2026-10-29T16:17:30.959Z",
+      "sha256": "05d0b5050401156b401b9a56c1fda02ed0927288fc89f1fea578cd52077d395f",
+      "measurements": {
+        "computerMap": {
+          "activeFocus": false,
+          "clip": false,
+          "coordinateSpace": "logical-scene-axis-aligned",
+          "enabled": true,
+          "height": 347.20000000000005,
+          "implicitHeight": 347.20000000000005,
+          "implicitWidth": 0,
+          "visible": true,
+          "width": 868,
+          "x": 16,
+          "y": 122
+        },
+        "computerMapDrawing": {
+          "activeFocus": false,
+          "clip": false,
+          "coordinateSpace": "logical-scene-axis-aligned",
+          "enabled": true,
+          "height": 345.59999999999997,
+          "implicitHeight": 0,
+          "implicitWidth": 0,
+          "visible": true,
+          "width": 480,
+          "x": 210,
+          "y": 122.80000000000004
+        },
+        "mapLegendPart0": {
+          "activeFocus": false,
+          "clip": false,
+          "coordinateSpace": "logical-scene-axis-aligned",
+          "enabled": true,
+          "height": 45,
+          "implicitHeight": 14,
+          "implicitWidth": 22,
+          "visible": true,
+          "width": 190,
+          "x": 16,
+          "y": 122
+        },
+        "mapLegendPart10": {
+          "activeFocus": false,
+          "clip": false,
+          "coordinateSpace": "logical-scene-axis-aligned",
+          "enabled": true,
+          "height": 45,
+          "implicitHeight": 14,
+          "implicitWidth": 22,
+          "visible": true,
+          "width": 190,
+          "x": 16,
+          "y": 421.20000000000005
+        },
+        "mapTarget-cpu": {
+          "activeFocus": false,
+          "clip": false,
+          "coordinateSpace": "logical-scene-axis-aligned",
+          "enabled": true,
+          "height": 30,
+          "implicitHeight": 0,
+          "implicitWidth": 0,
+          "visible": true,
+          "width": 30,
+          "x": 401.4,
+          "y": 208.02400000000003
+        },
+        "mapTarget-fan_bottom": {
+          "activeFocus": false,
+          "clip": false,
+          "coordinateSpace": "logical-scene-axis-aligned",
+          "enabled": true,
+          "height": 30,
+          "implicitHeight": 0,
+          "implicitWidth": 0,
+          "visible": true,
+          "width": 30,
+          "x": 431.15999999999997,
+          "y": 392.91999999999996
+        },
+        "mapTarget-fan_cpu": {
+          "activeFocus": false,
+          "clip": false,
+          "coordinateSpace": "logical-scene-axis-aligned",
+          "enabled": true,
+          "height": 30,
+          "implicitHeight": 0,
+          "implicitWidth": 0,
+          "visible": true,
+          "width": 30,
+          "x": 401.4,
+          "y": 256.408
+        },
+        "mapTarget-fan_ssd": {
+          "activeFocus": false,
+          "clip": false,
+          "coordinateSpace": "logical-scene-axis-aligned",
+          "enabled": true,
+          "height": 30,
+          "implicitHeight": 0,
+          "implicitWidth": 0,
+          "visible": true,
+          "width": 30,
+          "x": 507,
+          "y": 384.28
+        }
+      },
+      "geometryResults": [
+        {
+          "id": "0",
+          "kind": "inside",
+          "tolerance": 1,
+          "status": "PASS",
+          "expected": "all bounds inside container",
+          "measured": {
+            "left": 0,
+            "right": -678,
+            "top": 0,
+            "bottom": -302.20000000000005
+          },
+          "deviation": 0,
+          "coordinateSpace": "logical-scene-axis-aligned"
+        },
+        {
+          "id": "1",
+          "kind": "inside",
+          "tolerance": 1,
+          "status": "PASS",
+          "expected": "all bounds inside container",
+          "measured": {
+            "left": 0,
+            "right": -678,
+            "top": -299.20000000000005,
+            "bottom": -3
+          },
+          "deviation": 0,
+          "coordinateSpace": "logical-scene-axis-aligned"
+        },
+        {
+          "id": "2",
+          "kind": "noOverlap",
+          "tolerance": 1,
+          "status": "PASS",
+          "expected": "intersection penetration <= tolerance",
+          "measured": {
+            "x": 30,
+            "y": 0
+          },
+          "deviation": 0,
+          "coordinateSpace": "logical-scene-axis-aligned"
+        },
+        {
+          "id": "3",
+          "kind": "noOverlap",
+          "tolerance": 1,
+          "status": "PASS",
+          "expected": "intersection penetration <= tolerance",
+          "measured": {
+            "x": 0,
+            "y": 21.360000000000014
+          },
+          "deviation": 0,
+          "coordinateSpace": "logical-scene-axis-aligned"
+        }
+      ],
+      "file": "expanded.png",
+      "inspected": true
+    },
+    {
+      "width": 380,
+      "height": 422,
+      "dpr": 1,
+      "locale": "ru_RU",
+      "initialProperties": {},
+      "capturedAt": "2026-10-29T16:17:31.814Z",
+      "sha256": "9c325750ea18db1abbec49729fb988ea9601028a447bbd0b0f73344c63ba03aa",
+      "measurements": {
+        "computerMap": {
+          "activeFocus": false,
+          "clip": false,
+          "coordinateSpace": "logical-scene-axis-aligned",
+          "enabled": true,
+          "height": 518.56,
+          "implicitHeight": 518.56,
+          "implicitWidth": 0,
+          "visible": true,
+          "width": 348,
+          "x": 16,
+          "y": 122
+        },
+        "computerMapDrawing": {
+          "activeFocus": false,
+          "clip": false,
+          "coordinateSpace": "logical-scene-axis-aligned",
+          "enabled": true,
+          "height": 250.56,
+          "implicitHeight": 0,
+          "implicitWidth": 0,
+          "visible": true,
+          "width": 348,
+          "x": 16,
+          "y": 122
+        },
+        "mapLegendPart0": {
+          "activeFocus": false,
+          "clip": false,
+          "coordinateSpace": "logical-scene-axis-aligned",
+          "enabled": true,
+          "height": 41,
+          "implicitHeight": 14,
+          "implicitWidth": 22,
+          "visible": true,
+          "width": 172,
+          "x": 16,
+          "y": 376.56
+        },
+        "mapLegendPart10": {
+          "activeFocus": false,
+          "clip": false,
+          "coordinateSpace": "logical-scene-axis-aligned",
+          "enabled": true,
+          "height": 41,
+          "implicitHeight": 14,
+          "implicitWidth": 22,
+          "visible": true,
+          "width": 172,
+          "x": 16,
+          "y": 596.56
+        },
+        "mapTarget-cpu": {
+          "activeFocus": false,
+          "clip": false,
+          "coordinateSpace": "logical-scene-axis-aligned",
+          "enabled": true,
+          "height": 24,
+          "implicitHeight": 0,
+          "implicitWidth": 0,
+          "visible": true,
+          "width": 24,
+          "x": 153.64,
+          "y": 182.6624
+        },
+        "mapTarget-fan_bottom": {
+          "activeFocus": false,
+          "clip": false,
+          "coordinateSpace": "logical-scene-axis-aligned",
+          "enabled": true,
+          "height": 24,
+          "implicitHeight": 0,
+          "implicitWidth": 0,
+          "visible": true,
+          "width": 24,
+          "x": 175.216,
+          "y": 316.712
+        },
+        "mapTarget-fan_cpu": {
+          "activeFocus": false,
+          "clip": false,
+          "coordinateSpace": "logical-scene-axis-aligned",
+          "enabled": true,
+          "height": 24,
+          "implicitHeight": 0,
+          "implicitWidth": 0,
+          "visible": true,
+          "width": 24,
+          "x": 153.64,
+          "y": 217.74079999999998
+        },
+        "mapTarget-fan_ssd": {
+          "activeFocus": false,
+          "clip": false,
+          "coordinateSpace": "logical-scene-axis-aligned",
+          "enabled": true,
+          "height": 24,
+          "implicitHeight": 0,
+          "implicitWidth": 0,
+          "visible": true,
+          "width": 24,
+          "x": 230.20000000000002,
+          "y": 310.448
+        }
+      },
+      "geometryResults": [
+        {
+          "id": "0",
+          "kind": "inside",
+          "tolerance": 1,
+          "status": "PASS",
+          "expected": "all bounds inside container",
+          "measured": {
+            "left": 0,
+            "right": -176,
+            "top": -254.56,
+            "bottom": -222.99999999999994
+          },
+          "deviation": 0,
+          "coordinateSpace": "logical-scene-axis-aligned"
+        },
+        {
+          "id": "1",
+          "kind": "inside",
+          "tolerance": 1,
+          "status": "PASS",
+          "expected": "all bounds inside container",
+          "measured": {
+            "left": 0,
+            "right": -176,
+            "top": -474.55999999999995,
+            "bottom": -3
+          },
+          "deviation": 0,
+          "coordinateSpace": "logical-scene-axis-aligned"
+        },
+        {
+          "id": "2",
+          "kind": "noOverlap",
+          "tolerance": 1,
+          "status": "PASS",
+          "expected": "intersection penetration <= tolerance",
+          "measured": {
+            "x": 24,
+            "y": 0
+          },
+          "deviation": 0,
+          "coordinateSpace": "logical-scene-axis-aligned"
+        },
+        {
+          "id": "3",
+          "kind": "noOverlap",
+          "tolerance": 1,
+          "status": "PASS",
+          "expected": "intersection penetration <= tolerance",
+          "measured": {
+            "x": 0,
+            "y": 17.73599999999999
+          },
+          "deviation": 0,
+          "coordinateSpace": "logical-scene-axis-aligned"
+        }
+      ],
+      "file": "narrow.png",
+      "inspected": true
+    }
+  ],
+  "qtVersion": "6.12.0",
+  "rendererVersion": "0.3.0",
+  "backend": "software",
+  "warningsPolicy": "report",
+  "limits": [
+    "AT-SPI/atk-bridge warnings retained; no accessibility acceptance",
+    "User supplied production screenshot exposed prior visual acceptance gap",
+    "No production panel capture, physical control apply, or independent review",
+    "Below436font-scaled content units labels stack and require scrolling"
+  ]
+}

@@ -326,7 +326,7 @@ Item {
       var ctrl=plugin.activityController,snap=ctrl._sensorSnapshot
       ctrl._sensorSnapshot=Object.assign({},snap,{temperatures:snap.temperatures.concat([{id:'cpu-die',category:'cpu',value:62}]),fans:snap.fans.concat([{id:'gpu-fan',category:'gpu',fan:true,value:30,unit:'percent'}])})
       compare(named('mapReading-cpu').text,'54–62°C')
-      compare(named('mapReading-gpu').text,'48°C · 30%')
+      compare(named('mapReading-gpu').text,'48°C\n30%')
       plugin.assignSensor(ctrl._sensorSnapshot.temperatures[0],'storage')
       compare(plugin.mapReadings.cpu.text,'62°C');compare(plugin.mapReadings.storage.text,'54°C')
       ctrl.sensorsUpdatedAt=0
@@ -448,6 +448,21 @@ Item {
       verify(chart.maximum>1800);compare(chart.formatValue(1800),'1800')
       chart.points=[{time:420,value:0}];verify(chart.maximum>0)
       chart.points=[];compare(chart.selectedIndex,-1)
+    }
+    function test_compact_map_preserves_drawing() {
+      host.width=471;host.height=405;plugin.hintsVisible=false;clickVisible(tab('sensors'))
+      plugin.computerMapVisible=true;wait(20)
+      var drawing=named('computerMapDrawing'),map=named('computerMap')
+      verify(drawing.width>=240,'Callouts must not squeeze the diagram again')
+      var cpu=named('mapTarget-cpu'),fan=named('mapTarget-fan_cpu')
+      verify(cpu.y+cpu.height<=fan.y,'CPU hit targets do not overlap')
+      var bottom=named('mapTarget-fan_bottom'),ssd=named('mapTarget-fan_ssd')
+      verify(bottom.x+bottom.width<=ssd.x,'Bottom fan hit targets do not overlap')
+      host.width=380;wait(20)
+      verify(map.stacked);compare(drawing.width,map.width)
+      verify(named('mapLegendPart0').mapToItem(map,0,0).y>=drawing.height,'Narrow labels stack below, not over the drawing')
+      clickVisible(named('mapLegendPart1'),named('coolingViewport'))
+      compare(plugin.sensorPart,'cpu');compare(plugin.computerMapVisible,false)
     }
     function test_map_legend_cells_stay_inside() {
       plugin.hintsVisible=false;plugin.setExpanded(true);clickVisible(tab('sensors'))

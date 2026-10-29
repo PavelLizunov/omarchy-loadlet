@@ -11,9 +11,14 @@ Item {
   property string selectedPart: ""
   property var readings: ({})
   signal picked(string part)
-  readonly property real labelWidth: Math.min(width * 0.32, Style.space(190))
-  readonly property real rowHeight: Math.max(Style.space(48), Style.font.caption * 4 + Style.spacing.sm * 2)
-  implicitHeight: Math.max(width * 0.40, rowHeight * 6)
+  readonly property bool compact: width < Style.space(600)
+  readonly property bool stacked: width < Style.space(436)
+  readonly property real labelWidth: stacked ? (width-Style.spacing.sm)/2
+    : compact ? Style.space(94) : Math.min(width * 0.32, Style.space(190))
+  readonly property real rowHeight: compact ? Math.max(Style.space(44), Style.font.caption * 4 + Style.spacing.xs)
+    : Math.max(Style.space(48), Style.font.caption * 4 + Style.spacing.sm * 2)
+  implicitHeight: stacked ? drawing.height + Style.spacing.sm + rowHeight * 6
+    : Math.max(width * 0.40, rowHeight * 6)
   readonly property color ink: Host.Color.popups.text
   readonly property color accent: Host.Color.accent
   function hex(color) {
@@ -29,8 +34,10 @@ Item {
   ]
   Item {
     id: drawing
-    anchors.centerIn: parent
-    width: Math.max(0, parent.width - root.labelWidth * 2 - Style.spacing.sm * 2)
+    objectName: "computerMapDrawing"
+    x: (root.width-width)/2
+    y: root.stacked ? 0 : (root.height-height)/2
+    width: root.stacked ? parent.width : Math.max(0, parent.width - root.labelWidth * 2 - Style.spacing.sm * 2)
     height: width * 0.72
     Image {
       anchors.fill: parent
@@ -72,7 +79,8 @@ Item {
         required property int index
         x: modelData.x*drawing.width-width/2
         y: modelData.y*drawing.height-height/2
-        width: Style.space(30); height: width
+        objectName: "mapTarget-" + modelData.key
+        width: Style.space(root.compact ? 24 : 30); height: width
         Rectangle {
           anchors.centerIn: parent
           width: Style.space(20); height: width; radius: width/2
@@ -111,10 +119,12 @@ Item {
         readonly property real pointX: drawing.x + modelData.x * drawing.width
         readonly property real pointY: drawing.y + modelData.y * drawing.height
         x: modelData.side ? root.width - width : 0
-        y: modelData.row * (root.height-root.rowHeight) / 5
+        y: root.stacked ? drawing.height + Style.spacing.sm + modelData.row * root.rowHeight
+          : modelData.row * (root.height-root.rowHeight) / 5
         width: root.labelWidth
         height: root.rowHeight - Style.spacing.xs
         Rectangle {
+          visible: !root.stacked
           readonly property real dx: callout.pointX - callout.x - x
           readonly property real dy: callout.pointY - callout.y - y
           x: callout.modelData.side ? 0 : callout.width
@@ -142,15 +152,15 @@ Item {
             Text {
               id: title
               width: parent.width
-              text: (callout.index+1) + " · " + I18n.t("map_"+callout.modelData.key,root.language)
-              textFormat: Text.PlainText; elide: Text.ElideRight
+              text: (callout.index+1) + " · " + I18n.t((root.compact ? "map_short_" : "map_")+callout.modelData.key,root.language)
+              textFormat: Text.PlainText; wrapMode: Text.Wrap
               color: root.ink; font.family: Style.font.family; font.pixelSize: Style.font.caption
             }
             Text {
               id: value
               objectName: "mapReading-" + callout.modelData.key
               width: parent.width
-              text: callout.reading.text
+              text: root.compact ? String(callout.reading.text).split(" · ").join("\n") : callout.reading.text
               textFormat: Text.PlainText; wrapMode: Text.Wrap
               color: callout.reading.hot ? Host.Color.urgent : root.accent
               font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true

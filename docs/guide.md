@@ -297,6 +297,10 @@ appear beside the corresponding component. Multiple readings use a min–max ran
 hover for individual sensor names and values. Stale or missing data says No data,
 and percentages are never converted into RPM. Existing manual assignments apply.
 The map reuses current sensor samples, without extra polling or hardware writes.
+Compact mode uses short component names and separate lines for temperature, RPM
+and percentage, leaving more space for the drawing. Full names remain in hover
+text. Below the compact width budget, the drawing uses the full width and labels
+continue below it in two columns; the page scrolls instead of shrinking targets.
 It is collapsed by default so data remains visible.
 See the [drawing references](vector-design.md). Select CPU, GPU,
 RAM, drives or the motherboard to filter existing temperature/fan sensors and

@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.17.1 (checkpoint)
+
+- Correct the cramped compact computer map: short localized names, multiline
+  measurements and more drawing space. Avoid overlapping CPU/fan hit targets.
+- Stack the full-width diagram above its labels on narrower or large-font panels.
+  Keep expanded layout, telemetry, assignments and physical controls unchanged.
+
 ## 2.17.0 (checkpoint)
 
 - Separate profile selection from Apply and Edit; show the selected configuration

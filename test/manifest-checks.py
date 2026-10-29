@@ -54,11 +54,19 @@ for name, expected in release_visuals['assetHashes'].items():
     assert sha(root / 'docs/images/release-2.16.0' / name) == expected, name
 assert (root / 'preview.png').read_bytes() == (root / 'docs/images/release-2.16.0/overview.png').read_bytes()
 profile_visuals = json.loads((root / 'docs/images/profile-ux-2.17.0/manifest.json').read_text())
-assert profile_visuals['runtimeVersion'] == m['version']
+profile_commit = 'f09d5b796e4401d7296236c8d5eda122a4e76bea'
 for name, expected in profile_visuals['sourceHashes'].items():
-    assert sha(root / name) == expected, name
+    actual = hashlib.sha256(subprocess.check_output(
+        ['git', '-C', str(root), 'show', f'{profile_commit}:{name}'])).hexdigest()
+    assert actual == expected, name
 for name, expected in profile_visuals['assetHashes'].items():
     assert sha(root / 'docs/images/profile-ux-2.17.0' / name) == expected, name
+compact_visuals = json.loads((root / 'docs/images/compact-map-2.17.1/manifest.json').read_text())
+assert compact_visuals['runtimeVersion'] == m['version']
+for name, expected in compact_visuals['sourceHashes'].items():
+    assert sha(root / name) == expected, name
+for name, expected in compact_visuals['assetHashes'].items():
+    assert sha(root / 'docs/images/compact-map-2.17.1' / name) == expected, name
 video = json.loads((root / 'docs/video/qa.json').read_text())
 assert video['durationSeconds'] == 16 and video['fps'] == 30 and video['frames'] == 480
 assert video['silent'] and video['fullDecode'] == 'PASS' and video['fastStart'] == 'PASS'
