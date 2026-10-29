@@ -68,7 +68,7 @@ Panel {
         journalError: activity.journalError,
         heatThreshold: activity.heatThreshold,
         productName: "Loadlet",
-        iconRevision: "2.17.1",
+        iconRevision: "2.17.2",
         rightClickAction: "none",
         iconTooltip: button.tooltipText,
         iconConsumer: String(Qt.resolvedUrl("Panel.qml")),
@@ -1153,6 +1153,7 @@ Panel {
           ]
           SvgButton {
             required property var modelData
+            objectName: "pageTab-" + modelData.key
             width: (pageTabs.width - pageTabs.spacing * 2) / 3
             height: Style.space(30)
             text: I18n.t(modelData.key, root.effectiveLanguage)
@@ -1161,9 +1162,14 @@ Panel {
             fontSize: Style.font.bodySmall
             foreground: root.foreground
             accent: root.accent
-            bordered: true
+            bordered: false
             focusable: true
             selected: root.sensorsOpen === modelData.sensors && root.fansOpen === modelData.fans
+            Rectangle {
+              anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom
+              height: Math.max(1,Style.space(2)); color: root.accent
+              visible: parent.selected
+            }
             onClicked: {
               processActions.cancel()
               root.computerMapVisible = false
@@ -1227,6 +1233,8 @@ Panel {
     id: svgButton
     property string iconName: ""
     iconText: iconName ? "\u2003" : ""
+    Accessible.role: Accessible.Button
+    Accessible.name: text || tooltipText
     SvgIcon {
       id: buttonSvg
       name: svgButton.iconName
@@ -1621,7 +1629,7 @@ Panel {
       objectName: parent.showToggle ? "computerMapToggle" : "navigatorMapToggle"
       visible: parent.showToggle
       text: I18n.t(root.computerMapVisible ? "map_close" : "map_open", root.effectiveLanguage)
-      iconName: "overview"
+      iconName: "diagram"
       selected: root.computerMapVisible
       foreground: root.foreground; accent: root.accent
       fontFamily: Style.font.family; fontSize: Style.font.bodySmall
@@ -1700,41 +1708,35 @@ Panel {
         objectName: "coolingBody"
         width: parent.width
         spacing: Style.spacing.sm
-        Row {
-          width: parent.width; spacing: Style.spacing.sm
+        Item {
+          objectName: "coolingToolbar"
+          width: parent.width; height: Style.spacing.controlHeight
           SvgButton {
             objectName: "computerMapToggle"
-            tooltipText: I18n.t("map_open", root.effectiveLanguage)
-            width: (parent.width-parent.spacing*2)/3
-            height: Style.spacing.controlHeight
-            text: I18n.t(root.computerMapVisible ? "map_close_short" : "map_open_short", root.effectiveLanguage)
-            iconName: "overview"; selected: root.computerMapVisible
+            anchors.left: parent.left
+            tooltipText: I18n.t(root.computerMapVisible ? "map_close" : "map_open", root.effectiveLanguage)
+            width: Math.min(implicitWidth,(parent.width-Style.spacing.sm)/2)
+            height: parent.height
+            text: I18n.t("map_open_short", root.effectiveLanguage)
+            iconName: "diagram"; selected: root.computerMapVisible
             foreground: root.foreground; accent: root.accent
-            fontFamily: Style.font.family; fontSize: Style.font.caption; bordered: true; focusable: true
+            fontFamily: Style.font.family; fontSize: Style.font.caption; focusable: true
             onClicked: root.computerMapVisible = !root.computerMapVisible
           }
           SvgButton {
-            width: (parent.width-parent.spacing*2)/3
-            height: Style.spacing.controlHeight
+            objectName: "sensorRecordingButton"
+            anchors.right: parent.right
+            width: Math.min(implicitWidth,(parent.width-Style.spacing.sm)/2)
+            height: parent.height
             text: I18n.t(activity.sensorRecording ? "sensor_recording_short_on" : "sensor_recording_short_off",root.effectiveLanguage)
-            iconName: "storage"; selected: activity.sensorRecording
+            iconName: activity.sensorRecording ? "recording" : "record"
             foreground: root.foreground; accent: root.accent
             fontFamily: Style.font.family; fontSize: Style.font.caption
-            bordered: true; focusable: true
+            focusable: true
             tooltipText: I18n.t("sensor_recording_hint",root.effectiveLanguage)
+            Accessible.role: Accessible.CheckBox
+            Accessible.checked: activity.sensorRecording
             onClicked: root.persistSettings({sensorRecording:!activity.sensorRecording})
-          }
-          SvgButton {
-            width: (parent.width-parent.spacing*2)/3
-            height: Style.spacing.controlHeight
-            objectName: "sensorOptionsToggle"
-            tooltipText: I18n.t("map_sensor_assignment", root.effectiveLanguage)
-            text: I18n.t("map_category_short",root.effectiveLanguage)
-            iconName: "settings"; selected: root.sensorOptionsOpen
-            foreground: root.foreground; accent: root.accent
-            fontFamily: Style.font.family; fontSize: Style.font.caption
-            bordered: true; focusable: true
-            onClicked: root.sensorOptionsOpen=!root.sensorOptionsOpen
           }
         }
         ComputerNavigator { showToggle: false; visible: root.computerMapVisible || root.sensorPart !== "" }
@@ -1770,21 +1772,38 @@ Panel {
           fontSize: Style.font.caption; bordered: true; focusable: true; enabled: !root.historyPending
           onClicked: root.loadSensorHistory()
         }
-        ChoiceDropdown {
-          id: sensorDropdown
-          width: parent.width
-          enabled: root.filteredSensors.length > 0
-          objectName: "sensorDropdown"
-          label: I18n.t("sensor_device", root.effectiveLanguage)
-          value: root.selectedSensor ? root.selectedSensor.id : ""
-          options: root.filteredSensors.map(function(sensor) {
-            return {value:sensor.id,label:root.sensorOwner(sensor) + " · " + root.sensorLabel(sensor)}
-          })
-          foreground: root.foreground; accent: root.accent
-          fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
-          onChanged: function(value) {
-            root.selectedSensorId = value
-            sensorDropdown.value = Qt.binding(function() { return root.selectedSensor ? root.selectedSensor.id : "" })
+        Row {
+          width: parent.width; spacing: Style.spacing.sm
+          ChoiceDropdown {
+            id: sensorDropdown
+            width: parent.width - sensorCategoryButton.width - parent.spacing
+            enabled: root.filteredSensors.length > 0
+            objectName: "sensorDropdown"
+            label: I18n.t("sensor_device", root.effectiveLanguage)
+            value: root.selectedSensor ? root.selectedSensor.id : ""
+            options: root.filteredSensors.map(function(sensor) {
+              return {value:sensor.id,label:root.sensorOwner(sensor) + " · " + root.sensorLabel(sensor)}
+            })
+            foreground: root.foreground; accent: root.accent
+            fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
+            onChanged: function(value) {
+              root.selectedSensorId = value
+              sensorDropdown.value = Qt.binding(function() { return root.selectedSensor ? root.selectedSensor.id : "" })
+            }
+          }
+          SvgButton {
+            id: sensorCategoryButton
+            objectName: "sensorOptionsToggle"
+            anchors.bottom: parent.bottom
+            width: Math.min(implicitWidth,parent.width*0.4)
+            height: sensorDropdown.rowHeight
+            text: I18n.t("map_category_short",root.effectiveLanguage)
+            tooltipText: I18n.t("map_sensor_assignment",root.effectiveLanguage)
+            iconName: "category"; selected: root.sensorOptionsOpen
+            enabled: !!root.selectedSensor
+            foreground: root.foreground; accent: root.accent
+            fontFamily: Style.font.family; fontSize: Style.font.caption; focusable: true
+            onClicked: root.sensorOptionsOpen=!root.sensorOptionsOpen
           }
         }
         Row {
@@ -1927,7 +1946,7 @@ Panel {
                 height: Style.spacing.controlHeight
                 width: parent.width
                 text: I18n.t("map_assignment", root.effectiveLanguage, fanChannelCard.channel.id)
-                iconName: "settings"; selected: root.fanAssignmentOpen
+                iconName: "category"; selected: root.fanAssignmentOpen
                 foreground: root.foreground; accent: root.accent; fontFamily: Style.font.family
                 fontSize: Style.font.caption; bordered: true; focusable: true
                 onClicked: root.fanAssignmentOpen = !root.fanAssignmentOpen
@@ -1996,7 +2015,7 @@ Panel {
                   height: Style.spacing.controlHeight
                   text: I18n.t("fan_save_output", root.effectiveLanguage)
                   tooltipText: I18n.t("fan_output_percent", root.effectiveLanguage)
-                  iconName: "settings"
+                  iconName: "save"
                   foreground: root.foreground; accent: root.accent; fontFamily: Style.font.family
                   bordered: true; focusable: true
                   enabled: !fanController.running && fanOutputInput.acceptableInput
@@ -2026,7 +2045,7 @@ Panel {
                   anchors.bottom:parent.bottom
                   objectName: "fanHistoryButton"
                   height: fanDurationDropdown.rowHeight
-                  text:I18n.t("map_fan_history",root.effectiveLanguage);iconName:"overview"
+                  text:I18n.t("map_fan_history",root.effectiveLanguage);iconName:"history"
                   foreground:root.foreground;accent:root.accent;fontFamily:Style.font.family
                   bordered:true;focusable:true
                   onClicked:root.showFanHistory(fanChannelCard.channel.id)

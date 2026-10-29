@@ -1,5 +1,14 @@
 # Changelog
 
+## 2.17.2 (checkpoint)
+
+- Separate underlined page navigation from the lighter Cooling toolbar. Keep
+  Diagram at the left and recording state at the right.
+- Put Category beside the selected sensor; hide it with the chart when the map
+  is open and disable it without a selected sensor.
+- Give diagram, recording, category, edit, save, delete and history distinct
+  outline icons. Keep labels, native controls, settings and hardware behavior.
+
 ## 2.17.1 (checkpoint)
 
 - Correct the cramped compact computer map: short localized names, multiline

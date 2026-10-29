@@ -91,6 +91,8 @@ Column {
     id: button
     property string iconName: ""
     iconText: iconName ? "\u2003" : ""
+    Accessible.role: Accessible.Button
+    Accessible.name: text || tooltipText
     SvgIcon {
       id: glyph
       name: button.iconName
@@ -229,7 +231,7 @@ Column {
     SvgButton {
       objectName:"profileEditorToggle"
       width:(parent.width-parent.spacing)/2
-      text:I18n.t("profile_edit_short",root.language);iconName:"settings"
+      text:I18n.t("profile_edit_short",root.language);iconName:"edit"
       foreground:root.foreground;accent:root.accent;fontFamily:Style.font.family
       bordered:true;focusable:true;enabled:!root.running
       onClicked:{root.selectProfile(root.selectedProfile.id);root.editorOpen=true}
@@ -412,7 +414,7 @@ Column {
       width:parent.width;spacing:Style.spacing.xs
       SvgButton {
         objectName:"deletePowerProfileButton"
-        text:I18n.t(root.deletePending ? "profile_delete_confirm" : "profile_delete",root.language);iconName:"close"
+        text:I18n.t(root.deletePending ? "profile_delete_confirm" : "profile_delete",root.language);iconName:"trash"
         foreground:root.foreground;accent:root.accent;fontFamily:Style.font.family
         bordered:true;focusable:true
         enabled:!root.running && root.profiles.length>1 && root.settings.activePowerProfile!==root.selectedId
@@ -426,7 +428,7 @@ Column {
       }
       SvgButton {
         objectName:"savePowerProfileButton"
-        text:I18n.t("profile_save",root.language);iconName:"check"
+        text:I18n.t("profile_save",root.language);iconName:"save"
         foreground:root.foreground;accent:root.accent;fontFamily:Style.font.family
         bordered:true;focusable:true;onClicked:if(root.saveDraft())root.editorOpen=false
       }

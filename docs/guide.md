@@ -190,6 +190,10 @@ explicit details route change it. Long pages scroll internally with a persistent
 scroll thumb. Fan location and identification controls are separate disclosures;
 ordinary boost and restore actions fit the default compact Fans view. Cooling's
 compact toolbar leaves the chart and range summary visible without scrolling.
+The selected page is underlined. Diagram sits at the left of the lighter Cooling
+toolbar; recording sits at the right, with an empty or filled circle and explicit
+off/on text. Category is beside the selected sensor, not another navigation tab.
+It is hidden while the diagram is open and disabled when no sensor is selected.
 Scrolling pages keep both content edges aligned with their tabs; the scroll thumb
 uses the outer padding, not an asymmetric content gutter. Keyboard focus scrolls
 controls into view. RPM history has an explicit return to the originating channel.

@@ -1,5 +1,35 @@
 # Loadlet verification
 
+## Navigation and icons — 2.17.2 checkpoint
+
+The supplied Cooling toolbar screenshot showed two equal bordered rows: page
+navigation and unrelated actions. Diagram reused Overview's chart; recording
+used a storage drive; Category used the global settings gear. Category could
+also toggle an editor hidden by the open map.
+
+The selected page now has an underline. The lighter toolbar separates Diagram
+from recording, which retains explicit on/off text and adds empty/filled circles.
+Category is beside the selected sensor, hidden with the chart and disabled without
+a sensor. Profile edit/save/delete and fan assignment/history use distinct icons.
+Native button geometry, labels, theme roles and underlying actions are retained.
+
+Six actual-consumer images were inspected: light compact map and chart, expanded
+category editor, narrow German DPR2 chart, Russian compact profiles and English
+expanded editor. See docs/images/toolbar-2.17.2/manifest.json for source/adapter
+hashes and observations. The initial preview exposed an invalid Text.implicitWidth
+assignment; that sizing change was removed. Final renders show no QML errors;
+AT-SPI/atk-bridge warnings remain under report policy, not accessibility acceptance.
+The unavailable anti-slop skill was replaced by direct native design self-review.
+No independent review was performed under the project scope.
+
+Automated tests, new regression tests, interaction checks, full make check and
+physical-control trials were not requested or run. Existing media validation now
+pins 2.17.1 images to their historical commit; this maintenance is not a test pass.
+Installed 22 exact files under runtime-2.17.2-toolbar-20261029 and requested rescan
+through the existing shared shell. Settings remained byte-identical. No helper,
+preset, assignment or hardware-output changes. Loaded identity and user acceptance
+remain unverified. Delivery is a separate checkpoint, not main or a new release.
+
 ## Compact map correction — 2.17.1 checkpoint
 
 The user's production compact screenshot exposed a cramped drawing with

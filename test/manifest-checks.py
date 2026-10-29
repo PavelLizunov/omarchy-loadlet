@@ -62,9 +62,11 @@ for name, expected in profile_visuals['sourceHashes'].items():
 for name, expected in profile_visuals['assetHashes'].items():
     assert sha(root / 'docs/images/profile-ux-2.17.0' / name) == expected, name
 compact_visuals = json.loads((root / 'docs/images/compact-map-2.17.1/manifest.json').read_text())
-assert compact_visuals['runtimeVersion'] == m['version']
+compact_commit = 'efcf8440bad18d9e525afb6da8ff406a1238bc49'
 for name, expected in compact_visuals['sourceHashes'].items():
-    assert sha(root / name) == expected, name
+    actual = hashlib.sha256(subprocess.check_output(
+        ['git', '-C', str(root), 'show', f'{compact_commit}:{name}'])).hexdigest()
+    assert actual == expected, name
 for name, expected in compact_visuals['assetHashes'].items():
     assert sha(root / 'docs/images/compact-map-2.17.1' / name) == expected, name
 video = json.loads((root / 'docs/video/qa.json').read_text())
