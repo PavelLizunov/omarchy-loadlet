@@ -6,7 +6,9 @@ sensor history, and optional automatic CPU and cooling profiles for Steam games.
 [Releases](https://github.com/PavelLizunov/omarchy-loadlet/releases) ·
 [Guide](docs/guide.md) · [Changelog](CHANGELOG.md)
 
-![Loadlet system overview, inert demonstration data](docs/images/release-2.16.0/overview.png)
+[![Loadlet cooling map, inert demonstration data](docs/video/2.17.2/assets/map.png)](docs/video/2.17.2/README.md)
+
+[Watch the 24-second walkthrough](docs/video/2.17.2/loadlet-2.17.2.mp4)
 
 ## Install
 
@@ -38,7 +40,7 @@ updates the preset; Save and apply activates it. Manual control cancels automati
 The computer map shows fresh temperatures and RPM beside its component points.
 No guaranteed noise, temperature, power or performance improvement.
 
-![Profile selection and fan controls, inert demonstration data](docs/images/profile-ux-2.17.0/profiles.png)
+![Profile selection and fan controls, inert demonstration data](docs/video/2.17.2/assets/profiles.png)
 
 ## Optional system controls
 

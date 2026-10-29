@@ -1,5 +1,25 @@
 # Loadlet verification
 
+## Accepted UI and publication — 2.17.2
+
+The user reported a major improvement and explicitly accepted publishing the
+interface to main. Exact source commit eb085206ed732cd50b20db40f5bdb20c34f7f5b4
+passed GitHub CI40917374922 before main was advanced. The source checkout branches
+and indexes were preserved. This is user usability feedback, not new evidence of
+hardware behavior, every interaction or loaded runtime identity.
+
+A new silent24-second1600x900/30fps MP4 uses five inspected actual-consumer DPR2
+images and six inspected encoded scene covers. Inert demo data, edited cuts and
+optional authenticated controls are disclosed. See docs/video/2.17.2/README.md.
+No local tests, full-decode campaign, new hardware trial or independent review
+was requested or run for these publication assets. Marketplace submission and
+maintainer approval remain distinct; Twitter/X text is a draft, not a sent post.
+
+Correction: the separate anti-slop skill was installed under the local skills
+directory but absent from the abbreviated session catalog. The earlier claim
+that it was unavailable was unsupported. It and its carve-outs were read for
+this publication pass. See docs/ui-review-resources.md for public references.
+
 ## Navigation and icons — 2.17.2 checkpoint
 
 The supplied Cooling toolbar screenshot showed two equal bordered rows: page

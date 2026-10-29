@@ -1,0 +1,60 @@
+{
+  "width": 1600,
+  "height": 900,
+  "fps": 30,
+  "durationSeconds": 24,
+  "audio": "none",
+  "sceneSeconds": 4,
+  "scenes": [
+    [
+      "map",
+      "Loadlet 2.17.2",
+      "Cooling at a glance",
+      "Temperatures and fan readings\nbeside the computer diagram.\n\nMissing data stays unavailable."
+    ],
+    [
+      "history",
+      "Sensor history",
+      "Choose a reading",
+      "10 minutes, 1 hour or 6 hours.\n\nRecording is opt-in.\nOpening a chart does not enable it."
+    ],
+    [
+      "profiles",
+      "CPU and cooling",
+      "Browse, then apply",
+      "Inspect a preset without\nchanging your hardware.\n\nApply and Edit are separate actions."
+    ],
+    [
+      "editor",
+      "Make it yours",
+      "Save or save and apply",
+      "CPU boost, frequency limits\nand supported fan outputs.\n\nSystem controls need optional\nauthenticated helpers."
+    ],
+    [
+      "overview",
+      "See the workload",
+      "Expand for processes",
+      "CPU, RAM and per-GPU usage.\n\nSearch and inspect the\nsampled process list."
+    ],
+    [
+      "map",
+      "Loadlet for Omarchy",
+      "Available on GitHub",
+      "github.com/PavelLizunov/\nomarchy-loadlet\n\nLinux x86_64 \u00b7 Omarchy Quattro\nMIT \u00b7 Based on Activity Monitor\nby Kristoffer Haugland"
+    ]
+  ],
+  "origin": "Edited actual-consumer stills, not live telemetry or click-through",
+  "validation": "Encoding completed; no separate decode or interaction test run",
+  "sourceCommit": "eb085206ed732cd50b20db40f5bdb20c34f7f5b4",
+  "inspectedSceneCovers": 6,
+  "outputs": {
+    "loadlet-2.17.2.mp4": {
+      "bytes": 434675,
+      "sha256": "74e54b6de0afb228561c7aff36d7c9e8e84f772ffe6a8ba1b1c587b7fe3849af"
+    },
+    "poster.png": {
+      "bytes": 258744,
+      "sha256": "ad425386e303b1985ca57a02e96b028e8e6b2ef07768ffa1168f860e495506f1"
+    }
+  }
+}

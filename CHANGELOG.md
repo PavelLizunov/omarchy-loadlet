@@ -1,6 +1,6 @@
 # Changelog
 
-## 2.17.2 (checkpoint)
+## 2.17.2
 
 - Separate underlined page navigation from the lighter Cooling toolbar. Keep
   Diagram at the left and recording state at the right.
@@ -8,6 +8,8 @@
   is open and disable it without a selected sensor.
 - Give diagram, recording, category, edit, save, delete and history distinct
   outline icons. Keep labels, native controls, settings and hardware behavior.
+- Publish the accepted 2.17.x interface to main, with a new 24-second native-QML
+  walkthrough, current README/Marketplace preview and a Twitter/X draft.
 
 ## 2.17.1 (checkpoint)
 

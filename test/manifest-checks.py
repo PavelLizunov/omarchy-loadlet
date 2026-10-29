@@ -52,7 +52,7 @@ for name, expected in release_visuals['sourceHashes'].items():
     assert actual == expected, name
 for name, expected in release_visuals['assetHashes'].items():
     assert sha(root / 'docs/images/release-2.16.0' / name) == expected, name
-assert (root / 'preview.png').read_bytes() == (root / 'docs/images/release-2.16.0/overview.png').read_bytes()
+assert (root / 'preview.png').read_bytes() == (root / 'docs/video/2.17.2/assets/map.png').read_bytes()
 profile_visuals = json.loads((root / 'docs/images/profile-ux-2.17.0/manifest.json').read_text())
 profile_commit = 'f09d5b796e4401d7296236c8d5eda122a4e76bea'
 for name, expected in profile_visuals['sourceHashes'].items():

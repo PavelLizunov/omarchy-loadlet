@@ -1,5 +1,8 @@
 # Loadlet video
 
+[Current 2.17.2 walkthrough](2.17.2/README.md) shows the cooling map, history,
+profiles and processes. The files below remain historical 2.8.1 media.
+
 [Master MP4](loadlet.mp4) · [Messenger MP4](loadlet-web.mp4)
 
 Historical silent16-second1280x720/30fps walkthrough of Loadlet2.8.1.

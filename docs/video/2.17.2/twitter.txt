@@ -1,0 +1,3 @@
+Loadlet 2.17.2 for Omarchy: a readable cooling map, sensor history, CPU/fan profiles with separate Apply and Edit actions, and per-GPU process usage. Native QML, open source. Optional helpers enable system controls.
+
+https://github.com/PavelLizunov/omarchy-loadlet
