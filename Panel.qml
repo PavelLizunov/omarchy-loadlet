@@ -73,7 +73,7 @@ Panel {
         captureInterval: activity.captureAppliedInterval,
         heatThreshold: activity.heatThreshold,
         productName: "Loadlet",
-        iconRevision: "2.18.0",
+        iconRevision: "2.18.1",
         rightClickAction: "none",
         iconTooltip: button.tooltipText,
         iconConsumer: String(Qt.resolvedUrl("Panel.qml")),
@@ -674,7 +674,7 @@ Panel {
       iconLoadThreshold: 50,
       iconHeatThreshold: 80,
       iconMotion: true,
-      diagnosticJournal: false, sensorAssignments: "{}",
+      diagnosticJournal: false, diagnosticCapture: false, diagnosticCaptureInterval: 500, sensorAssignments: "{}",
       fanPlace_pwm2: "unknown", fanPlace_pwm3: "unknown", fanPlace_pwm4: "unknown", fanPlace_pwm5: "unknown",
       compactTileCount: 2, compactTile0: "cpu", compactTile1: "ram", compactTile2: "gpu", compactRamStrip: true, sensorRecording: false
     })
@@ -895,6 +895,9 @@ Panel {
 
   ActivityController {
     id: activity
+    onCapturePreferencesRequested: function(wanted, interval) {
+      root.persistSettings({diagnosticCapture:wanted, diagnosticCaptureInterval:interval})
+    }
     settings: root.settings
     active: root.opened
     backgroundEnabled: root.booleanSetting("iconIndicator", true)
@@ -2632,6 +2635,7 @@ Panel {
               spacing: Style.spacing.md
               Diagnostics {
                 width: parent.width
+                panelOpen: root.opened
                 activity: root.activityController
                 language: root.effectiveLanguage
               }

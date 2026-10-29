@@ -87,8 +87,10 @@ has not been measured.
 
 Settings → History also provides explicit native diagnostic sessions with
 250/500/1000 ms CPU polling, 1 s process candidates, incident markers, local
-window analysis and optional Omarchy/Pi terminal handoff. It is off by default
-and does not replace the legacy recording below. See [usage, storage bounds,
+window analysis, on-demand Pi answers inside Loadlet, and optional Omarchy/Pi
+terminal handoff. Start/Stop and interval are saved across shell reloads; new
+installations still default to off. It does not replace the legacy recording
+below. See [usage, storage bounds,
 measured cost and evidence limitations](fast-diagnostics.md).
 
 ## Diagnostic history and agent recommendations

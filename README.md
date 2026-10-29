@@ -41,8 +41,11 @@ The computer map shows fresh temperatures and RPM beside its component points.
 No guaranteed noise, temperature, power or performance improvement.
 
 Settings → History offers opt-in 250/500/1000 ms CPU diagnostics, incident markers,
-correlated local charts and explicit agent handoff. Recording runs in the existing
-reader, with bounded storage and no AI calls. [Usage and limits](docs/fast-diagnostics.md).
+correlated local charts and an on-demand Pi answer inside the panel. Start/Stop and
+the interval are saved; recording resumes in a new session after shell reload.
+Recording runs in the existing reader, with bounded storage and no automatic AI
+calls. Manual analysis sends a small summary to your configured Pi provider.
+[Usage and limits](docs/fast-diagnostics.md).
 
 ![Profile selection and fan controls, inert demonstration data](docs/video/2.17.2/assets/profiles.png)
 

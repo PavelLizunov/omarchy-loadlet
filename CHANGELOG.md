@@ -1,5 +1,15 @@
 # Changelog
 
+## 2.18.1 (checkpoint)
+
+- Save diagnostic recording preference and CPU interval; resume in a new session
+  after shared-shell reload. New installations remain opt-in/off by default.
+- Add explicit Pi analysis inside Settings → History, with model/question fields,
+  a selectable answer, Copy and Cancel. No terminal or automatic inference needed.
+- Bound the supplied summary, output and job lifetime; stop the owned runner on
+  cancellation or panel teardown. Pi credentials/provider settings stay external.
+- Preserve the native sampler, legacy histories, saved profiles and system controls.
+
 ## 2.18.0 (checkpoint)
 
 - Add explicit native 250/500/1000 ms diagnostic sessions, incident markers and

@@ -1,5 +1,18 @@
 # Loadlet verification
 
+## Inline Pi and saved recording — 2.18.1 checkpoint
+
+Implementation uses the installed Pi 1.4.0 print-mode contract. Source review
+covered the owned helper, bounded stdin/stdout, cancellation, four-locale copy,
+settings persistence and the existing shared-shell entry point. No new local
+tests, renders, performance measurements, real model request or independent
+review were requested or performed for this follow-up. Earlier 2.18.0 evidence
+below does not validate the new agent interaction or reload persistence.
+
+The native sampler and its source/provenance are unchanged. Configured model
+availability is not authenticated inference acceptance. Remote checkpoint,
+installation and loaded recording state are reported separately at delivery.
+
 ## High-resolution diagnostics — 2.18.0 checkpoint
 
 The requested fact-check found that QML timer changes alone cannot implement

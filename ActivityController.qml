@@ -17,8 +17,11 @@ Item {
   readonly property bool sensorRecording: settings && settings.sensorRecording === true
   property bool sensorWriterEnabled: false
   property string sensorRecordingError: ""
+  readonly property bool savedCapture: settings && settings.diagnosticCapture === true
+  readonly property int savedCaptureInterval: settings && [250,500,1000].indexOf(Number(settings.diagnosticCaptureInterval)) >= 0 ? Number(settings.diagnosticCaptureInterval) : 500
   property bool captureWanted: false
   property int captureInterval: 500
+  signal capturePreferencesRequested(bool wanted, int interval)
   property bool captureEnabled: false
   property int captureAppliedInterval: 0
   property string captureSession: ""
@@ -219,12 +222,27 @@ Item {
     dispatch()
   }
 
-  function setCapture(wanted) {
+  function configureCapture(wanted, interval) {
+    captureInterval = interval
     captureWanted = wanted
     due["capture-config"] = 0
     if (wanted) start()
     dispatch()
   }
+
+  function setCapture(wanted) {
+    capturePreferencesRequested(wanted, captureInterval)
+    configureCapture(wanted, captureInterval)
+  }
+
+  function setCaptureInterval(interval) {
+    if ([250,500,1000].indexOf(interval) < 0) return
+    capturePreferencesRequested(captureWanted, interval)
+    configureCapture(captureWanted, interval)
+  }
+
+  onSavedCaptureChanged: configureCapture(savedCapture, savedCaptureInterval)
+  onSavedCaptureIntervalChanged: configureCapture(savedCapture, savedCaptureInterval)
 
   function requestCaptureAction(action) {
     if (!captureEnabled || (action !== "marker" && action !== "flush")) return
@@ -447,7 +465,10 @@ Item {
     due["sensors-on"] = 0; due["sensors-off"] = 0; due.sensors = 0
     if (collectionEnabled) { start(); dispatch() } else stop()
   }
-  Component.onCompleted: if (collectionEnabled) start()
+  Component.onCompleted: {
+    configureCapture(savedCapture, savedCaptureInterval)
+    if (collectionEnabled) start()
+  }
 
   onExpandedChanged: {
     if (!expanded && !gpuEnabled) {

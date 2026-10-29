@@ -21,6 +21,15 @@ Column {
   property string error: ""
   property string action: ""
   property string runner: "omarchy"
+  property bool panelOpen: true
+  property bool agentVisible: false
+  property bool agentAvailable: false
+  property string agentModel: ""
+  property string agentAnswer: ""
+  property string answerModel: ""
+  property var answerRange: []
+  property string agentQuestion: ""
+  readonly property bool analyzing: busy && action==="analyze"
   property bool waitingFlush: false
   property bool timedOut: false
   property string captured: ""
@@ -41,9 +50,11 @@ Column {
   function t(key,a,b,c) { return I18n.t(key,language,a,b,c) }
   function request(kind) {
     if(busy)return
-    if(kind!=="launch")reportPath=""
+    if(kind==="read" || kind==="export")reportPath=""
+    if(kind==="analyze") {agentAnswer="";answerModel="";answerRange=[]}
     action=kind;error="";timedOut=false
-    if(activity && activity.captureEnabled && kind!=="launch") {
+    deadline.interval=30000
+    if(activity && activity.captureEnabled && kind!=="launch" && kind!=="agent-info") {
       waitingFlush=true;deadline.restart();activity.requestCaptureAction("flush")
     } else runQuery()
   }
@@ -51,14 +62,23 @@ Column {
     waitingFlush=false;captured=""
     var argv=["/usr/bin/python3","-I",helper]
     if(action==="launch")argv=argv.concat(["--launch",runner,"--report",reportPath])
+    else if(action==="agent-info")argv.push("--agent-info")
     else {
       argv=argv.concat(["--seconds",String(periodSeconds)])
       if(rangeEnd>rangeStart)argv=argv.concat(["--start",String(rangeStart),"--end",String(rangeEnd)])
       if(session)argv=argv.concat(["--session",session])
       if(action==="export")argv.push("--export")
+      if(action==="analyze")argv=argv.concat(["--analyze","--question",agentQuestion || t("capture_question_default"),"--model",agentModel,"--language",language])
     }
+    deadline.interval=action==="analyze" ? 150000 : 30000
     query.command=argv;deadline.restart();query.running=true
   }
+  function cancelQuery(message) {
+    deadline.stop();waitingFlush=false;timedOut=true
+    error=message || ""
+    if(query.running) {query.signal(15);escalation.restart()}
+  }
+  onPanelOpenChanged: if(!panelOpen && analyzing)cancelQuery(t("capture_agent_cancelled"))
   Connections {
     target: root.activity
     function onCaptureFlushed() { if(root.waitingFlush)root.runQuery() }
@@ -89,7 +109,7 @@ Column {
     value:String(root.activity ? root.activity.captureInterval : 500)
     options:[1000,500,250].map(function(n){return {value:String(n),label:n+" ms"}})
     foreground:Host.Color.popups.text;accent:Host.Color.accent
-    onChanged:function(value){if(root.activity)root.activity.captureInterval=Number(value)}
+    onChanged:function(value){if(root.activity)root.activity.setCaptureInterval(Number(value))}
   }
   Text {
     width:parent.width;wrapMode:Text.WordWrap;textFormat:Text.PlainText
@@ -128,6 +148,81 @@ Column {
       text:root.t("diagnostic_export")
       enabled:!root.busy;foreground:Host.Color.popups.text;accent:Host.Color.accent;bordered:true;focusable:true
       onClicked:root.request("export")
+    }
+  }
+  Button {
+    objectName:"captureInlineAgentToggle"
+    width:parent.width;text:root.t("capture_inline_agent")
+    foreground:Host.Color.popups.text;accent:Host.Color.accent;bordered:true;focusable:true
+    enabled:!root.busy
+    onClicked:{root.agentVisible=!root.agentVisible;if(root.agentVisible)root.request("agent-info")}
+  }
+  Button {
+    objectName:"captureCancel"
+    visible:root.busy
+    width:parent.width;text:root.t("profile_cancel")
+    foreground:Host.Color.popups.text;accent:Host.Color.accent;bordered:true;focusable:true
+    onClicked:root.cancelQuery(root.t("capture_agent_cancelled"))
+  }
+  Column {
+    width:parent.width;spacing:Style.spacing.sm;visible:root.agentVisible
+    Text {
+      width:parent.width;wrapMode:Text.WordWrap;textFormat:Text.PlainText
+      text:root.t("capture_inline_hint")
+      color:Host.Color.popups.text;font.family:Style.font.family;font.pixelSize:Style.font.caption
+    }
+    TextField {
+      objectName:"captureAgentModel"
+      width:parent.width;text:root.agentModel;maximumLength:200
+      placeholderText:root.t("capture_agent_model")
+      Accessible.name:root.t("capture_agent_model")
+      foreground:Host.Color.popups.text;accent:Host.Color.accent
+      enabled:!root.busy
+      onTextEdited:root.agentModel=text
+    }
+    TextField {
+      objectName:"captureAgentQuestion"
+      width:parent.width;text:root.agentQuestion;maximumLength:2000
+      placeholderText:root.t("capture_question_default")
+      Accessible.name:root.t("capture_agent_question")
+      foreground:Host.Color.popups.text;accent:Host.Color.accent
+      enabled:!root.busy
+      onTextEdited:root.agentQuestion=text
+    }
+    Button {
+      objectName:"captureAnalyzeInline"
+      width:parent.width;text:root.t(root.analyzing ? "capture_agent_wait" : "capture_analyze_inline")
+      foreground:Host.Color.popups.text;accent:Host.Color.accent;bordered:true;focusable:true
+      enabled:!root.busy && root.agentAvailable
+      onClicked:root.request("analyze")
+    }
+    Text {
+      visible:!root.agentAvailable && !root.busy
+      width:parent.width;wrapMode:Text.WordWrap;textFormat:Text.PlainText
+      text:root.t("capture_pi_missing")
+      color:Host.Color.urgent;font.family:Style.font.family;font.pixelSize:Style.font.caption
+    }
+    Text {
+      visible:root.answerModel!==""
+      width:parent.width;wrapMode:Text.WordWrap;textFormat:Text.PlainText
+      text:root.answerModel+(root.answerRange.length===2 ? " · "+Qt.formatDateTime(new Date(root.answerRange[0]*1000),"dd.MM HH:mm:ss")+" – "+Qt.formatDateTime(new Date(root.answerRange[1]*1000),"dd.MM HH:mm:ss") : "")
+      color:Host.Color.popups.text;font.family:Style.font.family;font.pixelSize:Style.font.caption
+    }
+    TextEdit {
+      objectName:"captureAgentAnswer"
+      visible:root.agentAnswer!==""
+      width:parent.width;height:contentHeight
+      text:root.agentAnswer;textFormat:TextEdit.PlainText;wrapMode:TextEdit.Wrap
+      readOnly:true;selectByMouse:true;activeFocusOnTab:true
+      color:Host.Color.popups.text;selectionColor:Host.Color.accent
+      font.family:Style.font.family;font.pixelSize:Style.font.body
+      Accessible.name:root.t("capture_inline_agent")
+    }
+    Button {
+      visible:root.agentAnswer!==""
+      width:parent.width;text:root.t("capture_copy_answer")
+      foreground:Host.Color.popups.text;accent:Host.Color.accent;bordered:true;focusable:true
+      onClicked:Quickshell.clipboardText=root.agentAnswer
     }
   }
   ChoiceDropdown {
@@ -236,12 +331,6 @@ Column {
       onClicked:Quickshell.clipboardText=I18n.t("diagnostic_prompt",root.language,root.reportPath)
     }
   }
-  Button {
-    visible:root.busy
-    width:parent.width;text:root.t("profile_cancel")
-    foreground:Host.Color.popups.text;accent:Host.Color.accent;bordered:true;focusable:true
-    onClicked:{deadline.stop();root.waitingFlush=false;root.timedOut=true;if(query.running)query.signal(9)}
-  }
   Process {
     id:query
     stdout:SplitParser {
@@ -251,12 +340,23 @@ Column {
       }
     }
     onExited:function(code) {
-      deadline.stop()
+      deadline.stop();escalation.stop()
       if(root.timedOut)return
-      if(code!==0) {root.error=root.t("diagnostic_export_failed");return}
       try {
         var result=JSON.parse(root.captured)
-        if(root.action==="export") {
+        if(code!==0 || result.error) {
+          root.error=root.t(root.action==="analyze" ? "capture_agent_failed" : "diagnostic_export_failed")
+            +(typeof result.error==="string" ? " · "+result.error.slice(0,500) : "")
+          return
+        }
+        if(root.action==="agent-info") {
+          root.agentAvailable=result.available===true
+          if(!root.agentModel)root.agentModel=[result.provider,result.model].filter(function(v){return !!v}).join("/")
+        } else if(root.action==="analyze") {
+          if(typeof result.answer!=="string" || result.answer.length>65536)throw new Error("answer")
+          root.agentAnswer=result.answer;root.answerModel=String(result.model || "Pi")
+          root.answerRange=result.range || []
+        } else if(root.action==="export") {
           if(typeof result.path!=="string" || result.path[0]!=="/")throw new Error("path")
           root.reportPath=result.path
         } else if(root.action==="read") {
@@ -268,7 +368,8 @@ Column {
   }
   Timer {
     id:deadline;interval:30000
-    onTriggered:{root.waitingFlush=false;root.timedOut=true;query.signal(9);root.error=root.t("diagnostic_export_failed")}
+    onTriggered:root.cancelQuery(root.t(root.action==="analyze" ? "capture_agent_failed" : "diagnostic_export_failed"))
   }
-  Component.onDestruction:{deadline.stop();if(query.running)query.signal(9)}
+  Timer {id:escalation;interval:3000;onTriggered:if(query.running)query.signal(9)}
+  Component.onDestruction:{deadline.stop();escalation.stop();if(query.running)query.signal(15)}
 }

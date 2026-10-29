@@ -1,4 +1,4 @@
-# High-resolution diagnostics — 2.18.0 checkpoint
+# High-resolution diagnostics — 2.18.1 checkpoint
 
 ## Use
 
@@ -7,8 +7,11 @@ Choose a CPU polling target of 1000, 500 (default), or 250 ms. Changing the targ
 starts a new recording. Problem now saves a timestamped incident marker. Stop
 ends only the additional diagnostics; ordinary monitoring and legacy recording
 settings are unchanged. Closing the panel does not stop recording. Unloading the
-plugin, ending the shared shell or restarting it ends the session. A reader crash
-can resume into a new session while the same controller still requests capture.
+plugin or ending the shared shell ends the session. The Start/Stop preference and
+interval are saved as diagnosticCapture and diagnosticCaptureInterval. Reloading
+the enabled plugin resumes in a new session when that preference is on; it does
+not record while the shell is absent. A reader crash can also resume into a new
+session. New installations remain off by default; Stop saves the off preference.
 
 Read history selects 1/10 minutes or 1/2/6/24 hours and an optional recording.
 Choose a signal, select a point, and inspect the nearest reduced process snapshot.
@@ -16,6 +19,40 @@ Inspect 60 s around selection rereads raw history for that window; use the perio
 selector to leave the narrowed range. Charts retain extrema, not every observation
 or exact simultaneity. Coverage, invalid records and capacity omissions remain
 visible. Queries are explicit, not another periodic polling loop.
+
+Pi inside Loadlet opens an optional question and provider/model field, initialized
+from the installed Pi configuration. Analyze here reads the selected period or
+60-second selection, flushes active recording, and shows the final plain-text
+answer in the panel. It is a one-shot answer, not a persistent chat; previous
+questions/answers are not sent again. Copy answer is available. Cancel, panel
+close or component teardown stops this owned job without stopping recording.
+Changing the selected range does not change an already-running request; each
+answer labels its original period and requested model selector.
+
+This path uses Pi 1.4.0 print mode and existing credentials/model definitions.
+A bounded summary (up to 96 KiB) includes sensor extrema, CPU/process summaries,
+events and up to 12 same-session snapshots near thermal peaks, with explicit
+relative times. Raw history and full chart points are not sent. The provider may
+receive this summary and question and charge usage. Local models add load to the
+recording. No inference runs automatically while capturing or exporting.
+
+The job disables Pi tools, extensions, MCP, skills, context discovery and session
+saving for this invocation only. It passes explicit analysis prompts in a fresh
+temporary working directory and leaves global Pi configuration unchanged. This
+is not an operating-system sandbox; the installed runner and configured provider
+remain trusted dependencies. The offline startup flag suppresses automatic
+catalog/download work, not the explicitly requested model network call. Providers
+registered only by an extension are not supported by this minimal adapter; use
+Pi's models.json or the separate terminal handoff instead.
+
+The helper drains both output streams, caps final output at 64 KiB and stderr at
+16 KiB, and ends inference after 120 seconds. The panel caps total query lifetime
+at 150 seconds, with TERM followed by a bounded KILL fallback. Linux parent-death
+signaling also stops the direct Pi child if its helper is forcibly terminated.
+No new daemon, model download, provider account UI or privileged helper is added.
+The adapter locates an existing Pi launcher, but path discovery alone does not
+establish a working provider/model. A failed request reports an error, not an
+invented answer.
 
 Export for an agent writes a new private directory with summary.json,
 samples.jsonl and AGENT-PROMPT.md. Open agent hands that directory to the existing
@@ -73,8 +110,9 @@ The report helper streams at most 224 MiB / 1,500,000 rows / 4096 chunks. It bou
 series to 128, identities to 8192, sessions to 256, process frames to 480 and events
 to 200. It rejects oversized lines/chunks rather than silently accepting partial
 input. A selected interval is still scanned from retained chunks; time filtering
-does not yet provide a chunk index. UI output is limited to 2 MiB with a 30 s
-owned-process deadline/cancel. Explicit exports are outside rotation, at most ten
+does not yet provide a chunk index. Local-report UI output is limited to 2 MiB
+with a 30 s owned-process deadline/cancel; explicit inline analysis uses the
+longer bounds above. Explicit exports are outside rotation, at most ten
 entries in the shared export parent. Review or move exports as needed.
 
 ```sh
@@ -91,9 +129,10 @@ These are examples, not commands to replay historical times. The legacy
 A sampled peak is not sustained overheating. Policy frequency is not effective
 clock speed or proof of throttling. No FPS/frametime, CPU hardware throttle signal,
 NVML throttle-reason query, automatic game association, watched-PID subsecond scan,
-statistical causation, embedded chat, direct headless inference or MCP server is
-implemented here. These would require separate source support and acceptance;
-the local report and explicit runner handoff are useful without them.
+statistical causation, persistent embedded chat or MCP server is implemented here.
+The embedded one-shot answer interprets only the supplied summary; it does not
+add missing hardware evidence. Advanced collectors still require separate source
+support and acceptance.
 
 Initial 15 s local measurements found roughly 4.5% of one logical CPU. Avoiding
 per-PID stream/token allocations and slowing expensive GPU/DRM work reduced a
