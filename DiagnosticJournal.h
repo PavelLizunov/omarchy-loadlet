@@ -79,8 +79,11 @@ std::string DiagnosticContext(const Paths &paths) {
 
 class DiagnosticJournal {
 public:
-  explicit DiagnosticJournal(Paths paths, std::string folder = "journal")
-      : paths_(std::move(paths)), folder_(std::move(folder)) {
+  explicit DiagnosticJournal(Paths paths, std::string folder = "journal",
+                             std::size_t byte_limit = 20*1024*1024,
+                             int retention_seconds = 7*24*60*60, int flush_seconds = 60)
+      : paths_(std::move(paths)), folder_(std::move(folder)), byte_limit_(byte_limit),
+        retention_seconds_(retention_seconds), flush_seconds_(flush_seconds) {
     boot_ = ReadLine(Join(paths_.proc, "sys/kernel/random/boot_id")).value_or("");
   }
   ~DiagnosticJournal() { Disable(); }
@@ -107,6 +110,15 @@ public:
     last_flush_ = Clock::now();
     return true;
   }
+  // Shared bounded storage for versioned diagnostics; legacy admission is unchanged.
+  void AppendRecord(const std::string &record) {
+    if (!enabled) return;
+    if (record.size() > 32768) { error="journal_record_capacity"; return; }
+    if (buffer_.size()+record.size()>131072) Flush();
+    buffer_ += record;
+    if (buffer_.size()>=49152 || Clock::now()-last_flush_>=std::chrono::seconds(flush_seconds_)) Flush();
+  }
+  void FlushPending() { if (enabled) Flush(); }
   void Disable() {
     if (enabled) Flush();
     enabled = false;
@@ -195,8 +207,11 @@ public:
 
 private:
   friend struct DiagnosticJournalChecks;
+  friend class FastDiagnostics;
   Paths paths_;
   std::string folder_;
+  std::size_t byte_limit_;
+  int retention_seconds_, flush_seconds_;
   time_t last_sensor_write_ = 0;
   std::string boot_, buffer_, file_name_, collection_error_, cpu_window_="null", memory_ = "null", cpu_ = "null", temperature_ = "null", processes_ = "null", context_ = "null";
   int dir_ = -1, lock_ = -1, file_ = -1;
@@ -257,17 +272,17 @@ private:
     }
     closedir(directory);
     std::sort(entries.begin(),entries.end(),[](const Entry &a,const Entry &b){return a.name<b.name;});
-    const auto cutoff=std::time(nullptr)-7*24*60*60;
+    const auto cutoff=std::time(nullptr)-retention_seconds_;
     for (const auto &entry:entries) {
       const auto end=entry.name.find('-',8);
       auto created=end==std::string::npos ? std::nullopt : ParseUnsigned(entry.name.substr(8,end-8));
       const bool recent=entry.modified>=cutoff && (!created || *created/1000000000ULL>=static_cast<std::uint64_t>(cutoff));
-      if (recent && total+upcoming<=20*1024*1024) continue;
+      if (recent && total+upcoming<=byte_limit_) continue;
       if (entry.name==file_name_ && file_>=0) { close(file_);file_=-1;file_name_.clear();file_size_=0; }
       if (unlinkat(dir_,entry.name.c_str(),0)!=0) return false;
       total-=entry.size;
     }
-    return total+upcoming<=20*1024*1024;
+    return total+upcoming<=byte_limit_;
   }
   void Flush() {
     if (buffer_.empty()) return;

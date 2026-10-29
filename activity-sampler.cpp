@@ -944,10 +944,16 @@ private:
   }
 
   void EmitProcess(pid_t pid, const std::string &path, std::ostream &output) {
-    const auto raw_value = ReadText(Join(path, "stat"));
-    if (!raw_value)
-      return;
-    const std::string &raw = *raw_value;
+    // proc stat is one bounded record; avoid a locale/stream allocation per PID.
+    const int fd = open(Join(path, "stat").c_str(), O_RDONLY | O_CLOEXEC);
+    if (fd < 0) return;
+    std::array<char, 8192> buffer{};
+    ssize_t size;
+    do { size=read(fd,buffer.data(),buffer.size()); } while(size<0 && errno==EINTR);
+    close(fd);
+    if (size<=0) return;
+    if (size==static_cast<ssize_t>(buffer.size())) { input_overflow=true; return; }
+    const std::string raw(buffer.data(),static_cast<std::size_t>(size));
     const auto command_start = raw.find('(');
     const auto command_end = raw.rfind(") ");
     if (command_start == std::string::npos ||
@@ -958,9 +964,16 @@ private:
     const auto parsed_pid = ParseUnsigned(Trim(raw.substr(0, command_start)));
     if (!parsed_pid || *parsed_pid != static_cast<std::uint64_t>(pid))
       return;
-    const auto fields = SplitWhitespace(raw.substr(command_end + 2));
-    if (fields.size() < 22)
-      return;
+    std::vector<std::string_view> fields;
+    fields.reserve(24);
+    std::size_t position=command_end+2;
+    while(position<raw.size() && fields.size()<22) {
+      while(position<raw.size() && std::isspace(static_cast<unsigned char>(raw[position])))++position;
+      const auto begin=position;
+      while(position<raw.size() && !std::isspace(static_cast<unsigned char>(raw[position])))++position;
+      if(position>begin)fields.emplace_back(raw.data()+begin,position-begin);
+    }
+    if (fields.size() < 22) return;
 
     const auto flags = ParseUnsigned(fields[6]);
     const auto user_ticks = ParseUnsigned(fields[11]);
@@ -1013,7 +1026,7 @@ public:
            << '\t' << Sanitize(cached_label_) << '\t' << *value << '\n';
   }
 
-  void CollectSensors(std::ostream &output) {
+  void CollectSensors(std::ostream &output, bool cpu_only = false, bool evidence = false) {
     output << "schema\tactivity-sensors\t1\n";
     output << "sample\t" << UptimeSample(paths_) << '\n';
     if (Clock::now() >= next_sensor_discovery_) {
@@ -1076,10 +1089,23 @@ public:
       next_sensor_discovery_ = Clock::now() + std::chrono::seconds(30);
     }
     for (const auto &sensor : sensors_) {
+      if (cpu_only && sensor.category != "cpu") continue;
       const auto power = ReadLine(sensor.power_path);
       if ((sensor.chip == "nvidia" && power.value_or("") != "active") ||
-          (power && *power != "active" && *power != "unsupported")) continue;
+          (power && *power != "active" && *power != "unsupported")) {
+        if(evidence) output << "sensor-missing\t" << sensor.id << "\tasleep_or_power_unknown\n";
+        continue;
+      }
+      if(evidence && !cpu_only) {
+        const auto interval=ReadLine(Join(sensor.path.substr(0,sensor.path.rfind('/')),"update_interval"));
+        output << "sensor-source\t" << sensor.id << '\t' << sensor.chip << '\t' << sensor.location
+               << '\t' << interval.value_or("unknown") << '\n';
+      }
+      errno=0;
       const auto raw = ReadLine(sensor.path);
+      const auto read_error=errno;
+      if(!raw && evidence) output << "sensor-missing\t" << sensor.id << '\t'
+          << (read_error==EACCES || read_error==EPERM ? "permission_denied" : "unavailable") << '\n';
       const auto value = raw ? ParseDouble(*raw) : std::nullopt;
       if (!value || !std::isfinite(*value) ||
           (sensor.temperature ? (*value < -40000 || *value >= 150000)
@@ -1091,6 +1117,7 @@ public:
       output << '\t' << sensor.category << '\t' << sensor.owner << '\t'
              << sensor.location << '\n';
     }
+    if (cpu_only) return;
     const auto board = ReadLine(Join(paths_.sys, "class/dmi/id/board_name")).value_or("");
     if (board == "DRFXI") {
       for (const auto &hwmon : DirectoryNames(Join(paths_.sys, "class/hwmon"))) {
@@ -1466,7 +1493,7 @@ public:
   }
 
   std::vector<NvidiaReading> Read(const std::vector<std::string> &active_ids,
-                                  bool sensors = false) {
+                                  bool sensors = false, bool diagnostic = false) {
     if (!fixture_.empty())
       return ReadFixture();
     if (active_ids.empty()) return {};
@@ -1499,7 +1526,7 @@ public:
       unsigned int clock = 0;
       if (get_clock_(device, 0, &clock) == 0)
         reading.frequency_mhz = clock;
-      if (sensors) {
+      if (sensors || diagnostic) {
         unsigned int temperature = 0;
         if (get_temperature_ && get_temperature_(device, 0, &temperature) == 0 && temperature < 150)
           reading.temperature = temperature;
@@ -1727,10 +1754,10 @@ public:
         discovery_interval_(std::chrono::milliseconds(PositiveEnv(
             "OMARCHY_SYSTEM_STATS_GPU_DISCOVERY_INTERVAL_MS", 10000))) {}
 
-  void Collect(std::ostream &output, bool sensors = false) {
+  void Collect(std::ostream &output, bool sensors = false, bool diagnostic = false) {
     DiscoverAdapters();
     if (!sensors) RefreshDynamicValues();
-    ApplyNvidia(sensors);
+    ApplyNvidia(sensors, diagnostic);
     if (sensors) {
       for (const auto &gpu : adapters_) {
         if (gpu.vendor_hex != "10de") continue;
@@ -1758,6 +1785,16 @@ public:
       EmitNumber(output, gpu.frequency_mhz);
       output << '\n';
     }
+    if (diagnostic) {
+      for (const auto &gpu : adapters_) {
+        output << "gpu-power-state\t" << gpu.id << '\t'
+               << ReadLine(Join(gpu.device_path,"power/runtime_status")).value_or("unknown") << '\n';
+        if (gpu.temperature >= 0)
+          output << "gpu-temperature\t" << gpu.id << '\t' << gpu.temperature << '\n';
+        for (const auto &fan : gpu.fans)
+          output << "gpu-fan\t" << gpu.id << '\t' << fan.index << '\t' << fan.percent << '\n';
+      }
+    }
     for (const auto &[gpu, process] : nvidia_processes_) {
       const auto start = ProcessStart(process.pid);
       if (!start) continue;
@@ -1767,9 +1804,14 @@ public:
       const auto ticks = SystemValue(_SC_CLK_TCK, 100);
       if (uptime <= 0 || process.timestamp / 1000000.0 < now - uptime + *start / static_cast<double>(ticks)) continue;
       output << "process-gpu\t" << gpu << '\t' << process.pid << '\t' << *start
-             << '\t' << process.utilization << '\n';
+             << '\t' << process.utilization;
+      if (diagnostic) output << '\t' << process.timestamp;
+      output << '\n';
     }
-    EmitDrmClients(output);
+    if (!diagnostic || Clock::now() >= next_diagnostic_drm_) {
+      EmitDrmClients(output);
+      if (diagnostic) next_diagnostic_drm_ = Clock::now()+std::chrono::seconds(10);
+    } else output << "diagnostic-limit\tdrm-process\tnot-due\n";
   }
 
 private:
@@ -1812,6 +1854,7 @@ private:
     return fields.size() > 19 ? ParseUnsigned(fields[19]) : std::nullopt;
   }
   Clock::time_point next_fd_discovery_{};
+  Clock::time_point next_diagnostic_drm_{};
   std::chrono::milliseconds discovery_interval_;
 
   static void EmitNumber(std::ostream &output, double value) {
@@ -1947,7 +1990,7 @@ private:
     }
   }
 
-  void ApplyNvidia(bool sensors) {
+  void ApplyNvidia(bool sensors, bool diagnostic = false) {
     nvidia_processes_.clear();
     for (auto &gpu : adapters_) { gpu.temperature = -1; gpu.fans.clear(); }
     if (!nvidia_present_ && paths_.nvidia_fixture.empty())
@@ -1958,7 +2001,7 @@ private:
           ReadLine(Join(gpu.device_path, "power/runtime_status")).value_or("") == "active")
         active_ids.push_back(gpu.id);
     }
-    for (const auto &reading : nvidia_.Read(active_ids, sensors)) {
+    for (const auto &reading : nvidia_.Read(active_ids, sensors, diagnostic)) {
       auto found =
           std::find_if(adapters_.begin(), adapters_.end(),
                        [&](const auto &gpu) { return gpu.id == reading.id; });
@@ -2161,17 +2204,33 @@ private:
   }
 };
 
+#include "FastDiagnostics.h"
+
 class Sampler {
 public:
   explicit Sampler(Paths paths)
       : resources_(paths), processes_(paths), thermals_(paths), storage_(paths),
-        gpus_(paths), journal_(paths), sensor_journal_(paths, "sensors") {}
+        gpus_(paths), journal_(paths), sensor_journal_(paths, "sensors"),
+        fast_(paths, resources_, processes_, thermals_, gpus_) {}
+
+  void Tick() { fast_.Tick(); }
+  int Timeout() const { return fast_.Timeout(); }
 
   void Collect(const std::string &kind, std::ostream &destination) {
     FrameBuffer frame;
     std::ostream output(&frame);
     input_overflow = false;
-    if (kind == "sensors-on" || kind == "sensors-off") {
+    if (StartsWith(kind, "capture-")) {
+      if (kind=="capture-250") fast_.Start(250);
+      else if(kind=="capture-500") fast_.Start(500);
+      else if(kind=="capture-1000") fast_.Start(1000);
+      else if(kind=="capture-off") fast_.Stop();
+      else if(kind=="capture-marker") fast_.Marker();
+      else if(kind=="capture-flush") fast_.Flush();
+      fast_.Status(output);
+    } else if (fast_.Cached(kind, output)) {
+      // A native diagnostic tick already owns this sample.
+    } else if (kind == "sensors-on" || kind == "sensors-off") {
       if (kind == "sensors-on") sensor_journal_.Enable();
       else sensor_journal_.Disable();
       output << "schema\tactivity-sensor-recording\t1\n"
@@ -2223,6 +2282,7 @@ private:
   GpuCollector gpus_;
   DiagnosticJournal journal_;
   DiagnosticJournal sensor_journal_;
+  FastDiagnostics fast_;
 };
 
 volatile sig_atomic_t reader_stopping = 0;
@@ -2237,16 +2297,20 @@ void Reader(Sampler &sampler) {
   std::string request;
   while (!reader_stopping) {
     pollfd input{STDIN_FILENO,POLLIN,0};
-    const int ready=poll(&input,1,-1);
+    const int ready=poll(&input,1,sampler.Timeout());
     if(ready<0 && errno==EINTR) continue;
-    if(ready<=0) break;
+    if(ready<0) break;
+    sampler.Tick();
+    if(ready==0) continue;
     char ch=0;const auto n=read(STDIN_FILENO,&ch,1);
     if(n<=0) break;
     if(ch!='\n') { if(request.size()>=31) break;request+=ch;continue; }
     request=Trim(request);
     if (request != "glance" && request != "resources" && request != "processes" &&
         request != "thermals" && request != "sensors" && request != "sensors-on" && request != "sensors-off" && request != "gpus" && request != "storage" &&
-        request != "journal-on" && request != "journal-off" && request != "journal" && request != "diagnostics") {
+        request != "journal-on" && request != "journal-off" && request != "journal" && request != "diagnostics" &&
+        request != "capture-250" && request != "capture-500" && request != "capture-1000" &&
+        request != "capture-off" && request != "capture-status" && request != "capture-marker" && request != "capture-flush") {
       request.clear();
       continue;
     }

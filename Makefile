@@ -14,7 +14,7 @@ SAMPLER_LDFLAGS = -Wl,--as-needed -Wl,-z,relro -Wl,-z,now \
 
 all: activity-sampler
 
-activity-sampler: activity-sampler.cpp DiagnosticJournal.h
+activity-sampler: activity-sampler.cpp DiagnosticJournal.h FastDiagnostics.h
 	LC_ALL=C $(CXX) $(CPPFLAGS) $(CXXFLAGS) $(SAMPLER_FLAGS) \
 		$(LDFLAGS) $(SAMPLER_LDFLAGS) -o $@ $< $(LDLIBS)
 
@@ -44,6 +44,8 @@ check-core: activity-sampler
 	node test/math-checks.js
 	node test/catalog-checks.js
 	PYTHONDONTWRITEBYTECODE=1 python3 test/diagnostic-checks.py
+	PYTHONDONTWRITEBYTECODE=1 python3 test/fast-diagnostics-checks.py
+	PYTHONDONTWRITEBYTECODE=1 python3 test/diagnostic-report-checks.py
 	PYTHONDONTWRITEBYTECODE=1 python3 test/sensor-controls.py
 	PYTHONDONTWRITEBYTECODE=1 python3 test/power-profile-checks.py
 	PYTHONDONTWRITEBYTECODE=1 python3 test/game-detection-checks.py
@@ -57,5 +59,5 @@ check-ui:
 install-local: activity-sampler
 	test ! -e "$(HOME)/.config/omarchy/plugins/slovn.activity-lite"
 	install -d "$(HOME)/.config/omarchy/plugins/slovn.activity-lite"
-	install -m644 Panel.qml PowerProfiles.qml ChoiceDropdown.qml ComputerMap.qml SvgIcon.qml ActivityIcon.qml ActivityIconSvg.js HeatPolicy.js DiagnosticExport.qml ActivityController.qml ProcessActionController.qml Sparkline.qml SensorHistoryChart.qml Model.js I18n.js Messages.js ProfileCodec.js GameDetection.py manifest.json README.md LICENSE ATTRIBUTIONS.md "$(HOME)/.config/omarchy/plugins/slovn.activity-lite/"
-	install -m755 activity-sampler process-signal activity-report power-profile "$(HOME)/.config/omarchy/plugins/slovn.activity-lite/"
+	install -m644 Panel.qml PowerProfiles.qml ChoiceDropdown.qml ComputerMap.qml SvgIcon.qml ActivityIcon.qml ActivityIconSvg.js HeatPolicy.js DiagnosticExport.qml Diagnostics.qml ActivityController.qml ProcessActionController.qml Sparkline.qml SensorHistoryChart.qml Model.js I18n.js Messages.js ProfileCodec.js GameDetection.py manifest.json README.md LICENSE ATTRIBUTIONS.md "$(HOME)/.config/omarchy/plugins/slovn.activity-lite/"
+	install -m755 activity-sampler process-signal activity-report diagnostic-report power-profile "$(HOME)/.config/omarchy/plugins/slovn.activity-lite/"

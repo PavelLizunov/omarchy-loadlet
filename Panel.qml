@@ -66,9 +66,14 @@ Panel {
         journalEnabled: activity.journalEnabled,
         journalWriterEnabled: activity.journalWriterEnabled,
         journalError: activity.journalError,
+        captureEnabled: activity.captureEnabled,
+        captureSession: activity.captureSession,
+        captureSequence: activity.captureSequence,
+        captureError: activity.captureError,
+        captureInterval: activity.captureAppliedInterval,
         heatThreshold: activity.heatThreshold,
         productName: "Loadlet",
-        iconRevision: "2.17.2",
+        iconRevision: "2.18.0",
         rightClickAction: "none",
         iconTooltip: button.tooltipText,
         iconConsumer: String(Qt.resolvedUrl("Panel.qml")),
@@ -2625,6 +2630,11 @@ Panel {
               x: Style.spacing.xl; y: Style.spacing.xl
               width: parent.width-Style.spacing.xl*2
               spacing: Style.spacing.md
+              Diagnostics {
+                width: parent.width
+                activity: root.activityController
+                language: root.effectiveLanguage
+              }
               Toggle {
                 objectName: "diagnosticJournalToggle"
                 width: parent.width

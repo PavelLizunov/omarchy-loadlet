@@ -14,6 +14,7 @@ Item {
   property string emptyText: ""
   property string gapText: ""
   property string liveText: ""
+  property bool subsecond: false
   property int windowSeconds: 0
   property double referenceTime: 0
   property int selectedIndex: -1
@@ -85,7 +86,7 @@ Item {
     anchors.right: liveButton.left
     anchors.rightMargin: Style.spacing.sm
     anchors.verticalCenter: liveButton.verticalCenter
-    text: root.selectedPoint ? Qt.formatDateTime(new Date(root.selectedPoint.time * 1000), "dd.MM HH:mm:ss")
+    text: root.selectedPoint ? Qt.formatDateTime(new Date(root.selectedPoint.time * 1000), root.subsecond ? "dd.MM HH:mm:ss.zzz" : "dd.MM HH:mm:ss")
       + " · " + root.formatValue(root.selectedPoint.value) + " " + root.unit : root.cursorInGap ? root.gapText : root.hint
     textFormat: Text.PlainText
     color: root.selectedPoint ? root.lineColor : Host.Color.popups.text

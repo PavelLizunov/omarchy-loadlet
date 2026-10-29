@@ -91,6 +91,25 @@ Item {
       verify(!!item,'Missing '+name)
       return item
     }
+    function test_fast_diagnostic_controls_and_report() {
+      plugin.setSettingsOpen(true);plugin.settingsSection="diagnostics";wait(40)
+      var view=named("fastDiagnostics"), ctrl=plugin.activityController
+      ctrl.captureWanted=false;ctrl.captureEnabled=false;ctrl.captureAction=""
+      named("captureToggle").clicked()
+      compare(ctrl.captureWanted,true)
+      ctrl.accept("capture-500","schema\tactivity-diagnostics\t2\nenabled\t1\ninterval\t500\nsession\tfixture\nsequence\t8\nmissed\t0\nerror\t")
+      compare(ctrl.captureEnabled,true)
+      ctrl.state="stopped";named("captureMarker").clicked();compare(ctrl.captureAction,"capture-marker")
+      view.report={schema:2,records:2,requested_range:[100,110],resolution_seconds:1,sessions:[],gaps:[],
+        series:[{id:"temp",label:"Tctl",unit:"°C",points:[{time:101,value:70},{time:102,value:85}]},
+          {id:"cpu",label:"CPU",unit:"%",points:[{time:101,value:20},{time:102,value:80}]}],
+        process_frames:[{time:102,session:"fixture",processes:[{name:"worker",pid:42,cpu:150,rss_kib:100}]}]}
+      wait(30);named("captureThermalPlot").selectIndex(1)
+      compare(named("captureCpuPlot").selectedTime,102)
+      verify(named("captureProcessWindow").text.indexOf("worker")>=0)
+      ctrl.captureWanted=false;ctrl.captureEnabled=false;ctrl.captureAction="";ctrl.stop()
+      view.report={series:[],sessions:[],process_frames:[],top_processes:[]}
+    }
     function test_all_pages_expand_data() {
       return ['overview','cooling','fans','settings'].map(function(page){return {tag:page,page:page}})
     }

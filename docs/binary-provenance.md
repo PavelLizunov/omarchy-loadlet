@@ -6,18 +6,14 @@ an automatic build on enablement. The native Omarchy add/update flow obtains it
 with the QML and Python helpers from this public repository.
 
 The distributed executable was rebuilt from `activity-sampler.cpp`,
-`DiagnosticJournal.h` and Makefile using GCC 16.2.1 20260810 on Linux x86_64
-after integrating [PR1](https://github.com/PavelLizunov/omarchy-loadlet/pull/1).
-The shared line reader now skips unavailable sensor reads without declaring the
-entire frame over capacity. `LC_ALL=C make -B activity-sampler` completed.
-The current 272504-byte executable has SHA256
-`8c35b759d1f5d6dd2ae6f8d67dc65097eede02d65de5feb23dc708e729d2ea19`.
-The exact build-input hashes are recorded in the machine-readable provenance.
-The contributor's unreadable-sensor regression fails with the previous v2.16.0
-binary and passes with this build; the overlong-line capacity guard still passes.
-This is a post-release correction, not a replacement of the v2.16.0 tag. Historical
-2.15.0 model/hardware reviews do not cover this change. Local full checks, exact
-remote reproduction and installed runtime identity are reported separately in
+`DiagnosticJournal.h`, `FastDiagnostics.h` and Makefile using GCC 16.2.1 20260810
+on Linux x86_64. It adds explicit high-resolution recording in the existing reader.
+The exact executable size/hash and every build-input hash are recorded in the
+[machine-readable provenance](binary-provenance.json). `LC_ALL=C make
+activity-sampler` completed. The unreadable-sensor and overlong-line guards remain
+covered by the local regressions. This checkpoint does not replace the v2.16.0
+tag. Historical reviews do not cover the new scheduler. Local full checks,
+remote reproduction and installed runtime identity are separate evidence in
 [verification](../VERIFICATION.md).
 
 [Machine-readable provenance](binary-provenance.json) binds source, header,

@@ -1,5 +1,57 @@
 # Loadlet verification
 
+## High-resolution diagnostics — 2.18.0 checkpoint
+
+The requested fact-check found that QML timer changes alone cannot implement
+subsecond recording. Native monotonic scheduling now runs inside the existing
+reader, independently of panel visibility. See docs/fast-diagnostics.md for the
+implemented contract and deliberately unimplemented advanced analysis.
+
+`QT_ACCESSIBILITY=0 NO_AT_BRIDGE=1 make check` passed locally on 2026-10-30:
+packaged/native install, core/legacy regression, native autonomous capture,
+SIGTERM flush, stop/restart separation, bounded skip-ahead after a stopped child,
+report/PID-reuse/PSI/export/agent-argv checks, four-locale parity (291 keys) and
+87 UI results. Native compilation used warning-as-error flags. The native install
+fixture stubs shell IPC; it is not production desktop or remote CI evidence.
+
+Four actual-consumer inert offscreen images were inspected: Russian compact,
+English expanded populated charts, Russian agent disclosure DPR2 and German
+narrow DPR2. A fifth expanded render confirms millisecond cursor timestamps after\nthe final chart change; the87UI cases passed again. Qt6.12.0/software renderer0.3.0; no QML errors. AT-SPI/atk-bridge
+warnings remain under report policy, not accessibility acceptance. Evidence stays
+in the local task cache; repository fixture is test/render-diagnostics.qml.
+Independent review was unavailable under the project's no-delegation contract.
+
+Sequential 20-second native-reader measurements on the ordinary desktop workload:
+
+| Mode | CPU % of one logical core | Total RSS KiB | Tick spacing ms | Written bytes |
+|---|---:|---:|---:|---:|
+| Ordinary glance/thermals, nominal15s | 0.034 | 4524 | n/a | 0 |
+| CPU1000ms | 2.867 | 10500 | 998–1001 | 159636 |
+| CPU500ms | 2.903 | 10512 | 499–501 | 180250 |
+| CPU250ms | 3.033 | 10408 | 249–251 | 218125 |
+
+There were828–836proc directories, no recorder error records, and maximum source
+calls of89–96ms. Startup/shutdown are included; shell CPU, driver mappings,
+gameplay, sensor conversion rate, suspend and battery impact are not isolated.
+The proposed1% one-core target is not achieved. These short observations are not
+a sustained overhead guarantee. Initial4.5% observations motivated bounded GPU/DRM
+cadence and per-PID allocation reductions; persistent NVML was not retained.
+
+Pi1.4.0 version was confirmed without inference. Omarchy/Pi handoff argv is tested
+with an inert subprocess; real terminal/model output is unverified. An OpenCode
+version probe entered mise's lazy installer and timed out, rather than proving an
+installed runner. No direct OpenCode adapter ships; no cloud analysis was run.
+Full-day retention/query throughput, true disk-full failure, hardware sleep races,
+CPU throttling and FPS evidence remain unverified. Main/release/Marketplace
+publication is not part of this checkpoint.
+
+Installed24exact runtime files through a fresh entry point and requested a rescan
+in the existing shared shell. The first status query returned `Target not found.`
+during reload; the bounded follow-up returned2.18.0, the exact diagnostic runtime
+URL, `ready`, empty reader/capture errors, closed panel and capture disabled.\nThe final source-identical entry is `runtime-2.18.0-diagnostics-final-20261030/Panel.qml`;\nits exact identity was confirmed again after the millisecond display follow-up.
+Settings stayed byte-identical; saved controls, root helpers and legacy data were
+not changed. This establishes loaded identity, not physical interaction acceptance.
+
 ## Accepted UI and publication — 2.17.2
 
 The user reported a major improvement and explicitly accepted publishing the

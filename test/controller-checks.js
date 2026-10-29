@@ -7,6 +7,7 @@ const source = fs.readFileSync(path.join(__dirname, '../ActivityController.qml')
 const timer = () => ({started: 0, stopped: 0, interval: 0,
   start() { this.started++; }, restart() { this.started++; }, stop() { this.stopped++; }});
 const context = vm.createContext({
+  captureWanted:false, captureEnabled:false, captureInterval:500, captureAppliedInterval:0, captureAction:"",
   sensorRecording: false, sensorWriterEnabled: false, sensorRecordingError: "", sensorsActive: false,
   gpuEnabled: false, storageEnabled: false, sensorSummaryEnabled: false,
   sensorHistory: {}, sensorsUpdatedAt: 0,

@@ -1,17 +1,18 @@
 {
   "schemaVersion": 1,
   "platform": "linux-x86_64",
-  "sourceBaseCommit": "9d2bce6aa645715d3b4762da1e2d0658cffec2a8",
+  "sourceBaseCommit": "be82a42af002144366fc20d0c2ffccf0a3429ccb",
   "sha256": {
-    "activity-sampler": "8c35b759d1f5d6dd2ae6f8d67dc65097eede02d65de5feb23dc708e729d2ea19",
-    "activity-sampler.cpp": "38aa26f6029246a20d3ecad9ce62dbe6acf4e57fdcfb51a949f12c5165eaca16",
-    "DiagnosticJournal.h": "8666805d52cd5f46f7f519c0f21fccf61dfe1f7ae4895cda79f5f1739658b722",
-    "Makefile": "02ca5edf008d0c6bb857d09de5665a9dd8d925be2511c6ce96e127493a954643"
+    "activity-sampler": "aeab0f0cb83297e97b765af11a1e8222b12fcacfe5db0acb9eb5081ce550bd58",
+    "activity-sampler.cpp": "0f87872bb65e4c02662b1398c58a0ffede9a630dfd1840bb551537d481f72bad",
+    "DiagnosticJournal.h": "4e172a68ced8c8190a0b2f2f4f0c180004efe60d0d875627de82adb8848db45f",
+    "FastDiagnostics.h": "34b1acaaffe104cd003d2aef975722dc9beef0567359998cc409e253792bbc03",
+    "Makefile": "e1fa831768e57cc241e4dabd5a1ccdfcd01234abff4e03efba7deaa06c7f97fa"
   },
-  "size": 272504,
+  "size": 305272,
   "compiler": "GCC 16.2.1 20260810",
   "buildCommand": "LC_ALL=C make activity-sampler",
-  "buildResult": "Maintainer rebuild after integrating PR1; unreadable-sensor regression fails on v2.16.0 bytes and passes on this build; overlong lines still rejected",
+  "buildResult": "Maintainer build with native opt-in high-resolution recorder; focused native and report checks passed; full acceptance recorded separately",
   "dynamicRequirements": {
     "glibc": "2.34",
     "libstdc++": "GLIBCXX_3.4.32",

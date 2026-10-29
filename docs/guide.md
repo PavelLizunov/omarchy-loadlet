@@ -83,6 +83,14 @@ tooltip. These tiny gauges show approximate levels; background polling is not
 zero-overhead, timer cadence can slip during shell stalls, and battery impact
 has not been measured.
 
+## High-resolution diagnostics
+
+Settings → History also provides explicit native diagnostic sessions with
+250/500/1000 ms CPU polling, 1 s process candidates, incident markers, local
+window analysis and optional Omarchy/Pi terminal handoff. It is off by default
+and does not replace the legacy recording below. See [usage, storage bounds,
+measured cost and evidence limitations](fast-diagnostics.md).
+
 ## Diagnostic history and agent recommendations
 
 **Diagnostic history** is a separate opt-in setting, disabled by default. It
@@ -133,7 +141,7 @@ another. Input is bounded to 20 MiB, 50000 records and 32 KiB per line. An empty
 selected period is an error, not a fabricated report. The UI has a 10-second
 owned-process deadline. Exports never overwrite an existing destination.
 
-The plugin prepares evidence and a recommendation prompt; it does not run an AI,
+This legacy export prepares evidence and a recommendation prompt; it does not run an AI,
 change CPU settings, or end processes. The prompt is guidance, not a permissions
 sandbox. When using an agent, keep its task read-only and approve any later
 system changes separately. Process names are untrusted data, not executable commands.
@@ -396,7 +404,7 @@ Reboot persistence is implemented by the enabled service; actual post-reboot and
 physical fan behavior still require user observation.
 
 Settings is split into Tiles, Icon, Sampling and History. The normal preferred
-frame fits each category without scrolling; constrained screens retain scrolling.
+frame fits short categories; diagnostic history and constrained screens scroll internally.
 Sensor assignment is under Category; choosing a category keeps the editor open
 and follows that category filter instead of silently switching to all sensors.
 The Category button itself hides it when finished. Manual categories update the
@@ -658,7 +666,7 @@ is the active consumer. Settings and diagnostic data remain outside this tree.
 
 If the widget fails to load, check that `ActivityIconSvg.js`, `HeatPolicy.js`,
 `I18n.js`, `Model.js`, all QML files and the executable
-`activity-sampler`/`process-signal`/`activity-report` were installed together. Read the
+`activity-sampler`/`process-signal`/`activity-report`/`diagnostic-report` were installed together. Read the
 shell log for QML errors. The status endpoint below reports reader errors without
 starting another collection cycle.
 

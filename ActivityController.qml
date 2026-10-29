@@ -17,7 +17,18 @@ Item {
   readonly property bool sensorRecording: settings && settings.sensorRecording === true
   property bool sensorWriterEnabled: false
   property string sensorRecordingError: ""
-  readonly property bool collectionEnabled: active || backgroundEnabled || journalEnabled || sensorRecording
+  property bool captureWanted: false
+  property int captureInterval: 500
+  property bool captureEnabled: false
+  property int captureAppliedInterval: 0
+  property string captureSession: ""
+  property string captureError: ""
+  property double captureSequence: 0
+  property double captureMissed: 0
+  property double captureDuration: 0
+  property string captureAction: ""
+  signal captureFlushed()
+  readonly property bool collectionEnabled: active || backgroundEnabled || journalEnabled || sensorRecording || captureWanted || captureEnabled
   property bool journalWriterEnabled: false
   property string journalError: ""
   readonly property int backgroundInterval: 15000
@@ -208,6 +219,19 @@ Item {
     dispatch()
   }
 
+  function setCapture(wanted) {
+    captureWanted = wanted
+    due["capture-config"] = 0
+    if (wanted) start()
+    dispatch()
+  }
+
+  function requestCaptureAction(action) {
+    if (!captureEnabled || (action !== "marker" && action !== "flush")) return
+    captureAction = "capture-" + action
+    dispatch()
+  }
+
   function dispatch() {
     if (!collectionEnabled || state !== "ready" || pending !== "") return
     var now = Date.now()
@@ -215,6 +239,17 @@ Item {
     if (lastTick > 0 && (now < lastTick || now - lastTick > maxGap)) { resetData(); clearGlance() }
     lastTick = now
 
+    var configure = captureWanted !== captureEnabled || (captureWanted && captureInterval !== captureAppliedInterval)
+    if (configure && (due["capture-config"] || 0) <= now) {
+      pending = captureWanted ? "capture-" + captureInterval : "capture-off"
+      buffer = []; bufferSize = 0; watchdog.restart(); reader.write(pending + "\n")
+      return
+    }
+    if (captureAction && captureEnabled) {
+      pending = captureAction; captureAction = ""
+      buffer = []; bufferSize = 0; watchdog.restart(); reader.write(pending + "\n")
+      return
+    }
     var kinds = !active ? ["glance", "thermals"] : expanded
       ? ["resources", "processes", "thermals", "gpus", "storage"]
       : ["resources", "processes", "thermals"]
@@ -227,6 +262,7 @@ Item {
       kinds = ["sensors", "glance", "thermals"]
       if (gpuEnabled) kinds.push("gpus")
     }
+    if (captureEnabled) kinds.unshift("capture-status")
     if (sensorRecording && kinds.indexOf("sensors") < 0) kinds.push("sensors")
     if (sensorRecording !== sensorWriterEnabled) {
       var recordingKind = sensorRecording ? "sensors-on" : "sensors-off"
@@ -277,7 +313,8 @@ Item {
     if (!accept(kind, raw)) { fail(); return }
     errorText = ""
 
-    var interval = kind === "journal-on" || kind === "journal-off" ? 60000
+    var interval = kind.indexOf("capture-") === 0 ? (active ? 1000 : backgroundInterval)
+      : kind === "journal-on" || kind === "journal-off" ? 60000
       : kind === "sensors-on" || kind === "sensors-off" ? 60000
       : kind === "sensors" ? (sensorRecording ? 15000 : 3000)
       : kind === "journal" ? 15000 : kind === "diagnostics" ? 60000
@@ -290,6 +327,23 @@ Item {
   }
 
   function accept(kind, raw) {
+    if (kind.indexOf("capture-") === 0) {
+      var captureLines = String(raw).split("\n")
+      if (captureLines[0] !== "schema\tactivity-diagnostics\t2") return false
+      var status = ({})
+      captureLines.slice(1).forEach(function(line) { var pair = line.split("\t"); status[pair[0]] = pair[1] })
+      captureEnabled = status.enabled === "1"
+      captureAppliedInterval = Number(status.interval) || 0
+      captureSession = status.session || ""
+      captureError = status.error || ""
+      captureSequence = Number(status.sequence) || 0
+      captureMissed = Number(status.missed) || 0
+      captureDuration = Number(status["duration-ms"]) || 0
+      if (captureWanted !== captureEnabled) due["capture-config"] = Date.now() + 30000
+      if (kind === "capture-flush") captureFlushed()
+      if (!captureWanted && !active && !backgroundEnabled && !journalEnabled && !sensorRecording) stop()
+      return true
+    }
     if (kind === "resources" || kind === "glance") {
       var next = Model.parseSnapshot(raw)
       if (next.schema !== 1 || next.sample <= 0 || next.memory.total <= 0 || next.cpu.total <= 0) return false
@@ -418,6 +472,7 @@ Item {
   onSensorSummaryEnabledChanged: { due.sensors = 0; dispatch() }
 
   onProfileNameChanged: if (active) refresh()
+  onCaptureIntervalChanged: if (captureWanted) { due["capture-config"] = 0; dispatch() }
 
   Component.onDestruction: {
     stop()
@@ -442,6 +497,9 @@ Item {
     onExited: {
       root.journalWriterEnabled = false
       root.sensorWriterEnabled = false
+      root.captureEnabled = false
+      root.captureAppliedInterval = 0
+      root.captureAction = ""
       var expected = root.state === "stopping"
       shutdown.stop(); scheduler.stop(); watchdog.stop(); warmup.stop(); processWarmup.stop()
       root.pending = ""; root.buffer = []; root.bufferSize = 0
@@ -459,7 +517,7 @@ Item {
 
   Timer {
     id: scheduler
-    interval: root.active ? (root.sensorsActive ? 3000 : Math.max(750, root.profile.resources)) : root.backgroundInterval
+    interval: root.active ? (root.captureEnabled ? 1000 : root.sensorsActive ? 3000 : Math.max(750, root.profile.resources)) : root.backgroundInterval
     repeat: true
     onTriggered: {
       root.freshnessClock = Date.now()

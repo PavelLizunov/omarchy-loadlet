@@ -1,0 +1,274 @@
+import QtQuick
+import Quickshell
+import Quickshell.Io
+import qs.Commons
+import qs.Commons as Host
+import qs.Ui
+import "I18n.js" as I18n
+
+Column {
+  id: root
+  objectName: "fastDiagnostics"
+  property var activity
+  property string language: "ru"
+  property int periodSeconds: 7200
+  property string session: ""
+  property double rangeStart: 0
+  property double rangeEnd: 0
+  property string selectedSeries: ""
+  property var report: ({series:[],sessions:[],process_frames:[],top_processes:[]})
+  property string reportPath: ""
+  property string error: ""
+  property string action: ""
+  property string runner: "omarchy"
+  property bool waitingFlush: false
+  property bool timedOut: false
+  property string captured: ""
+  readonly property bool busy: query.running || waitingFlush
+  readonly property string helper: decodeURIComponent(String(Qt.resolvedUrl("diagnostic-report")).replace(/^file:\/\//,""))
+  readonly property var series: report.series || []
+  readonly property var sensor: series.find(function(s){return s.id===selectedSeries}) || series.find(function(s){return s.unit==="°C"}) || series[0] || null
+  readonly property var cpu: series.find(function(s){return s.id==="cpu"}) || null
+  readonly property double cursorTime: thermalPlot.selectedTime
+  readonly property var processFrame: {
+    var frames=report.process_frames || [], best=null
+    var target=cursorTime>0 ? cursorTime : frames.length ? frames[frames.length-1].time : 0
+    var selectedSession=thermalPlot.selectedPoint ? thermalPlot.selectedPoint.session : ""
+    frames.forEach(function(f){if((!selectedSession || f.session===selectedSession) && (!best || Math.abs(f.time-target)<Math.abs(best.time-target)))best=f})
+    return best && Math.abs(best.time-target)<=Math.max(3,report.resolution_seconds || 1) ? best : null
+  }
+  spacing: Style.spacing.md
+  function t(key,a,b,c) { return I18n.t(key,language,a,b,c) }
+  function request(kind) {
+    if(busy)return
+    if(kind!=="launch")reportPath=""
+    action=kind;error="";timedOut=false
+    if(activity && activity.captureEnabled && kind!=="launch") {
+      waitingFlush=true;deadline.restart();activity.requestCaptureAction("flush")
+    } else runQuery()
+  }
+  function runQuery() {
+    waitingFlush=false;captured=""
+    var argv=["/usr/bin/python3","-I",helper]
+    if(action==="launch")argv=argv.concat(["--launch",runner,"--report",reportPath])
+    else {
+      argv=argv.concat(["--seconds",String(periodSeconds)])
+      if(rangeEnd>rangeStart)argv=argv.concat(["--start",String(rangeStart),"--end",String(rangeEnd)])
+      if(session)argv=argv.concat(["--session",session])
+      if(action==="export")argv.push("--export")
+    }
+    query.command=argv;deadline.restart();query.running=true
+  }
+  Connections {
+    target: root.activity
+    function onCaptureFlushed() { if(root.waitingFlush)root.runQuery() }
+  }
+  Row {
+    width: parent.width;spacing:Style.spacing.sm
+    Button {
+      objectName:"captureToggle"
+      width:(parent.width-parent.spacing)/2
+      text:root.t(root.activity && root.activity.captureWanted ? "capture_stop" : "capture_start")
+      foreground:Host.Color.popups.text;accent:Host.Color.accent
+      bordered:true;focusable:true
+      onClicked:root.activity.setCapture(!root.activity.captureWanted)
+    }
+    Button {
+      objectName:"captureMarker"
+      width:(parent.width-parent.spacing)/2
+      text:root.t("capture_marker")
+      foreground:Host.Color.popups.text;accent:Host.Color.accent
+      bordered:true;focusable:true
+      enabled:root.activity && root.activity.captureEnabled
+      onClicked:root.activity.requestCaptureAction("marker")
+    }
+  }
+  ChoiceDropdown {
+    objectName:"captureInterval"
+    width:parent.width;label:root.t("capture_interval")
+    value:String(root.activity ? root.activity.captureInterval : 500)
+    options:[1000,500,250].map(function(n){return {value:String(n),label:n+" ms"}})
+    foreground:Host.Color.popups.text;accent:Host.Color.accent
+    onChanged:function(value){if(root.activity)root.activity.captureInterval=Number(value)}
+  }
+  Text {
+    width:parent.width;wrapMode:Text.WordWrap;textFormat:Text.PlainText
+    text:root.activity && root.activity.captureError ? root.t("diagnostic_export_failed")+" · "+root.activity.captureError
+      :root.t(root.activity && root.activity.captureEnabled ? "capture_running" : "capture_hint",
+        root.activity ? root.activity.captureSequence : 0,root.activity ? root.activity.captureMissed : 0)
+    color:root.activity && root.activity.captureError ? Host.Color.urgent : Host.Color.popups.text
+    font.family:Style.font.family;font.pixelSize:Style.font.caption
+  }
+  ChoiceDropdown {
+    width:parent.width;label:root.t("diagnostic_period");value:String(root.periodSeconds)
+    options:[60,600,3600,7200,21600,86400].map(function(n){return {value:String(n),label:n<3600 ? root.t("capture_minutes",n/60) : root.t("diagnostic_hours",n/3600)}})
+    foreground:Host.Color.popups.text;accent:Host.Color.accent
+    onChanged:function(value){root.periodSeconds=Number(value);root.session="";root.rangeStart=0;root.rangeEnd=0}
+  }
+  ChoiceDropdown {
+    width:parent.width;label:root.t("capture_session");value:root.session
+    options:[{value:"",label:root.t("capture_all_sessions")}].concat((root.report.sessions || []).map(function(s){
+      return {value:s.id,label:Qt.formatDateTime(new Date(s.start*1000),"dd.MM HH:mm:ss")}
+    }))
+    foreground:Host.Color.popups.text;accent:Host.Color.accent
+    onChanged:function(value){root.session=value}
+  }
+  Row {
+    width:parent.width;spacing:Style.spacing.sm
+    Button {
+      objectName:"captureRead"
+      width:(parent.width-parent.spacing)/2
+      text:root.t(root.busy ? "diagnostic_exporting" : "capture_read")
+      enabled:!root.busy;foreground:Host.Color.popups.text;accent:Host.Color.accent;bordered:true;focusable:true
+      onClicked:root.request("read")
+    }
+    Button {
+      objectName:"captureExport"
+      width:(parent.width-parent.spacing)/2
+      text:root.t("diagnostic_export")
+      enabled:!root.busy;foreground:Host.Color.popups.text;accent:Host.Color.accent;bordered:true;focusable:true
+      onClicked:root.request("export")
+    }
+  }
+  ChoiceDropdown {
+    visible:root.series.length>0
+    width:parent.width;label:root.t("capture_signal")
+    value:root.sensor ? root.sensor.id : ""
+    options:root.series.map(function(s){return {value:s.id,label:s.label+" · "+s.unit}})
+    foreground:Host.Color.popups.text;accent:Host.Color.accent
+    onChanged:function(value){root.selectedSeries=value}
+  }
+  Text {
+    visible:root.report.records!==undefined
+    width:parent.width;wrapMode:Text.WordWrap;textFormat:Text.PlainText
+    text:root.t("capture_coverage",root.report.records || 0,(root.report.gaps || []).length)
+      +"\n"+root.t("capture_limits",root.report.invalid_records || 0,root.report.omitted_by_capacity || 0)
+      +(root.report.available_range && root.report.available_range[0]!==null ? "\n"+Qt.formatDateTime(new Date(root.report.available_range[0]*1000),"dd.MM HH:mm:ss")+" – "+Qt.formatDateTime(new Date(root.report.available_range[1]*1000),"dd.MM HH:mm:ss") : "")
+    color:Host.Color.popups.text;font.family:Style.font.family;font.pixelSize:Style.font.caption
+  }
+  SensorHistoryChart {
+    id:thermalPlot;objectName:"captureThermalPlot"
+    subsecond:true
+    visible:root.sensor!==null
+    width:parent.width;height:Style.space(150)
+    points:root.sensor ? root.sensor.points : []
+    unit:root.sensor ? root.sensor.unit : "°C"
+    ceiling:root.sensor && root.sensor.unit==="°C" ? 100 : 0
+    windowSeconds:root.report.requested_range ? root.report.requested_range[1]-root.report.requested_range[0] : root.periodSeconds
+    referenceTime:root.report.requested_range ? root.report.requested_range[1] : 0
+    hint:root.sensor ? root.sensor.label : "";emptyText:root.t("chart_empty")
+    gapText:root.t("chart_gap");liveText:root.t("chart_live")
+    onSelectedTimeChanged: {
+      if(cpuPlot.points.length && selectedTime>=0) {
+        var nearest=0
+        cpuPlot.points.forEach(function(p,i){if(Math.abs(p.time-selectedTime)<Math.abs(cpuPlot.points[nearest].time-selectedTime))nearest=i})
+        cpuPlot.selectIndex(nearest)
+      } else cpuPlot.clearSelection()
+    }
+  }
+  SensorHistoryChart {
+    id:cpuPlot;objectName:"captureCpuPlot"
+    subsecond:true
+    visible:root.cpu!==null && root.sensor!==root.cpu
+    width:parent.width;height:Style.space(130)
+    points:root.cpu ? root.cpu.points : [];unit:"%";ceiling:100
+    windowSeconds:root.report.requested_range ? root.report.requested_range[1]-root.report.requested_range[0] : root.periodSeconds
+    referenceTime:root.report.requested_range ? root.report.requested_range[1] : 0
+    hint:"CPU";emptyText:root.t("chart_empty");gapText:root.t("chart_gap");liveText:root.t("chart_live")
+  }
+  Button {
+    objectName:"captureZoom"
+    visible:root.sensor!==null
+    width:parent.width;text:root.t("capture_zoom")
+    enabled:root.cursorTime>0 && !root.busy
+    foreground:Host.Color.popups.text;accent:Host.Color.accent;bordered:true;focusable:true
+    onClicked:{root.rangeStart=root.cursorTime-30;root.rangeEnd=root.cursorTime+30;root.request("read")}
+  }
+  Text {
+    visible:(root.report.events || []).length>0
+    width:parent.width;wrapMode:Text.WordWrap;textFormat:Text.PlainText
+    text:(root.report.events || []).slice(-6).map(function(e){return Qt.formatDateTime(new Date(e.time*1000),"HH:mm:ss")+" · "+(e.type==="marker" ? root.t("capture_marker") : e.reason || e.type)}).join("\n")
+    color:Host.Color.popups.text;font.family:Style.font.family;font.pixelSize:Style.font.caption
+  }
+  Text {
+    objectName:"captureProcessWindow"
+    width:parent.width;wrapMode:Text.WordWrap;textFormat:Text.PlainText
+    visible:root.report.records>0
+    text:root.processFrame ? root.t("capture_process_at",Qt.formatDateTime(new Date(root.processFrame.time*1000),"HH:mm:ss"))
+      +"\n"+root.processFrame.processes.map(function(p){return p.name+" · PID "+p.pid+" · "+(p.cpu===null ? "—" : Number(p.cpu).toFixed(1)+"%")}).join("\n")
+      :root.t("capture_no_process")
+    color:Host.Color.popups.text;font.family:Style.font.family;font.pixelSize:Style.font.caption
+  }
+  Text {
+    visible:root.error!=="" || root.reportPath!==""
+    width:parent.width;text:root.error || root.reportPath
+    wrapMode:Text.WrapAnywhere;textFormat:Text.PlainText
+    color:root.error ? Host.Color.urgent : Host.Color.popups.text
+    font.family:Style.font.family;font.pixelSize:Style.font.caption
+  }
+  ChoiceDropdown {
+    visible:root.reportPath!==""
+    width:parent.width;label:root.t("capture_agent");value:root.runner
+    options:[{value:"omarchy",label:"Omarchy"},{value:"pi",label:"Pi"}]
+    foreground:Host.Color.popups.text;accent:Host.Color.accent
+    onChanged:function(value){root.runner=value}
+  }
+  Text {
+    visible:root.reportPath!==""
+    width:parent.width;wrapMode:Text.WordWrap;textFormat:Text.PlainText
+    text:root.t("capture_agent_hint")
+    color:Host.Color.popups.text;font.family:Style.font.family;font.pixelSize:Style.font.caption
+  }
+  Row {
+    visible:root.reportPath!==""
+    width:parent.width;spacing:Style.spacing.sm
+    Button {
+      objectName:"captureAgentLaunch"
+      width:(parent.width-parent.spacing)/2
+      text:root.t("capture_analyze")
+      enabled:!root.busy;foreground:Host.Color.popups.text;accent:Host.Color.accent;bordered:true;focusable:true
+      onClicked:root.request("launch")
+    }
+    Button {
+      width:(parent.width-parent.spacing)/2
+      text:root.t("diagnostic_copy_prompt")
+      foreground:Host.Color.popups.text;accent:Host.Color.accent;bordered:true;focusable:true
+      onClicked:Quickshell.clipboardText=I18n.t("diagnostic_prompt",root.language,root.reportPath)
+    }
+  }
+  Button {
+    visible:root.busy
+    width:parent.width;text:root.t("profile_cancel")
+    foreground:Host.Color.popups.text;accent:Host.Color.accent;bordered:true;focusable:true
+    onClicked:{deadline.stop();root.waitingFlush=false;root.timedOut=true;if(query.running)query.signal(9)}
+  }
+  Process {
+    id:query
+    stdout:SplitParser {
+      onRead:function(line) {
+        if(root.captured.length+line.length>2*1024*1024) {root.error=root.t("diagnostic_export_failed");root.timedOut=true;query.signal(9);return}
+        root.captured+=line
+      }
+    }
+    onExited:function(code) {
+      deadline.stop()
+      if(root.timedOut)return
+      if(code!==0) {root.error=root.t("diagnostic_export_failed");return}
+      try {
+        var result=JSON.parse(root.captured)
+        if(root.action==="export") {
+          if(typeof result.path!=="string" || result.path[0]!=="/")throw new Error("path")
+          root.reportPath=result.path
+        } else if(root.action==="read") {
+          if(result.schema!==2 || !Array.isArray(result.series) || result.series.length>128)throw new Error("schema")
+          root.report=result
+        }
+      } catch(e){root.error=root.t("diagnostic_export_failed")}
+    }
+  }
+  Timer {
+    id:deadline;interval:30000
+    onTriggered:{root.waitingFlush=false;root.timedOut=true;query.signal(9);root.error=root.t("diagnostic_export_failed")}
+  }
+  Component.onDestruction:{deadline.stop();if(query.running)query.signal(9)}
+}

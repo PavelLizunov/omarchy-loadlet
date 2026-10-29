@@ -1,5 +1,16 @@
 # Changelog
 
+## 2.18.0 (checkpoint)
+
+- Add explicit native 250/500/1000 ms diagnostic sessions, incident markers and
+  monotonic skip-ahead scheduling in the existing reader. Additional recording is opt-in.
+- Correlate temperatures, CPU/process candidates, GPU batches and pressure in
+  bounded schema-2 raw/aggregate storage; preserve legacy history and settings.
+- Add bounded local window reports, extrema-preserving charts, 60-second drilldown,
+  private exports and explicit Omarchy/Pi terminal handoff. No models during capture.
+- Reduce measured collection overhead, but do not claim the proposed 1% CPU target.
+  See docs/fast-diagnostics.md for implemented scope and unverified behavior.
+
 ## 2.17.2
 
 - Separate underlined page navigation from the lighter Cooling toolbar. Keep
