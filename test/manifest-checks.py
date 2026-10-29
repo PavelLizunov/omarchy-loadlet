@@ -45,12 +45,20 @@ for name, expected in visuals['sourceHashes'].items():
 for name, expected in visuals['assetHashes'].items():
     assert sha(root / 'docs/images' / name) == expected, name
 release_visuals = json.loads((root / 'docs/images/release-2.16.0/manifest.json').read_text())
-assert release_visuals['runtimeVersion'] == m['version']
+release_commit = '9d2bce6aa645715d3b4762da1e2d0658cffec2a8'
 for name, expected in release_visuals['sourceHashes'].items():
-    assert sha(root / name) == expected, name
+    actual = hashlib.sha256(subprocess.check_output(
+        ['git', '-C', str(root), 'show', f'{release_commit}:{name}'])).hexdigest()
+    assert actual == expected, name
 for name, expected in release_visuals['assetHashes'].items():
     assert sha(root / 'docs/images/release-2.16.0' / name) == expected, name
 assert (root / 'preview.png').read_bytes() == (root / 'docs/images/release-2.16.0/overview.png').read_bytes()
+profile_visuals = json.loads((root / 'docs/images/profile-ux-2.17.0/manifest.json').read_text())
+assert profile_visuals['runtimeVersion'] == m['version']
+for name, expected in profile_visuals['sourceHashes'].items():
+    assert sha(root / name) == expected, name
+for name, expected in profile_visuals['assetHashes'].items():
+    assert sha(root / 'docs/images/profile-ux-2.17.0' / name) == expected, name
 video = json.loads((root / 'docs/video/qa.json').read_text())
 assert video['durationSeconds'] == 16 and video['fps'] == 30 and video['frames'] == 480
 assert video['silent'] and video['fullDecode'] == 'PASS' and video['fastStart'] == 'PASS'

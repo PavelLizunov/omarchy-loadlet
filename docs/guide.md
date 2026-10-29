@@ -291,8 +291,13 @@ the Cooling page; Escape returns to Overview before collapsing or closing.
 
 ## Interactive computer map
 
-Cooling and Fans provide an optional SVG case cutaway with numbered hotspots
-and a separate legend. It is collapsed by default so data remains visible.
+Cooling and Fans provide an optional SVG case cutaway with live labeled callouts
+connected to its numbered points. Temperature, actual RPM and driver percentages
+appear beside the corresponding component. Multiple readings use a min–max range;
+hover for individual sensor names and values. Stale or missing data says No data,
+and percentages are never converted into RPM. Existing manual assignments apply.
+The map reuses current sensor samples, without extra polling or hardware writes.
+It is collapsed by default so data remains visible.
 See the [drawing references](vector-design.md). Select CPU, GPU,
 RAM, drives or the motherboard to filter existing temperature/fan sensors and
 reuse their history charts. The schematic collapses after selection to leave
@@ -418,11 +423,16 @@ This observation is not generic board compatibility or a driver safety audit.
 
 ## Named CPU and cooling profiles
 
-Fans provides Current settings, Quiet idle and Games with distinct icons. Click
-one to apply it; the settings icon opens its editor. Profiles can be named,
-duplicated, saved and deleted (up to12). An active profile cannot be deleted.
-Saving edits does not apply them. Changing a single fan output clears the active
-profile highlight, since it no longer represents the saved named configuration.
+Fans separates browsing, applying and editing. Select Current settings, Quiet idle,
+Games or a custom preset to see its CPU/fan summary without changing hardware.
+Apply activates it; Edit opens that exact preset and hides unrelated channel
+controls. The header names the active preset separately from the selection.
+Save updates only the preset; Save and apply also activates it. Cancel or Escape
+discards the draft. Duplicate creates a new draft (up to12 saved presets).
+Deletion needs a second click and remains unavailable for active presets or those
+used by running automation. Existing names, values and assignments are preserved.
+Changing a single fan output clears the active profile indication, since it no
+longer represents the saved named configuration.
 
 Each preset stores exact motherboard percentages, optional NVIDIA percentages,
 CPU boost, powersave/performance mode with its corresponding energy preference,
@@ -436,8 +446,10 @@ Automatic game profiles use SteamAppId/SteamGameId and an actual game executable
 not GPU load or merely an open Steam launcher. A root-owned systemd worker checks
 every5seconds, keeps Games active through a15-second exit grace period, then
 restores the selected non-game preset (Quiet idle when Games is selected).
-Manual profile selection or an individual fan action disables automation.
-The toggle enables/disables it with authentication;
+Manual profile application or an individual fan action disables automation.
+Open Automatic game profiles to choose an explicit non-game return preset and
+enable the toggle with authentication. Disable automation before changing that
+return preset. The toggle enables/disables it with authentication;
 non-Steam games without Steam launch metadata are not detected. Editing Games
 requires disabling and enabling automation to capture the updated preset.
 An unavailable or stale automation status is reported rather than highlighted

@@ -1,0 +1,122 @@
+{
+  "runtimeVersion": "2.17.0",
+  "sourceBaseCommit": "aca5da0a0c9be79416f00ae02f7e66e13346cd19",
+  "origin": "Actual Panel.qml with inert Process/File/IPC and installed host display components",
+  "sourceHashes": {
+    "ActivityController.qml": "c5b8d5f8fc383a9d87fc17b3d2678b1bb7d16420391a844cfa021d3bc7be9623",
+    "ActivityIcon.qml": "9e799b388b1ee577d0738da6640a6890169a1ca3e0db70f2958a05f055a6bc3a",
+    "ChoiceDropdown.qml": "69c87335340a9c3514c07fd8083b25905f0b915f5a941b45263519c8b8c909a0",
+    "ComputerMap.qml": "d362960ccedede1c243c0e3af38cf75e3cf84fa6294c027cfe9443fef11a3d4d",
+    "DiagnosticExport.qml": "f9d87bcfd76d30dda87462c24084694f8988869ef0519de64e466c29df443295",
+    "Panel.qml": "8ca166d510a11c91c6018e39d14bc8c87bc9fc9a5f5a5bdc382cd39d75d94878",
+    "PowerProfiles.qml": "c0332fb86fa4701cd3acaad7b4694bfa782ea5ba303a7476e53e5d6494241d1d",
+    "ProcessActionController.qml": "bdf4f5e85185ba82fa7d9481588a8a5dbf0c0e65264bbe12bfb5f2120d0eedcf",
+    "SensorHistoryChart.qml": "7fa12291067af62b3e2eb75e8da4825f51b2e8cb9cccdbb9adf9080b1026c8bd",
+    "Sparkline.qml": "af92bb46af457e7fa42f6379aeb04d0404036547c174d59ec5af042efa48b6fb",
+    "SvgIcon.qml": "e2c4d849f9e82117d4898761a34d7868b5ec0335fa16c151e8f73d23d82dedd6",
+    "ActivityIconSvg.js": "e183d251ef9eda24a6e0284db1d84f9812b13b3c1443b3a7fe57343473ad2eae",
+    "HeatPolicy.js": "5e2a3fb26eaa51a202127fb3439d231f1c5353979575b859fde147ae8bdb28b3",
+    "I18n.js": "ea8c27b724d99e2d40879137ac1084ef8bbcda12f0ec01380700e7615cd67a49",
+    "Messages.js": "924a8bdff7a38ef9347d730ea37cf9faff55ef9b65e2a4cc31923e75029757b5",
+    "Model.js": "ad3ac40c52d572193eb2041398e7000ccf85f588ea9bc346a5c0f8e6d3a081a1",
+    "ProfileCodec.js": "7a1097153245826d575cd38506bc6383d3484a116d37e68400cde91cec1677f5",
+    "test/render-profile-ux.qml": "60bb3c2d039457751bfe21f61f22dc97bbbe7983771eb69a4832344252444770",
+    "test/mock-data.js": "c2087d43c107d6b31413c2cf583844687c16ea0dbb486eb7593171639655a126",
+    "test/ui-checks.py": "e2368a3bea18a8c580b25c28d41654804c8c80d6efbc01566d934a25abfc58e5"
+  },
+  "assetHashes": {
+    "map.png": "5b93b9fda491b2b8d397f97736a073c93a7274fdb8e1125581c92bf92a5b322d",
+    "profiles.png": "9c613a4407d210aa1b6bdaff4fc020ae07e2a4e7a14afeb11be113b17df40169",
+    "editor.png": "8512b9d766405d12a22e57197307d3876b03956d165e6c7b3482a05d5ceff348",
+    "map-small.png": "a648662b3069e60fe3f220ff78fc343b36f43b5052da29378e32fd49cdc944ab",
+    "auto.png": "e476c4acfeef5861a09d400667930ab22431738a46a78960069f9d617762ac24"
+  },
+  "images": [
+    {
+      "width": 900,
+      "height": 682,
+      "dpr": 1,
+      "locale": "ru_RU",
+      "initialProperties": {
+        "page": "cooling",
+        "showMap": true,
+        "language": "ru"
+      },
+      "capturedAt": "2026-10-29T15:29:35.017Z",
+      "sha256": "5b93b9fda491b2b8d397f97736a073c93a7274fdb8e1125581c92bf92a5b322d",
+      "file": "map.png",
+      "inspected": true
+    },
+    {
+      "width": 900,
+      "height": 682,
+      "dpr": 1,
+      "locale": "ru_RU",
+      "initialProperties": {
+        "page": "fans",
+        "language": "ru"
+      },
+      "capturedAt": "2026-10-29T15:29:36.054Z",
+      "sha256": "9c613a4407d210aa1b6bdaff4fc020ae07e2a4e7a14afeb11be113b17df40169",
+      "file": "profiles.png",
+      "inspected": true
+    },
+    {
+      "width": 900,
+      "height": 682,
+      "dpr": 1,
+      "locale": "ru_RU",
+      "initialProperties": {
+        "page": "fans",
+        "language": "ru",
+        "editor": true
+      },
+      "capturedAt": "2026-10-29T15:29:37.087Z",
+      "sha256": "8512b9d766405d12a22e57197307d3876b03956d165e6c7b3482a05d5ceff348",
+      "file": "editor.png",
+      "inspected": true
+    },
+    {
+      "width": 480,
+      "height": 422,
+      "dpr": 2,
+      "locale": "ru_RU",
+      "initialProperties": {
+        "page": "cooling",
+        "showMap": true,
+        "language": "ru",
+        "expanded": false
+      },
+      "capturedAt": "2026-10-29T15:29:37.999Z",
+      "sha256": "a648662b3069e60fe3f220ff78fc343b36f43b5052da29378e32fd49cdc944ab",
+      "file": "map-small.png",
+      "inspected": true
+    },
+    {
+      "width": 900,
+      "height": 682,
+      "dpr": 1,
+      "locale": "en_US",
+      "initialProperties": {
+        "page": "fans",
+        "language": "en",
+        "autoOptions": true
+      },
+      "capturedAt": "2026-10-29T15:29:39.040Z",
+      "sha256": "e476c4acfeef5861a09d400667930ab22431738a46a78960069f9d617762ac24",
+      "file": "auto.png",
+      "inspected": true
+    }
+  ],
+  "qtVersion": "6.12.0",
+  "rendererVersion": "0.3.0",
+  "backend": "software",
+  "warningsPolicy": "report",
+  "limits": [
+    "AT-SPI/atk-bridge warnings retained; no accessibility acceptance",
+    "No production panel capture or physical controls applied",
+    "Native self-review, no independent model review",
+    "Compact map scrolls and elides long category names; hover supplies full names",
+    "KDE documentation is a workflow reference, not copied visual assets"
+  ]
+}

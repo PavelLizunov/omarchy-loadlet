@@ -9,25 +9,28 @@ Item {
   objectName: "computerMap"
   property string language: "ru"
   property string selectedPart: ""
+  property var readings: ({})
   signal picked(string part)
-  implicitHeight: width * 0.72
+  readonly property real labelWidth: Math.min(width * 0.32, Style.space(190))
+  readonly property real rowHeight: Math.max(Style.space(48), Style.font.caption * 4 + Style.spacing.sm * 2)
+  implicitHeight: Math.max(width * 0.40, rowHeight * 6)
   readonly property color ink: Host.Color.popups.text
   readonly property color accent: Host.Color.accent
   function hex(color) {
     return "#" + [color.r,color.g,color.b].map(function(c){return Math.round(c*255).toString(16).padStart(2,"0")}).join("")
   }
   readonly property var parts: [
-    {key:"fan_rear",x:0.15,y:0.25}, {key:"cpu",x:0.43,y:0.29},
-    {key:"memory",x:0.65,y:0.29}, {key:"fan_cpu",x:0.43,y:0.43},
-    {key:"gpu",x:0.43,y:0.64}, {key:"storage",x:0.65,y:0.48},
-    {key:"motherboard",x:0.27,y:0.48}, {key:"fan_front",x:0.85,y:0.51},
-    {key:"fan_top",x:0.44,y:0.09}, {key:"fan_ssd",x:0.65,y:0.80},
-    {key:"fan_bottom",x:0.492,y:0.825}
+    {key:"fan_rear",x:0.15,y:0.25,side:0,row:0}, {key:"cpu",x:0.43,y:0.29,side:0,row:1},
+    {key:"memory",x:0.65,y:0.29,side:1,row:1}, {key:"fan_cpu",x:0.43,y:0.43,side:0,row:2},
+    {key:"gpu",x:0.43,y:0.64,side:0,row:4}, {key:"storage",x:0.65,y:0.48,side:1,row:2},
+    {key:"motherboard",x:0.27,y:0.48,side:0,row:3}, {key:"fan_front",x:0.85,y:0.51,side:1,row:3},
+    {key:"fan_top",x:0.44,y:0.09,side:1,row:0}, {key:"fan_ssd",x:0.65,y:0.80,side:1,row:5},
+    {key:"fan_bottom",x:0.492,y:0.825,side:0,row:5}
   ]
   Item {
     id: drawing
     anchors.centerIn: parent
-    width: Math.min(parent.width, parent.height / 0.72)
+    width: Math.max(0, parent.width - root.labelWidth * 2 - Style.spacing.sm * 2)
     height: width * 0.72
     Image {
       anchors.fill: parent
@@ -73,18 +76,18 @@ Item {
         Rectangle {
           anchors.centerIn: parent
           width: Style.space(20); height: width; radius: width/2
-          color: root.selectedPart===target.modelData.key || mouse.containsMouse ? root.accent : Host.Color.popups.background
+          color: root.selectedPart===target.modelData.key || mouse.containsMouse || target.activeFocus ? root.accent : Host.Color.popups.background
           border.color: root.accent; border.width: Math.max(1,Style.space(1))
           Text {
             anchors.centerIn: parent
             text: target.index+1; textFormat: Text.PlainText
-            color: root.selectedPart===target.modelData.key || mouse.containsMouse ? Host.Color.popups.background : root.accent
+            color: root.selectedPart===target.modelData.key || mouse.containsMouse || target.activeFocus ? Host.Color.popups.background : root.accent
             font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true
           }
         }
         activeFocusOnTab: true
         Accessible.role: Accessible.Button
-        Accessible.name: I18n.t("map_"+modelData.key,root.language)
+        Accessible.name: I18n.t("map_"+modelData.key,root.language) + ": " + ((root.readings[modelData.key] || {}).text || I18n.t("map_no_data",root.language))
         Keys.onReturnPressed: root.picked(modelData.key)
         Keys.onSpacePressed: root.picked(modelData.key)
         MouseArea {
@@ -92,6 +95,68 @@ Item {
           onClicked: root.picked(target.modelData.key)
         }
         PanelToolTip { visible:mouse.containsMouse || target.activeFocus; text:target.Accessible.name; fontFamily:Style.font.family }
+      }
+    }
+  }
+  Item {
+    objectName: "mapLegend"
+    anchors.fill: parent
+    Repeater {
+      model: root.parts
+      Item {
+        id: callout
+        required property var modelData
+        required property int index
+        readonly property var reading: root.readings[modelData.key] || ({text:I18n.t("map_no_data",root.language)})
+        readonly property real pointX: drawing.x + modelData.x * drawing.width
+        readonly property real pointY: drawing.y + modelData.y * drawing.height
+        x: modelData.side ? root.width - width : 0
+        y: modelData.row * (root.height-root.rowHeight) / 5
+        width: root.labelWidth
+        height: root.rowHeight - Style.spacing.xs
+        Rectangle {
+          readonly property real dx: callout.pointX - callout.x - x
+          readonly property real dy: callout.pointY - callout.y - y
+          x: callout.modelData.side ? 0 : callout.width
+          y: callout.height / 2
+          width: Math.sqrt(dx*dx+dy*dy)
+          height: 1
+          rotation: Math.atan2(dy,dx)*180/Math.PI
+          transformOrigin: Item.TopLeft
+          color: root.accent
+          opacity: root.selectedPart===callout.modelData.key ? 0.8 : 0.3
+          z: -1
+        }
+        Button {
+          objectName: "mapLegendPart" + callout.index
+          anchors.fill: parent
+          foreground: root.ink; accent: root.accent
+          selected: root.selectedPart===callout.modelData.key
+          bordered: true; focusable: true
+          tooltipText: I18n.t("map_"+callout.modelData.key,root.language) + "\n" + (callout.reading.detail || I18n.t("map_no_data",root.language))
+          Accessible.name: title.text + ": " + value.text
+          onClicked: root.picked(callout.modelData.key)
+          Column {
+            anchors.centerIn: parent
+            width: parent.width - Style.spacing.sm * 2
+            Text {
+              id: title
+              width: parent.width
+              text: (callout.index+1) + " · " + I18n.t("map_"+callout.modelData.key,root.language)
+              textFormat: Text.PlainText; elide: Text.ElideRight
+              color: root.ink; font.family: Style.font.family; font.pixelSize: Style.font.caption
+            }
+            Text {
+              id: value
+              objectName: "mapReading-" + callout.modelData.key
+              width: parent.width
+              text: callout.reading.text
+              textFormat: Text.PlainText; wrapMode: Text.Wrap
+              color: callout.reading.hot ? Host.Color.urgent : root.accent
+              font.family: Style.font.family; font.pixelSize: Style.font.caption; font.bold: true
+            }
+          }
+        }
       }
     }
   }

@@ -1,6 +1,14 @@
 # Changelog
 
-## Unreleased
+## 2.17.0 (checkpoint)
+
+- Separate profile selection from Apply and Edit; show the selected configuration
+  and active preset separately. Add Save and apply, Cancel/Escape and deletion
+  confirmation. Editing hides unrelated channel controls.
+- Expose the automatic non-game return preset explicitly; retain saved profiles
+  and all privileged helper behavior.
+- Show fresh temperature, RPM and GPU-percent callouts on the computer map, with
+  per-sensor hover details and min–max ranges. No new sampler or physical mapping.
 
 - Integrate nyaadesu's PR1: skip unreadable hwmon sensors instead of treating a
   read error as frame overflow. Overlong lines still fail the capacity guard.

@@ -265,7 +265,72 @@ Item {
       profiles.saveDraft();wait(10)
       verify(JSON.parse(plugin.settings.powerProfiles).some(function(p){return p.id===created}))
       clickVisible(named('deletePowerProfileButton'),named('fansViewport'));wait(10)
+      verify(JSON.parse(plugin.settings.powerProfiles).some(function(p){return p.id===created}),'Deletion needs confirmation')
+      clickVisible(named('deletePowerProfileButton'),named('fansViewport'));wait(10)
       verify(!JSON.parse(plugin.settings.powerProfiles).some(function(p){return p.id===created}))
+    }
+    function test_profile_browse_edit_cancel_and_apply() {
+      plugin.hintsVisible=false;plugin.setExpanded(true);clickVisible(tab('fans'))
+      var profiles=named('powerProfiles'),viewport=named('fansViewport')
+      profiles.capabilitiesReady=true
+      var before=JSON.stringify(plugin.settings),panel=pick('fittedContentWidth'),height=panel.height,width=panel.width
+      named('powerProfileDropdown').changed('games');wait(10)
+      compare(profiles.selectedId,'games');compare(profiles.running,false)
+      compare(JSON.stringify(plugin.settings),before,'Browsing is inert')
+      clickVisible(named('profileEditorToggle'),viewport)
+      compare(profiles.draft.id,'games');verify(!named('computerMapToggle').visible)
+      profiles.changeCpu('boost',false)
+      clickVisible(named('cancelPowerProfileButton'),viewport)
+      compare(JSON.stringify(plugin.settings),before);compare(profiles.draft.config.cpu.boost,true)
+      compare(panel.height,height);compare(panel.width,width)
+      clickVisible(named('profileEditorToggle'),viewport)
+      named('powerProfileName').forceActiveFocus();keyClick(Qt.Key_Escape);wait(10)
+      compare(profiles.editorOpen,false);compare(plugin.fansOpen,true)
+      clickVisible(named('profileEditorToggle'),viewport)
+      pick('moveRequested').forceActiveFocus();keyClick(Qt.Key_Escape);wait(10)
+      compare(profiles.editorOpen,false);compare(plugin.fansOpen,true)
+      clickVisible(named('profileEditorToggle'),viewport)
+      profiles.changeCpu('maxMHz',2000)
+      clickVisible(named('saveApplyPowerProfileButton'),viewport)
+      compare(profiles.running,true);compare(profiles.editorOpen,false)
+      compare(JSON.parse(plugin.settings.powerProfiles).filter(function(p){return p.id==='games'})[0].config.cpu.maxMHz,2000)
+      var proc=nodes(profiles).filter(function(n){return n.command&&n.command.indexOf('apply')>=0})[0]
+      compare(proc.command[3],ProfileCodec.encode(profiles.selectedProfile.config))
+      proc.running=false;proc.exited(0)
+      compare(plugin.settings.activePowerProfile,'games');compare(plugin.settings.autoGameProfiles,false)
+      compare(panel.height,height);compare(panel.width,width)
+    }
+    function test_profile_auto_base_and_invalid_draft() {
+      plugin.hintsVisible=false;clickVisible(tab('fans'))
+      var profiles=named('powerProfiles'),viewport=named('fansViewport')
+      profiles.capabilitiesReady=true
+      clickVisible(named('automationOptionsToggle'),viewport)
+      named('automaticBaseProfile').changed('current')
+      clickVisible(named('autoGameProfilesToggle'),viewport)
+      compare(profiles.pendingBaseId,'current');compare(profiles.operation,'auto-config')
+      var proc=nodes(profiles).filter(function(n){return n.command&&n.command.indexOf('auto-config')>=0})[0]
+      compare(proc.command[3],ProfileCodec.encode({game:profiles.profiles[2].config,base:profiles.profiles[0].config}))
+      proc.running=false;proc.exited(126)
+      profiles.selectProfile('idle');profiles.changeFan('pwm2','101',false)
+      var before=JSON.stringify(plugin.settings)
+      compare(profiles.saveDraft(),false);compare(profiles.statusKey,'profile_invalid');compare(JSON.stringify(plugin.settings),before)
+    }
+    function test_map_live_readings_assignments_and_stale() {
+      plugin.hintsVisible=false;plugin.sensorsOpen=true
+      plugin.persistSettings({fanPlace_pwm2:'fan_cpu',fanPlace_pwm3:'fan_front'})
+      plugin.computerMapVisible=true;wait(20)
+      compare(named('mapReading-cpu').text,'54°C')
+      compare(named('mapReading-fan_cpu').text,'700 RPM')
+      compare(named('mapReading-fan_front').text,'850 RPM')
+      compare(named('mapReading-memory').text,'Нет данных')
+      var ctrl=plugin.activityController,snap=ctrl._sensorSnapshot
+      ctrl._sensorSnapshot=Object.assign({},snap,{temperatures:snap.temperatures.concat([{id:'cpu-die',category:'cpu',value:62}]),fans:snap.fans.concat([{id:'gpu-fan',category:'gpu',fan:true,value:30,unit:'percent'}])})
+      compare(named('mapReading-cpu').text,'54–62°C')
+      compare(named('mapReading-gpu').text,'48°C · 30%')
+      plugin.assignSensor(ctrl._sensorSnapshot.temperatures[0],'storage')
+      compare(plugin.mapReadings.cpu.text,'62°C');compare(plugin.mapReadings.storage.text,'54°C')
+      ctrl.sensorsUpdatedAt=0
+      compare(plugin.mapReadings.cpu.text,'Нет данных');compare(plugin.mapReadings.fan_front.text,'Нет данных')
     }
     function test_settings_choice_reset_remains_reactive() {
       plugin.setSettingsOpen(true);plugin.settingsSection='icon';wait(20)

@@ -33,10 +33,12 @@ Fans offers named profiles combining fan output with CPU boost, governor, energy
 preference and a frequency cap. Optional automatic switching detects Steam/Proton
 game processes, selects Games, and returns to your non-game preset after exit.
 It works with the panel closed. Non-Steam games without Steam metadata are not
-currently detected. Saving a preset does not apply it; manual control cancels
-automation. No guaranteed noise, temperature, power or performance improvement.
+currently detected. Select a preset to inspect it, then Apply or Edit. Save only
+updates the preset; Save and apply activates it. Manual control cancels automation.
+The computer map shows fresh temperatures and RPM beside its component points.
+No guaranteed noise, temperature, power or performance improvement.
 
-![Automatic profiles and fan controls, inert demonstration data](docs/images/release-2.16.0/profiles.png)
+![Profile selection and fan controls, inert demonstration data](docs/images/profile-ux-2.17.0/profiles.png)
 
 ## Optional system controls
 

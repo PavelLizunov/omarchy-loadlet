@@ -68,7 +68,7 @@ Panel {
         journalError: activity.journalError,
         heatThreshold: activity.heatThreshold,
         productName: "Loadlet",
-        iconRevision: "2.16.0",
+        iconRevision: "2.17.0",
         rightClickAction: "none",
         iconTooltip: button.tooltipText,
         iconConsumer: String(Qt.resolvedUrl("Panel.qml")),
@@ -214,6 +214,37 @@ Panel {
     return sensor.category === part
   }
   readonly property var filteredSensors: coolingSensors.filter(function(sensor) { return root.sensorMatches(sensor, root.sensorPart) })
+  readonly property var mapReadings: {
+    var result = {}
+    sensorPlaces.slice(1).forEach(function(part) {
+      var sensors = activity.sensorsFresh ? root.currentSensors.filter(function(sensor) {
+        return root.sensorMatches(sensor,part) && typeof sensor.value === "number" && isFinite(sensor.value)
+          && (!sensor.fan || sensor.value >= 0)
+      }) : []
+      var temperatures = sensors.filter(function(s) { return !s.fan }).map(function(s) { return s.value })
+      var rpm = sensors.filter(function(s) { return s.fan && s.unit !== "percent" }).map(function(s) { return s.value })
+      var percent = sensors.filter(function(s) { return s.fan && s.unit === "percent" }).map(function(s) { return s.value })
+      var detail = sensors.map(function(s) { return root.sensorOwner(s) + " · " + root.sensorLabel(s) + ": "
+        + (!s.fan ? Model.formatTemperature(s.value,root.temperatureUnitSetting) : Math.round(s.value) + (s.unit === "percent" ? "%" : " RPM")) })
+      if (activity.sensorsFresh && part.indexOf("fan_") === 0) {
+        (activity.sensorSnapshot.controls || []).forEach(function(channel) {
+          if (root.fanPlace(channel.id) !== part || typeof channel.rpm !== "number" || channel.rpm < 0
+              || root.currentSensors.some(function(s) { return root.fanChannel(s) === channel.id })) return
+          rpm.push(channel.rpm); detail.push(channel.id + ": " + channel.rpm + " RPM")
+        })
+      }
+      function range(values,unit) {
+        if (!values.length) return ""
+        var lo=Math.round(Math.min.apply(null,values)), hi=Math.round(Math.max.apply(null,values))
+        return (lo===hi ? String(lo) : lo+"–"+hi) + unit
+      }
+      var tempValues=temperatures.map(function(t) { return root.temperatureUnitSetting === "Fahrenheit" ? t*9/5+32 : t })
+      var text=[range(tempValues,root.temperatureUnitSetting === "Fahrenheit" ? "°F" : "°C"),range(rpm," RPM"),range(percent,"%")].filter(function(s) { return s }).join(" · ")
+      result[part]={text:text || I18n.t("map_no_data",root.effectiveLanguage),detail:detail.join("\n"),
+        hot:temperatures.some(function(t) { return t >= activity.heatThreshold })}
+    })
+    return result
+  }
   function selectPart(part) {
     historyFanChannel = ""
     computerMapVisible = false
@@ -965,6 +996,7 @@ Panel {
         if (processActions.confirmationOpen) processActions.cancel()
         else if (root.languageExpanded) root.languageExpanded = false
         else if (root.settingsOpen) root.setSettingsOpen(false)
+        else if (root.fansOpen && contentLoader.item && contentLoader.item.editingProfile) contentLoader.item.cancelProfileEdit()
         else if (root.computerMapVisible) root.computerMapVisible = false
         else if (root.historyFanChannel) root.returnToFanControls()
         else if (root.sensorsOpen) root.sensorsOpen = false
@@ -998,6 +1030,7 @@ Panel {
         }
         if (root.languageExpanded) { root.languageExpanded = false; return }
         if (root.settingsOpen) root.setSettingsOpen(false)
+        else if (root.fansOpen && contentLoader.item && contentLoader.item.editingProfile) contentLoader.item.cancelProfileEdit()
         else if (root.computerMapVisible) root.computerMapVisible = false
         else if (root.historyFanChannel) root.returnToFanControls()
         else if (root.sensorsOpen) root.sensorsOpen = false
@@ -1597,34 +1630,12 @@ Panel {
     }
     ComputerMap {
       width: parent.width
-      height: visible ? Math.min(implicitHeight, Style.space(285)) : 0
+      height: visible ? implicitHeight : 0
       visible: root.computerMapVisible
       language: root.effectiveLanguage
       selectedPart: root.sensorPart
+      readings: root.mapReadings
       onPicked: function(part) { root.selectPart(part) }
-    }
-    Grid {
-      id: mapLegend
-      objectName: "mapLegend"
-      width: parent.width
-      visible: root.computerMapVisible
-      columns: width >= Style.space(600) ? 3 : 2
-      spacing: Style.spacing.xs
-      Repeater {
-        model: ["fan_rear","cpu","memory","fan_cpu","gpu","storage","motherboard","fan_front","fan_top","fan_ssd","fan_bottom"]
-        Button {
-          required property string modelData
-          required property int index
-          objectName: "mapLegendPart" + index
-          width: Math.floor((mapLegend.width-mapLegend.spacing*(mapLegend.columns-1))/mapLegend.columns)
-          height: Style.space(25)
-          text: (index+1)+" · "+I18n.t("map_"+modelData,root.effectiveLanguage)
-          foreground: root.foreground; accent: root.accent
-          fontFamily: Style.font.family; fontSize: Style.font.caption; bordered:true;focusable:true
-          selected: root.sensorPart === modelData
-          onClicked: root.selectPart(modelData)
-        }
-      }
     }
     Text {
       visible: root.computerMapVisible
@@ -1832,6 +1843,10 @@ Panel {
     Flickable {
       id: fansViewport
       objectName: "fansViewport"
+      readonly property bool editingProfile: powerProfiles.editorOpen
+      function cancelProfileEdit() {
+        if (!powerProfiles.running) { powerProfiles.selectProfile(powerProfiles.selectedId);powerProfiles.editorOpen=false }
+      }
       anchors.fill: parent
       contentWidth: width
       contentHeight: fanBody.implicitHeight
@@ -1844,6 +1859,7 @@ Panel {
         width: parent.width
         spacing: Style.spacing.sm
         PowerProfiles {
+          id: powerProfiles
           objectName: "powerProfiles"
           width: parent.width
           settings: root.settings
@@ -1854,10 +1870,10 @@ Panel {
           onSaveSettings: function(values) { root.persistSettings(values) }
           onApplied: activity.refresh()
         }
-        ComputerNavigator {}
+        ComputerNavigator { visible: !powerProfiles.editorOpen }
         Text {
           width:parent.width
-          visible:!root.computerMapVisible && root.fanStatusKey!==""
+          visible:!powerProfiles.editorOpen && !root.computerMapVisible && root.fanStatusKey!==""
           text:I18n.t(root.fanStatusKey,root.effectiveLanguage)
           textFormat:Text.PlainText;wrapMode:Text.Wrap
           color:root.fanStatusKey==="fan_action_failed" ? root.urgent : root.dim
@@ -1865,7 +1881,7 @@ Panel {
         }
         Column {
           width: parent.width
-          visible: !root.computerMapVisible
+          visible: !powerProfiles.editorOpen && !root.computerMapVisible
           spacing: Style.spacing.sm
           ChoiceDropdown {
             id: fanChannelDropdown
@@ -1885,14 +1901,14 @@ Panel {
           }
         }
         Text {
-          visible: !root.computerMapVisible && root.sensorPart.indexOf("fan_") === 0
+          visible: !powerProfiles.editorOpen && !root.computerMapVisible && root.sensorPart.indexOf("fan_") === 0
           width: parent.width
           text: I18n.t("map_assignment_hint", root.effectiveLanguage)
           textFormat: Text.PlainText; wrapMode: Text.Wrap
           color: root.dim; font.family: Style.font.family; font.pixelSize: Style.font.caption
         }
         Repeater {
-          model: root.computerMapVisible || !root.activeFanChannel ? [] : [root.activeFanChannel]
+          model: powerProfiles.editorOpen || root.computerMapVisible || !root.activeFanChannel ? [] : [root.activeFanChannel]
           DetailSurface {
             id: fanChannelCard
             required property string modelData
@@ -2102,7 +2118,7 @@ Panel {
         }
         Text {
           width: parent.width
-          visible: !root.computerMapVisible && (!activity.sensorSnapshot.controls || activity.sensorSnapshot.controls.length === 0)
+          visible: !powerProfiles.editorOpen && !root.computerMapVisible && (!activity.sensorSnapshot.controls || activity.sensorSnapshot.controls.length === 0)
           text: I18n.t("fan_control_unavailable",root.effectiveLanguage)
           textFormat: Text.PlainText; wrapMode: Text.Wrap
           color: root.dim

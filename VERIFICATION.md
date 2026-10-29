@@ -1,5 +1,16 @@
 # Loadlet verification
 
+## Profile UX and live map — 2.17.0 checkpoint
+
+[Focused delivery and limits](docs/profile-ux-2.17.0.md). Local UI runner passes
+85 results, with inert browse/edit/cancel/apply and fresh/stale map regression
+coverage. Catalog, package, manifest and isolated native install/update checks
+pass. Five final actual-consumer images inspected, including compact DPR2.
+Settings stayed byte-identical; shared-shell status confirms the new runtime URL,
+2.17.0, ready and no reader error. No root-helper or hardware setting changes.
+No full audit, physical control trial, independent review or user acceptance.
+The old 2.16.0 images remain pinned to their release commit, not current source.
+
 ## Post-release PR1 and repository cleanup — 2026-10-29
 
 Integrated nyaadesu's original unreadable-hwmon commit through a merge, retaining
