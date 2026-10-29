@@ -1,5 +1,37 @@
 # Loadlet verification
 
+## Post-release PR1 and repository cleanup — 2026-10-29
+
+Integrated nyaadesu's original unreadable-hwmon commit through a merge, retaining
+its authorship. The v2.16.0 packaged sampler fails the contributor regression
+with `error\tcapacity`; the maintainer-rebuilt sampler passes it and still rejects
+an overlong sysfs line. Full local `make check` passes, including 82 QML results,
+package/install checks and manifest validation. Source/schema/UI settings remain
+otherwise unchanged. This is an unreleased correction; the v2.16.0 tag is intact.
+Exact integration-commit CI is a separate prerequisite to default-branch publication.
+
+Installed 22 exact runtime files under `runtime-2.16.0-pr1-20261029`. Read-only
+shared-shell IPC confirms that consumer, ready state and no reader error.
+The installed sampler SHA256 is
+`8c35b759d1f5d6dd2ae6f8d67dc65097eede02d65de5feb23dc708e729d2ea19`.
+Desktop settings are byte-identical; no root helpers, fan workers or profiles
+were changed. The unreadable sensor is reproduced with a temporary filesystem
+fixture, not the contributor's physical Intel Wi-Fi hardware. No new visual
+capture or independent model review was performed for this backend-only fix.
+
+Closed historical own PRs #4-17 after confirming each exact head is in main.
+Closed PR2 with an explanation: GPU-card temperature is already implemented via
+the shared sensor path, while background GPU tooltip sampling is not being added
+by this cleanup. Its missing tooltip is not claimed as implemented.
+Removed 27 inspected remote checkpoint branches and 21 clean, already-integrated
+local worktrees/branches. Three superseded non-ancestor tips remain recoverable
+under local `refs/archive/pr-tidy-20261029/`; their original installation guidance
+or icon changes are obsolete or present in the current implementation.
+The original checkout/index, release checkpoint and release tag were retained.
+
+The previous audit missed the already-open sensor bug report and stale PR queue.
+The red/green result corrects that specific gap, not a claim that every bug is gone.
+
 ## 2.16.0 consolidated release
 
 See [the current audit report](docs/release-2.16.0.md) for confirmed defects,

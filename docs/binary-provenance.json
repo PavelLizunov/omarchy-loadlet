@@ -1,17 +1,17 @@
 {
   "schemaVersion": 1,
   "platform": "linux-x86_64",
-  "sourceBaseCommit": "3db93da050465dcfb917102375eb4df5fb9e324d",
+  "sourceBaseCommit": "9d2bce6aa645715d3b4762da1e2d0658cffec2a8",
   "sha256": {
-    "activity-sampler": "053db5d3be54c56a3ecfe9a2494fd3ea844bd9978cebf8b58b91c1525d1e507b",
-    "activity-sampler.cpp": "bd7f838f93e34e1793811be1ad29c8f2d043ad8bc2218992ae8140db4b311c79",
+    "activity-sampler": "8c35b759d1f5d6dd2ae6f8d67dc65097eede02d65de5feb23dc708e729d2ea19",
+    "activity-sampler.cpp": "38aa26f6029246a20d3ecad9ce62dbe6acf4e57fdcfb51a949f12c5165eaca16",
     "DiagnosticJournal.h": "8666805d52cd5f46f7f519c0f21fccf61dfe1f7ae4895cda79f5f1739658b722",
     "Makefile": "02ca5edf008d0c6bb857d09de5665a9dd8d925be2511c6ce96e127493a954643"
   },
   "size": 272504,
   "compiler": "GCC 16.2.1 20260810",
   "buildCommand": "LC_ALL=C make activity-sampler",
-  "buildResult": "Rebuilt during 2.16.0 release audit; byte-identical to distributed executable",
+  "buildResult": "Maintainer rebuild after integrating PR1; unreadable-sensor regression fails on v2.16.0 bytes and passes on this build; overlong lines still rejected",
   "dynamicRequirements": {
     "glibc": "2.34",
     "libstdc++": "GLIBCXX_3.4.32",

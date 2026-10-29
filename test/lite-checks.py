@@ -94,3 +94,30 @@ with tempfile.TemporaryDirectory() as directory:
                                          'cpu\tcpu\t1000\t800', 'memory\t1000\t600\t0\t0\t100',
                                          'snapshot-end\tglance'], result.stdout
     print('PASS glance reader: aggregate CPU/RAM only, framed response')
+
+with tempfile.TemporaryDirectory() as directory:
+    base = Path(directory)
+    proc = base / 'proc'
+    proc.mkdir()
+    (proc / 'uptime').write_text('100.0 0.0\n')
+    hwmon = base / 'sys' / 'class' / 'hwmon'
+    # An idle iwlwifi sensor fails its read (ENODATA); a directory fails the same way.
+    (hwmon / 'hwmon0' / 'temp1_input').mkdir(parents=True)
+    (hwmon / 'hwmon0' / 'name').write_text('iwlwifi_1\n')
+    (hwmon / 'hwmon1').mkdir()
+    (hwmon / 'hwmon1' / 'name').write_text('coretemp\n')
+    (hwmon / 'hwmon1' / 'temp1_input').write_text('45000\n')
+    (hwmon / 'hwmon1' / 'temp1_label').write_text('Package id 0\n')
+    env = dict(os.environ, OMARCHY_SYSTEM_STATS_PROC_PATH=str(proc),
+               OMARCHY_SYSTEM_STATS_SYS_PATH=str(base / 'sys'))
+    def thermals():
+        return subprocess.run([str(ROOT / 'activity-sampler'), '--activity-reader'],
+                              input='thermals\n', env=env, capture_output=True,
+                              text=True, timeout=3, check=True).stdout.splitlines()
+    assert thermals() == ['schema\tactivity-thermals\t1', 'sample\t100.0',
+                          'temperature\thwmon1/temp1\tcoretemp\tPackage id 0\t45000',
+                          'snapshot-end\tthermals'], thermals()
+    print('PASS thermals: an unreadable sensor is skipped, not a capacity error')
+    (hwmon / 'hwmon0' / 'name').write_text('x' * 9000)
+    assert thermals() == ['error\tcapacity', 'snapshot-end\tthermals'], thermals()
+    print('PASS thermals: an overlong sysfs line is still a capacity error')

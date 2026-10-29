@@ -7,16 +7,18 @@ with the QML and Python helpers from this public repository.
 
 The distributed executable was rebuilt from `activity-sampler.cpp`,
 `DiagnosticJournal.h` and Makefile using GCC 16.2.1 20260810 on Linux x86_64
-for motherboard sensor/control discovery, background history, NVIDIA fixes and
-2.15.0 per-process GPU utilization and journal/sysfs corrections. `make activity-sampler` completed successfully.
+after integrating [PR1](https://github.com/PavelLizunov/omarchy-loadlet/pull/1).
+The shared line reader now skips unavailable sensor reads without declaring the
+entire frame over capacity. `LC_ALL=C make -B activity-sampler` completed.
 The current 272504-byte executable has SHA256
-`053db5d3be54c56a3ecfe9a2494fd3ea844bd9978cebf8b58b91c1525d1e507b`.
+`8c35b759d1f5d6dd2ae6f8d67dc65097eede02d65de5feb23dc708e729d2ea19`.
 The exact build-input hashes are recorded in the machine-readable provenance.
-The full local make check gate passed for this revision. Three scoped Gemini
-source investigations were reconciled with source and regression scenarios;
-physical CPU/NVIDIA controls were checked separately. Reproducible binary
-comparison and remote CI remain separate from the successful local build.
-Remote CI reproduction remains separate from this local build result.
+The contributor's unreadable-sensor regression fails with the previous v2.16.0
+binary and passes with this build; the overlong-line capacity guard still passes.
+This is a post-release correction, not a replacement of the v2.16.0 tag. Historical
+2.15.0 model/hardware reviews do not cover this change. Local full checks, exact
+remote reproduction and installed runtime identity are reported separately in
+[verification](../VERIFICATION.md).
 
 [Machine-readable provenance](binary-provenance.json) binds source, header,
 Makefile and executable SHA256 values. Build hardening and source-path mapping

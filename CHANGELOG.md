@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Integrate nyaadesu's PR1: skip unreadable hwmon sensors instead of treating a
+  read error as frame overflow. Overlong lines still fail the capacity guard.
+  The maintainer rebuilt the packaged sampler and refreshed its provenance.
+
 ## 2.16.0
 
 Consolidated release of sensor categories, process GPU telemetry, persistent fan
