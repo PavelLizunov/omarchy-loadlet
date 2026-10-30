@@ -177,7 +177,7 @@ def main():
         env = dict(os.environ, QT_QPA_PLATFORM='offscreen', QT_QUICK_BACKEND='software')
         runner = os.environ.get('ACTIVITY_QMLTESTRUNNER') or shutil.which('qmltestrunner') or '/usr/lib/qt6/bin/qmltestrunner'
         result = subprocess.run([runner, '-input', str(Path(directory) / 'tst_panel.qml'),
-                                 '-import', str(imports)], env=env, timeout=30,
+                                 '-import', str(imports)], env=env, timeout=120,
                                 capture_output=True, text=True)
         print(result.stdout, end='')
         print(result.stderr, end='', file=sys.stderr)

@@ -69,6 +69,7 @@ Panel {
         heatThreshold: activity.heatThreshold,
         productName: "Loadlet",
         iconRevision: "2.17.2",
+        implementationRevision: "laptop-fixes-20261030",
         rightClickAction: "none",
         iconTooltip: button.tooltipText,
         iconConsumer: String(Qt.resolvedUrl("Panel.qml")),
@@ -99,6 +100,11 @@ Panel {
   property int fanDuration: 10
   property var fanProfileOutputs: ({})
   property var fanOutputDrafts: ({})
+  function clearFanDrafts(channel) {
+    var drafts = channel ? Object.assign({}, fanOutputDrafts) : ({})
+    if (channel) delete drafts[channel]
+    fanOutputDrafts = drafts
+  }
   property string pendingFanChannel: ""
   property int pendingFanSpeed: 100
   property string pendingFanAction: "boost"
@@ -125,6 +131,7 @@ Panel {
         if (root.pendingFanAction === "save") outputs[root.pendingFanChannel] = root.pendingFanSpeed
         else delete outputs[root.pendingFanChannel]
         root.fanProfileOutputs = outputs
+        root.clearFanDrafts(root.pendingFanChannel)
         var change = {activePowerProfile:"",autoGameProfiles:false}; change["fanOutput_" + root.pendingFanChannel] = root.pendingFanAction === "save" ? root.pendingFanSpeed : -1
         root.persistSettings(change)
       }
@@ -869,6 +876,7 @@ Panel {
       settingsOpen = false
       settingsControlActive = false
       languageExpanded = false
+      clearFanDrafts()
       cursorActive = false
       selectedProcessIndex = 0
       selectedProcessKey = ""
@@ -1500,17 +1508,20 @@ Panel {
         spacing: Style.spacing.xs
 
         Flickable {
+          id: compactTileViewport
           width: parent.width
-          height: Math.min(root.tileHeight, Math.max(Style.space(80), compactBody.height - Style.space(100)
-            - (root.compactRamStrip ? root.ramStripHeight + compactBody.spacing : 0)))
+          height: Math.max(0, Math.min(compactGrid.implicitHeight,
+            compactBody.height - compactTableHeader.implicitHeight - root.processRowHeight
+              - compactBody.spacing * 2 - compactSeparator.height
+              - (root.compactRamStrip ? root.ramStripHeight + compactBody.spacing : 0)))
           contentWidth: width
           contentHeight: compactGrid.implicitHeight
           clip: true
           boundsBehavior: Flickable.StopAtBounds
-          ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+          ScrollBar.vertical: ScrollBar { id: compactTileScrollBar; policy: ScrollBar.AsNeeded }
         Grid {
           id: compactGrid
-          width: parent.width - Style.spacing.xs
+          width: parent.width - (compactTileScrollBar.visible ? compactTileScrollBar.width + Style.spacing.xs : 0)
           columns: Math.max(1, root.compactTiles.length)
           spacing: Style.spacing.sm
           Repeater {
@@ -1519,7 +1530,7 @@ Panel {
               required property string modelData
               tile: modelData
               width: (compactGrid.width - compactGrid.spacing * (compactGrid.columns - 1)) / compactGrid.columns
-              height: root.tileHeight
+              height: Math.max(root.tileHeight, implicitHeight)
             }
           }
         }
@@ -1571,6 +1582,7 @@ Panel {
         }
 
         PanelSeparator {
+          id: compactSeparator
           width: parent.width
           foreground: root.foreground
         }
@@ -1680,7 +1692,9 @@ Panel {
     Connections {
       target: viewport.Window.window
       function onActiveFocusItemChanged() {
-        var item = viewport.Window.window.activeFocusItem
+        var window = viewport.Window.window
+        if (!window) return
+        var item = window.activeFocusItem
         var ancestor = item
         while (ancestor && ancestor !== viewport.contentItem) ancestor = ancestor.parent
         if (!ancestor) return
@@ -1887,7 +1901,7 @@ Panel {
           language: root.effectiveLanguage
           foreground: root.foreground; accent: root.accent
           onSaveSettings: function(values) { root.persistSettings(values) }
-          onApplied: activity.refresh()
+          onApplied: { root.clearFanDrafts(); activity.refresh() }
         }
         ComputerNavigator { visible: !powerProfiles.editorOpen }
         Text {
@@ -2983,7 +2997,7 @@ Panel {
     signal activated(int delta)
 
     implicitHeight: Math.max(Style.space(tall ? 104 : 72),
-      Style.spacing.md * 2 + Style.font.caption * 2 + Style.font.heading + Style.space(12) + Style.spacing.sm * 2)
+      Style.spacing.md * 2 + cardHeader.height + 2 + metricValues.implicitHeight + cardFooter.height)
     color: Style.normalFillFor(root.foreground, root.accent)
     borderSpec: Border.controlSpec("normal", root.foreground, root.accent)
     radius: Style.cornerRadius
@@ -3047,9 +3061,10 @@ Panel {
         anchors.bottom: cardFooter.top
 
         Column {
+          id: metricValues
           anchors.left: parent.left
-          anchors.right: coreDie.visible ? coreDie.left : parent.right
-          anchors.rightMargin: coreDie.visible ? Style.spacing.sm : 0
+          anchors.right: parent.right
+          anchors.rightMargin: coreDie.visible ? parent.width * 0.48 + Style.spacing.sm : 0
           anchors.verticalCenter: parent.verticalCenter
           spacing: 0
 

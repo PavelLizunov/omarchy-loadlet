@@ -113,17 +113,54 @@ function parseSensorSnapshot(raw) {
 }
 
 function nextSensorHistory(previous, snapshot, limit, maxGap) {
-  var result = {}
-  var values = snapshot.temperatures.concat(snapshot.fans)
+  var result = Object.create(null)
+  if (!snapshot) return result
+  var prev = previous && typeof previous === "object" ? previous : {}
+  var temperatures = Array.isArray(snapshot.temperatures) ? snapshot.temperatures : []
+  var fans = Array.isArray(snapshot.fans) ? snapshot.fans : []
+  var values = temperatures.concat(fans)
+  var sample = number(snapshot.sample)
+  var pointsLimit = Math.max(20, Math.min(1440, Math.round(number(limit, 240))))
+  var gapLimit = Math.max(1, number(maxGap, 15))
+  var maxAge = Math.max(60, gapLimit * 4)
+  var maxKeys = 288
+
   for (var i = 0; i < values.length; i++) {
     var sensor = values[i]
-    var old = previous[sensor.id] || []
+    if (!sensor || !sensor.id) continue
+    var old = prev[sensor.id] || []
     // Keep earlier observations, but mark gaps instead of drawing through them.
-    if (old.length && snapshot.sample <= old[old.length - 1].time) old = []
-    var gap = old.length > 0 && snapshot.sample - old[old.length - 1].time > (maxGap || 15)
-    result[sensor.id] = old.concat([{time: snapshot.sample, wallTime:Date.now()/1000, value: sensor.value, breakBefore:old.length ? gap : undefined}])
-      .slice(-Math.max(20, Math.min(1440, limit)))
+    if (old.length && sample <= old[old.length - 1].time) old = []
+    var gap = old.length > 0 && (old[old.length - 1].unavailableAfter === true
+      || sample - old[old.length - 1].time > gapLimit)
+    result[sensor.id] = old.concat([{
+      time: sample,
+      wallTime: Date.now() / 1000,
+      value: sensor.value,
+      breakBefore: old.length ? gap : undefined
+    }]).slice(-pointsLimit)
   }
+
+  var missing = []
+  for (var prevId in prev) {
+    if (!Object.prototype.hasOwnProperty.call(prev, prevId)) continue
+    if (result[prevId]) continue
+    var prevSeries = prev[prevId]
+    if (!Array.isArray(prevSeries) || prevSeries.length === 0) continue
+    var lastPoint = prevSeries[prevSeries.length - 1]
+    if (!lastPoint || typeof lastPoint.time !== "number") continue
+    if (sample <= lastPoint.time) continue
+    if (sample - lastPoint.time > maxAge) continue
+    missing.push({ id: prevId, time: lastPoint.time, series: prevSeries })
+  }
+  missing.sort(function(a, b) { return b.time - a.time })
+  var availableSlots = Math.max(0, maxKeys - Object.keys(result).length)
+  for (var m = 0; m < missing.length && m < availableSlots; m++) {
+    var retained = missing[m].series.slice(-pointsLimit)
+    retained[retained.length - 1] = Object.assign({}, retained[retained.length - 1], {unavailableAfter:true})
+    result[missing[m].id] = retained
+  }
+
   return result
 }
 
@@ -414,9 +451,14 @@ function parseStorageSnapshot(raw) {
   return applyPrimaryStorage(snapshot)
 }
 
+function processGpuKey(pid, startTicks, id) {
+  return number(pid) + ":" + number(startTicks) + ":" + String(id || "")
+}
+
 function parseGpuSnapshot(raw) {
   var snapshot = emptyGpuSnapshot()
   var lines = String(raw || "").split("\n")
+  var processGpuMap = Object.create(null)
 
   for (var i = 0; i < lines.length; i++) {
     if (!lines[i]) continue
@@ -446,20 +488,25 @@ function parseGpuSnapshot(raw) {
         capacity: Math.max(1, number(fields[6], 1)),
         kind: String(fields[7] || "time")
       })
-    } else if (kind === "process-gpu") {
-      snapshot.processGpus.push({
-        id: String(fields[1]), pid: number(fields[2]), startTicks: number(fields[3]),
-        directUtilization: number(fields[4], -1), engines: []
-      })
-    } else if (kind === "process-engine") {
-      var processId = String(fields[8]) + ":" + String(fields[9]) + ":" + String(fields[1])
-      var processGpu = snapshot.processGpus.filter(function(item) { return item.processId === processId })[0]
+    } else if (kind === "process-gpu" || kind === "process-engine") {
+      var directRow = kind === "process-gpu"
+      var gpuId = String(fields[1] || "")
+      var pid = number(fields[directRow ? 2 : 8])
+      var startTicks = number(fields[directRow ? 3 : 9])
+      var key = processGpuKey(pid, startTicks, gpuId)
+      var processGpu = processGpuMap[key]
       if (!processGpu) {
-        processGpu = {processId:processId, id:String(fields[1]), pid:number(fields[8]), startTicks:number(fields[9]), directUtilization:-1, engines:[]}
+        processGpu = {processId:key, id:gpuId, pid:pid, startTicks:startTicks, directUtilization:-1, engines:[]}
+        processGpuMap[key] = processGpu
         snapshot.processGpus.push(processGpu)
       }
-      processGpu.engines.push({client:String(fields[2]), name:String(fields[3]), busy:number(fields[4]),
-        total:number(fields[5], -1), capacity:Math.max(1, number(fields[6], 1)), kind:String(fields[7])})
+      if (directRow) {
+        var direct = number(fields[4], -1)
+        if (direct >= 0) processGpu.directUtilization = Math.max(processGpu.directUtilization, direct)
+      } else {
+        processGpu.engines.push({client:String(fields[2]), name:String(fields[3]), busy:number(fields[4]),
+          total:number(fields[5], -1), capacity:Math.max(1, number(fields[6], 1)), kind:String(fields[7])})
+      }
     } else if (kind === "gpu-memory") {
       var memoryGpu = gpuSnapshotEntry(snapshot, fields[1])
       var memoryValue = Math.max(0, number(fields[3]))
@@ -563,18 +610,27 @@ function nextGpus(previous, current) {
 function nextProcessGpus(previous, current) {
   var before = previous && Array.isArray(previous.processGpus) ? previous.processGpus : []
   var values = current && Array.isArray(current.processGpus) ? current.processGpus : []
+  var beforeMap = Object.create(null)
+  for (var i = 0; i < before.length; i++) {
+    var item = before[i]
+    var itemKey = processGpuKey(item.pid, item.startTicks, item.id)
+    if (!beforeMap[itemKey]) beforeMap[itemKey] = item
+  }
   var result = {}
-  values.forEach(function(gpu) {
-    var old = before.filter(function(item) {
-      return item.pid === gpu.pid && item.startTicks === gpu.startTicks && item.id === gpu.id
-    })[0]
-    var reading = nextGpus({sample:previous && previous.sample || 0, gpus:old ? [old] : []}, {sample:current.sample, gpus:[gpu]})[0]
-    if (!reading || reading.usage < 0) return
+  for (var j = 0; j < values.length; j++) {
+    var gpu = values[j]
+    var gpuKey = processGpuKey(gpu.pid, gpu.startTicks, gpu.id)
+    var old = beforeMap[gpuKey]
+    var reading = nextGpus(
+      { sample: previous && previous.sample || 0, gpus: old ? [old] : [] },
+      { sample: current && current.sample || 0, gpus: [gpu] }
+    )[0]
+    if (!reading || reading.usage < 0) continue
     var key = gpu.pid + ":" + gpu.startTicks
-    if (!result[key]) result[key] = {usage:-1, byGpu:{}}
+    if (!result[key]) result[key] = { usage: -1, byGpu: {} }
     result[key].usage = Math.max(result[key].usage, reading.usage)
     result[key].byGpu[gpu.id] = Math.max(number(result[key].byGpu[gpu.id], -1), reading.usage)
-  })
+  }
   return result
 }
 

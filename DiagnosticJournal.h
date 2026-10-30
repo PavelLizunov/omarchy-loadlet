@@ -17,7 +17,7 @@ std::string JsonNumber(const std::optional<std::uint64_t> &value) {
   return value ? std::to_string(*value) : "null";
 }
 
-std::string DiagnosticContext(const Paths &paths) {
+std::string DiagnosticContext(const Paths &paths, std::size_t budget = 10000) {
   std::ostringstream out;
   out << "{\"sample_uptime\":" << UptimeSample(paths)
       << ",\"page_size_bytes\":" << SystemValue(_SC_PAGESIZE,4096)
@@ -47,33 +47,66 @@ std::string DiagnosticContext(const Paths &paths) {
       << ",\"platform_profile\":" << JsonString(ReadLine(Join(paths.sys, "firmware/acpi/platform_profile")).value_or(""))
       << ",\"platform_choices\":" << JsonString(ReadLine(Join(paths.sys, "firmware/acpi/platform_profile_choices")).value_or(""))
       << ",\"policies\":[";
-  first = true; unsigned int count = 0;
-  for (const auto &name : DirectoryNames(Join(paths.sys, "devices/system/cpu/cpufreq"))) {
-    if (!StartsWith(name, "policy") || !IsDigits(name.substr(6))) continue;
-    if (++count > 64) break;
-    if (!first) out << ',';
-    first = false;
-    const auto folder = Join(paths.sys, "devices/system/cpu/cpufreq/" + name);
-    out << "{\"id\":" << JsonString(name);
-    for (const auto &key : {"scaling_cur_freq", "scaling_min_freq", "scaling_max_freq", "cpuinfo_min_freq", "cpuinfo_max_freq", "amd_pstate_lowest_nonlinear_freq"})
-      out << ',' << JsonString(key) << ':' << JsonNumber(ReadUnsigned(Join(folder, key)));
-    for (const auto &key : {"scaling_driver", "scaling_governor", "scaling_available_governors", "energy_performance_preference", "energy_performance_available_preferences", "related_cpus"})
-      out << ',' << JsonString(key) << ':' << JsonString(ReadLine(Join(folder, key)).value_or(""));
-    out << '}';
-  }
-  out << "],\"policies_truncated\":" << (count > 64 ? "true" : "false") << ",\"power_supplies\":[";
-  first = true; count = 0;
+
+  std::ostringstream tail_out;
+  tail_out << ",\"power_supplies\":[";
+  bool first_ps = true; unsigned int ps_count = 0;
   for (const auto &name : DirectoryNames(Join(paths.sys, "class/power_supply"))) {
-    if (++count > 16) break;
+    if (++ps_count > 16) break;
     const auto folder = Join(paths.sys, "class/power_supply/" + name);
-    if (!first) out << ',';
-    first = false;
-    out << "{\"id\":" << JsonString(name);
+    if (!first_ps) tail_out << ',';
+    first_ps = false;
+    tail_out << "{\"id\":" << JsonString(name);
     for (const auto &key : {"type", "status"})
-      out << ',' << JsonString(key) << ':' << JsonString(ReadLine(Join(folder, key)).value_or(""));
-    out << ",\"online\":" << JsonNumber(ReadUnsigned(Join(folder, "online"))) << '}';
+      tail_out << ',' << JsonString(key) << ':' << JsonString(ReadLine(Join(folder, key)).value_or(""));
+    tail_out << ",\"online\":" << JsonNumber(ReadUnsigned(Join(folder, "online"))) << '}';
   }
-  out << "],\"scope\":\"CPU/procfs/sysfs only; GPU, fan and package watts not observed\"}";
+  tail_out << "],\"scope\":\"CPU/procfs/sysfs only; GPU, fan and package watts not observed\"}";
+  const std::string tail = tail_out.str();
+
+  std::vector<std::string> policy_names;
+  for (const auto &name : DirectoryNames(Join(paths.sys, "devices/system/cpu/cpufreq"))) {
+    if (StartsWith(name, "policy") && IsDigits(name.substr(6)))
+      policy_names.push_back(name);
+  }
+  std::sort(policy_names.begin(), policy_names.end(), [](const std::string &a, const std::string &b) {
+    return ParseUnsigned(a.substr(6)).value_or(0) < ParseUnsigned(b.substr(6)).value_or(0);
+  });
+
+  const std::string head = out.str();
+  const std::size_t overhead = head.size() + std::string("],\"policies_truncated\":false").size() + tail.size();
+  const std::size_t policy_budget = budget > overhead ? budget - overhead : 0;
+
+  std::string policies;
+  bool policies_truncated = false;
+  unsigned int count = 0;
+  for (const auto &name : policy_names) {
+    if (++count > 64) {
+      policies_truncated = true;
+      break;
+    }
+    const auto folder = Join(paths.sys, "devices/system/cpu/cpufreq/" + name);
+    std::ostringstream entry;
+    entry << "{\"id\":" << JsonString(name);
+    for (const auto &key : {"scaling_cur_freq", "scaling_min_freq", "scaling_max_freq", "cpuinfo_min_freq", "cpuinfo_max_freq", "amd_pstate_lowest_nonlinear_freq"})
+      entry << ',' << JsonString(key) << ':' << JsonNumber(ReadUnsigned(Join(folder, key)));
+    for (const auto &key : {"scaling_driver", "scaling_governor", "scaling_available_governors", "energy_performance_preference", "energy_performance_available_preferences", "related_cpus"})
+      entry << ',' << JsonString(key) << ':' << JsonString(ReadLine(Join(folder, key)).value_or(""));
+    entry << '}';
+    const auto entry_str = entry.str();
+    const std::size_t added = (policies.empty() ? 0 : 1) + entry_str.size();
+    if (policies.size() + added > policy_budget) {
+      policies_truncated = true;
+      break;
+    }
+    if (!policies.empty()) policies += ',';
+    policies += entry_str;
+  }
+  if (!policies_truncated && count < policy_names.size()) {
+    policies_truncated = true;
+  }
+
+  out << policies << "],\"policies_truncated\":" << (policies_truncated ? "true" : "false") << tail;
   return out.str();
 }
 
@@ -117,7 +150,7 @@ public:
     buffer_.clear();
     previous_total_=previous_idle_=0;previous_cpu_sample_=0;
     cpu_window_=cpu_=memory_=temperature_=processes_=context_="null";
-    collection_error_.clear(); last_sensor_write_=0;
+    collection_error_.clear(); last_sensor_write_ = Clock::time_point{};
     previous_processes_.clear();
     process_sample_="null";processes_truncated_=false;
     resource_at_=thermal_at_=process_at_=context_at_=sample_at_=Clock::time_point{};
@@ -148,15 +181,18 @@ public:
   }
   void SaveSensors(const std::string &frame) {
     if (!enabled || !StartsWith(frame, "schema\tactivity-sensors\t1\n")) return;
+    const auto now = Clock::now();
+    if (last_sensor_write_ != Clock::time_point{} && now - last_sensor_write_ < std::chrono::seconds(15)) return;
+    last_sensor_write_ = now;
     const auto stamp = std::time(nullptr);
-    if (last_sensor_write_ && stamp - last_sensor_write_ < 15) return;
-    last_sensor_write_ = stamp;
     const auto record = "{\"schema\":1,\"time\":" + std::to_string(stamp)
       + ",\"boot_id\":" + JsonString(boot_) + ",\"sensors_tsv\":" + JsonString(frame) + "}\n";
-    if (record.size() > 32768 || buffer_.size() + record.size() > 131072) {
+    if (record.size() > 32768) {
       error = "sensor_record_capacity"; return;
     }
+    if (buffer_.size() + record.size() > 131072) Flush();
     buffer_ += record;
+    if (error == "sensor_record_capacity") error.clear();
     if (Clock::now() - last_flush_ >= std::chrono::seconds(60)) Flush();
   }
 
@@ -188,7 +224,8 @@ public:
       << ",\"process_sample_uptime\":" << process_sample_ << ",\"processes_truncated\":" << (processes_truncated_?"true":"false")
       << ",\"processes\":" << (valid(process_at_,65) ? processes_ : "null")
       << ",\"context\":" << (valid(context_at_,125) ? context_ : "null") << "}\n";
-    if (record.str().size() > 32768 || buffer_.size() + record.str().size() > 131072) { error = "journal_record_capacity"; return; }
+    if (record.str().size() > 32768) { error = "journal_record_capacity"; return; }
+    if (buffer_.size() + record.str().size() > 131072) Flush();
     buffer_ += record.str();
     if (now - last_flush_ >= std::chrono::seconds(60) || buffer_.size() >= 49152) Flush();
   }
@@ -197,7 +234,7 @@ private:
   friend struct DiagnosticJournalChecks;
   Paths paths_;
   std::string folder_;
-  time_t last_sensor_write_ = 0;
+  Clock::time_point last_sensor_write_{};
   std::string boot_, buffer_, file_name_, collection_error_, cpu_window_="null", memory_ = "null", cpu_ = "null", temperature_ = "null", processes_ = "null", context_ = "null";
   int dir_ = -1, lock_ = -1, file_ = -1;
   std::size_t file_size_ = 0;

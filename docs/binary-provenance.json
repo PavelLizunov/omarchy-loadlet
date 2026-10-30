@@ -1,17 +1,17 @@
 {
   "schemaVersion": 1,
   "platform": "linux-x86_64",
-  "sourceBaseCommit": "9d2bce6aa645715d3b4762da1e2d0658cffec2a8",
+  "sourceBaseCommit": "be82a42af002144366fc20d0c2ffccf0a3429ccb",
   "sha256": {
-    "activity-sampler": "8c35b759d1f5d6dd2ae6f8d67dc65097eede02d65de5feb23dc708e729d2ea19",
-    "activity-sampler.cpp": "38aa26f6029246a20d3ecad9ce62dbe6acf4e57fdcfb51a949f12c5165eaca16",
-    "DiagnosticJournal.h": "8666805d52cd5f46f7f519c0f21fccf61dfe1f7ae4895cda79f5f1739658b722",
+    "activity-sampler": "8e8e4c185042ab7abdaa676242bdf686ed9f481a95bbd03d400636bb42a979fb",
+    "activity-sampler.cpp": "c9351ea8816aa8de7c5ae6230099729ebf009c002888072f7afab3a43ad310a5",
+    "DiagnosticJournal.h": "b19c7ef2c517194cc78fb0b21a3380619fae8a279719f37d045853df043e785e",
     "Makefile": "02ca5edf008d0c6bb857d09de5665a9dd8d925be2511c6ce96e127493a954643"
   },
-  "size": 272504,
+  "size": 280696,
   "compiler": "GCC 16.2.1 20260810",
-  "buildCommand": "LC_ALL=C make activity-sampler",
-  "buildResult": "Maintainer rebuild after integrating PR1; unreadable-sensor regression fails on v2.16.0 bytes and passes on this build; overlong lines still rejected",
+  "buildCommand": "LC_ALL=C make -B activity-sampler",
+  "buildResult": "Built successfully for isolated laptop-fix branch with journal pressure/monotonic admission, bounded policy context and thermal discovery changes; no new tests or reproducibility comparison executed",
   "dynamicRequirements": {
     "glibc": "2.34",
     "libstdc++": "GLIBCXX_3.4.32",
@@ -19,11 +19,13 @@
       "libm",
       "libgcc_s"
     ],
-    "optional": "libnvidia-ml.so.1; not required without NVIDIA telemetry"
+    "optional": "libnvidia-ml.so.1; not required without NVIDIA telemetry",
+    "verification": "Inherited previous-package requirements; new branch executable symbol ceilings not checked"
   },
   "runtimeBuild": false,
   "runtimeDownload": false,
   "limits": [
+    "Current branch build only; no new test run or byte-reproducibility comparison",
     "Per-process NVIDIA and DRM runtime behavior is unverified on physical hardware",
     "x86_64 only; no prebuilt ARM support",
     "Maintainer listing approval is separate from source and binary evidence"
