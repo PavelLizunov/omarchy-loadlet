@@ -44,8 +44,9 @@ Settings → History offers opt-in 250/500/1000 ms CPU diagnostics, incident mar
 correlated local charts and an on-demand Pi answer inside the panel. Start/Stop and
 the interval are saved; recording resumes in a new session after shell reload.
 Recording runs in the existing reader, with bounded storage and no automatic AI
-calls. Ask Pi offers named model choices and a multiline question; manual analysis
-sends a small summary to your configured Pi provider.
+calls. Ask an agent discovers installed runners. Pi offers inline analysis with
+named model choices; other agents receive an explicit terminal handoff. Manual
+inline analysis sends a small summary to your configured Pi provider.
 [Usage and limits](docs/fast-diagnostics.md).
 
 ![Profile selection and fan controls, inert demonstration data](docs/video/2.17.2/assets/profiles.png)

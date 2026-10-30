@@ -1,5 +1,26 @@
 # Loadlet verification
 
+## Consolidated main — 2.18.4
+
+The user requested consolidation into one current branch and local application.
+The desktop/laptop integration base is
+`747caf533cf27343a971aecfae9d8a982bd92816`. Its exact GitHub CI run
+[41050822463](https://github.com/PavelLizunov/omarchy-loadlet/actions/runs/41050822463)
+passed core, 91 inert panel results, four raster results at each DPR 1/2, native
+installation fixtures and exact sampler reproduction. That evidence belongs to
+the integration commit, not a newly executed 2.18.4 acceptance run.
+
+This delivery changes version/status identity and current documentation only;
+the native executable and functional integration sources remain the same. The
+plan-only branch is reconciled by retaining its expanded 50-locale successor.
+Historical checkpoint branches remain provenance, not competing current versions.
+Main is the current delivery branch; no tag, formal release or Marketplace update
+is implied. See [consolidation](docs/main-consolidation.md) for scope and limits.
+
+No additional tests, visual review, inference or hardware experiments are run
+for this merge/application request. Installed files, shared-shell load status and
+settings preservation are recorded separately in the local delivery receipt.
+
 ## Startup recovery — 2.18.3 checkpoint
 
 The user reported that Loadlet was not running. The shared shell was alive, but

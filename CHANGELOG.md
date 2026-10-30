@@ -1,5 +1,22 @@
 # Changelog
 
+## 2.18.4
+
+- Consolidate desktop diagnostics and laptop corrections on main. Preserve native
+  high-resolution capture, existing settings, histories and saved profiles.
+- Prevent agent metadata discovery from writing bytecode into the watched plugin
+  tree. Discover installed agents without running them; keep Pi inline analysis
+  and explicit terminal handoff for other agents.
+- Share saved-profile shortcuts with the existing apply owner. Invalidate failed
+  status, clear obsolete fan drafts and preserve compact process-row space.
+- Merge bounded sensor-history retention, GPU identity-map processing, monotonic
+  journal admission and pressure flushing, policy-context budgeting and thermal
+  discovery admission. Rebuild the packaged sampler from the combined source.
+- Restore independent resources after control failures and retain unresolved
+  recovery identities. Optional root-owned helpers require a separate update.
+- Follow the live shell language by default while preserving saved overrides.
+  The 50-locale migration and performance/soak campaign remain incomplete.
+
 ## 2.18.3 (checkpoint)
 
 - Remove the unsupported tabChangesFocus assignment from the Qt Quick question
