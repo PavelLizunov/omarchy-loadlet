@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Controls
+import QtQuick.Window
 import Quickshell.Io
 import qs.Commons
 import qs.Commons as Host
@@ -17,6 +18,8 @@ Column {
   property color foreground: Host.Color.popups.text
   property color accent: Host.Color.accent
   property bool editorOpen: false
+  onEditorOpenChanged: if(!editorOpen) Qt.callLater(function(){if(root.visible && !root.editorOpen)editProfileButton.forceActiveFocus()})
+  property Item editorHost: null
   property string selectedId: "idle"
   property var draft: ({})
   property bool deletePending: false
@@ -98,10 +101,6 @@ Column {
   signal saveSettings(var values)
   signal applied()
   spacing: Style.spacing.sm
-  Keys.onEscapePressed: function(event) {
-    if (editorOpen && !running) { selectProfile(selectedId);editorOpen=false }
-    else event.accepted=false
-  }
   component SvgButton: Button {
     id: button
     property string iconName: ""
@@ -128,6 +127,23 @@ Column {
     draft=JSON.parse(JSON.stringify(profile))
     deletePending=false;invalidCpuLimit=false
   }
+  function beginEdit() {
+    if (running || !selectedProfile) return
+    selectProfile(selectedProfile.id)
+    statusKey="";editorOpen=true
+  }
+  function newProfile(source) {
+    if (running || profiles.length>=12 || !source) return
+    var copy=JSON.parse(JSON.stringify(source))
+    copy.id="custom-"+Date.now();copy.name=I18n.t("profile_new",language)
+    draft=copy;deletePending=false;invalidCpuLimit=false
+    statusKey="";editorOpen=true
+  }
+  function cancelEdit() {
+    selectProfile(selectedId)
+    editorOpen=false
+    if (statusKey==="profile_invalid") statusKey=""
+  }
   function changeCpu(key,value) {
     var next=JSON.parse(JSON.stringify(draft))
     next.config.cpu[key]=value
@@ -152,6 +168,7 @@ Column {
     var change={powerProfiles:JSON.stringify(list)}
     if(settings.activePowerProfile===draft.id)change.activePowerProfile=""
     saveSettings(change)
+    selectedId=draft.id
     statusKey="profile_saved"
     return true
   }
@@ -253,13 +270,22 @@ Column {
       onClicked:root.applyProfile(root.selectedProfile)
     }
     SvgButton {
+      id:editProfileButton
       objectName:"profileEditorToggle"
       width:(parent.width-parent.spacing)/2
       text:I18n.t("profile_edit_short",root.language);iconName:"edit"
       foreground:root.foreground;accent:root.accent;fontFamily:Style.font.family
       bordered:true;focusable:true;enabled:!root.running
-      onClicked:{root.selectProfile(root.selectedProfile.id);root.editorOpen=true}
+      onClicked:root.beginEdit()
     }
+  }
+  SvgButton {
+    objectName:"newPowerProfileButton"
+    width:parent.width;visible:!root.editorOpen
+    text:I18n.t("profile_new",root.language);iconName:"edit"
+    foreground:root.foreground;accent:root.accent;fontFamily:Style.font.family
+    bordered:true;focusable:true;enabled:!root.running && root.profiles.length<12
+    onClicked:root.newProfile(root.selectedProfile)
   }
   SvgButton {
     objectName:"automationOptionsToggle"
@@ -307,172 +333,235 @@ Column {
     color:root.statusKey==="profile_failed" || root.statusKey==="profile_invalid" ? Host.Color.urgent:root.foreground
     font.family:Style.font.family;font.pixelSize:Style.font.caption
   }
-  Column {
-    width:parent.width
-    visible:root.editorOpen && !!root.draft.config
-    spacing:Style.spacing.sm
+  SvgButton {
+    objectName:"restorePowerProfileButton"
+    width:parent.width;visible:!root.editorOpen
+    text:I18n.t("profile_restore",root.language);iconName:"restore"
+    foreground:root.foreground;accent:root.accent;fontFamily:Style.font.family
+    bordered:true;focusable:true;enabled:!root.running
+    onClicked:{root.operation="restore";root.statusKey="profile_pending";applyProcess.running=true}
+  }
+
+  component SectionHeading: Row {
+    property string label: ""
+    property string iconName: ""
+    width:parent.width;spacing:Style.spacing.sm
+    SvgIcon { name:parent.iconName; tint:root.foreground; anchors.verticalCenter:parent.verticalCenter }
+    Text {
+      width:parent.width-Style.space(16)-parent.spacing
+      text:parent.label;textFormat:Text.PlainText;wrapMode:Text.Wrap
+      color:root.foreground;font.family:Style.font.family;font.pixelSize:Style.font.bodySmall;font.bold:true
+    }
+  }
+
+  Item {
+    id: editorPage
+    objectName:"powerProfileEditorPage"
+    parent:root.editorHost || root
+    visible:root.editorOpen && root.editorHost!==null
+    width:parent.width;height:parent.height
+    clip:true
     enabled:!root.running
-    Text {
-      width:parent.width
-      text:I18n.t("profile_edit",root.language)+" · "+(root.draft.name || "")
-      textFormat:Text.PlainText;wrapMode:Text.Wrap;color:root.foreground
-      font.family:Style.font.family;font.pixelSize:Style.font.body;font.bold:true
+    Keys.onEscapePressed:root.cancelEdit()
+    onVisibleChanged:if(visible) {
+      editorViewport.contentY=0
+      Qt.callLater(function(){if(editorPage.visible)profileName.forceActiveFocus()})
     }
-    Row {
-      width:parent.width;spacing:Style.spacing.xs
-      SvgButton {
-        objectName:"saveApplyPowerProfileButton"
-        width:(parent.width-parent.spacing)/2
-        text:I18n.t("profile_save_apply",root.language);iconName:"check"
-        foreground:root.foreground;accent:root.accent;fontFamily:Style.font.family
-        bordered:true;focusable:true;enabled:root.capabilitiesReady
-        onClicked:if(root.saveDraft()){root.applyProfile(root.draft);root.editorOpen=false}
+    Flickable {
+      id:editorViewport
+      objectName:"profileEditorViewport"
+      anchors.top:parent.top;anchors.left:parent.left;anchors.right:parent.right
+      anchors.bottom:editorFooter.top;anchors.bottomMargin:Style.spacing.sm
+      contentWidth:width;contentHeight:editorBody.implicitHeight
+      clip:true;boundsBehavior:Flickable.StopAtBounds
+      onContentHeightChanged:contentY=Math.max(0,Math.min(contentY,contentHeight-height))
+      ScrollBar.vertical:ScrollBar { policy:ScrollBar.AsNeeded }
+      Connections {
+        target:editorViewport.Window.window
+        function onActiveFocusItemChanged() {
+          var window=editorViewport.Window.window
+          if(!window || !editorPage.visible)return
+          var item=window.activeFocusItem,ancestor=item
+          while(ancestor && ancestor!==editorViewport.contentItem)ancestor=ancestor.parent
+          if(!ancestor)return
+          var top=item.mapToItem(editorViewport.contentItem,0,0).y
+          if(top<editorViewport.contentY)editorViewport.contentY=Math.max(0,top)
+          else if(top+item.height>editorViewport.contentY+editorViewport.height)
+            editorViewport.contentY=Math.max(0,Math.min(editorViewport.contentHeight-editorViewport.height,top+item.height-editorViewport.height))
+        }
       }
-      SvgButton {
-        objectName:"cancelPowerProfileButton"
-        width:(parent.width-parent.spacing)/2
-        text:I18n.t("profile_cancel",root.language);iconName:"close"
-        foreground:root.foreground;accent:root.accent;fontFamily:Style.font.family
-        bordered:true;focusable:true
-        onClicked:{root.selectProfile(root.selectedId);root.editorOpen=false}
-      }
-    }
-    Text {
-      width:parent.width;text:I18n.t("profile_name",root.language)
-      textFormat:Text.PlainText;color:root.foreground
-      font.family:Style.font.family;font.pixelSize:Style.font.caption
-    }
-    TextField {
-      objectName:"powerProfileName"
-      width:parent.width;height:Style.spacing.controlHeight
-      text:root.draft.name || "";maximumLength:40
-      Accessible.name:I18n.t("profile_name",root.language)
-      onTextEdited:{var next=Object.assign({},root.draft);next.name=text;root.draft=next}
-    }
-    Toggle {
-      objectName:"profileBoostToggle"
-      width:parent.width
-      visible:root.cpuCapabilities.boost!==null && root.cpuCapabilities.boost!==undefined
-        || root.cpuCapabilities.noTurbo!==null && root.cpuCapabilities.noTurbo!==undefined
-      label:I18n.t("profile_boost",root.language)
-      checked:!!(root.draft.config && root.draft.config.cpu.boost)
-      foreground:root.foreground;accent:root.accent;fontFamily:Style.font.family
-      onClicked:root.changeCpu("boost",!checked)
-    }
-    ChoiceDropdown {
-      objectName:"profileCpuMode"
-      width:parent.width
-      label:I18n.t("profile_cpu_mode",root.language)
-      value:root.draft.config ? root.draft.config.cpu.governor || "" : ""
-      options:[{value:"",label:I18n.t("profile_unchanged",root.language)},
-        {value:"powersave",label:I18n.t("profile_idle",root.language)},
-        {value:"performance",label:I18n.t("profile_games",root.language)}]
-      onChanged:function(mode){root.changeCpu("governor",mode);root.changeCpu("epp",mode==="powersave"?"power":mode==="performance"?"performance":"")}
-    }
-    Text {
-      width:parent.width;text:I18n.t("profile_max_mhz",root.language)
-      textFormat:Text.PlainText;wrapMode:Text.Wrap;color:root.foreground
-      font.family:Style.font.family;font.pixelSize:Style.font.caption
-    }
-    TextField {
-      objectName:"profileMaxMhz"
-      width:parent.width;height:Style.spacing.controlHeight
-      text:String(root.draft.config ? root.draft.config.cpu.maxMHz || 0 : 0)
-      validator:IntValidator{bottom:0;top:10000}
-      Accessible.name:I18n.t("profile_max_mhz",root.language)
-      onTextEdited:{root.invalidCpuLimit=!acceptableInput;if(acceptableInput)root.changeCpu("maxMHz",Number(text))}
-    }
-    Repeater {
-      model:root.channels
-      Row {
-        required property var modelData
-        width:parent.width;spacing:Style.spacing.sm
+      Column {
+        id:editorBody
+        width:editorViewport.width-Style.spacing.md
+        spacing:Style.spacing.sm
         Text {
-          width:parent.width/2;height:Style.spacing.controlHeight
-          text:modelData.id+" · "+I18n.t("map_"+(root.settings["fanPlace_"+modelData.id]||"unknown"),root.language)+" %"
-          textFormat:Text.PlainText;color:root.foreground;elide:Text.ElideRight
+          width:parent.width;text:I18n.t("profile_editor_hint",root.language)
+          textFormat:Text.PlainText;wrapMode:Text.Wrap;color:root.foreground
+          font.family:Style.font.family;font.pixelSize:Style.font.caption
+        }
+        Text {
+          width:parent.width;text:I18n.t("profile_name",root.language)
+          textFormat:Text.PlainText;color:root.foreground
           font.family:Style.font.family;font.pixelSize:Style.font.caption
         }
         TextField {
-          width:parent.width/2-parent.spacing;height:Style.spacing.controlHeight
-          text:root.draft.config && root.draft.config.fans[modelData.id]!==undefined ? String(root.draft.config.fans[modelData.id]) : ""
-          validator:IntValidator{bottom:0;top:100}
-          Accessible.name:modelData.id+" %"
-          onTextEdited:root.changeFan(modelData.id,text,false)
+          id:profileName
+          objectName:"powerProfileName"
+          width:parent.width;height:Style.spacing.controlHeight
+          text:root.draft.name || "";maximumLength:40
+          Accessible.name:I18n.t("profile_name",root.language)
+          onTextEdited:{var next=Object.assign({},root.draft);next.name=text;root.draft=next}
         }
-      }
-    }
-    Repeater {
-      model:root.gpus.filter(function(g){return g.vendor==="NVIDIA" || String(g.name).indexOf("NVIDIA")>=0})
-      Column {
-        required property var modelData
-        width:parent.width;spacing:Style.spacing.xs
+        SectionHeading { label:I18n.t("cpu",root.language);iconName:"cpu" }
+        Toggle {
+          objectName:"profileBoostToggle"
+          width:parent.width
+          visible:root.cpuCapabilities.boost!==null && root.cpuCapabilities.boost!==undefined
+            || root.cpuCapabilities.noTurbo!==null && root.cpuCapabilities.noTurbo!==undefined
+          label:I18n.t("profile_boost",root.language)
+          checked:!!(root.draft.config && root.draft.config.cpu.boost)
+          foreground:root.foreground;accent:root.accent;fontFamily:Style.font.family
+          onClicked:root.changeCpu("boost",!checked)
+        }
+        ChoiceDropdown {
+          objectName:"profileCpuMode"
+          width:parent.width
+          label:I18n.t("profile_cpu_mode",root.language)
+          value:root.draft.config ? root.draft.config.cpu.governor || "" : ""
+          options:[{value:"",label:I18n.t("profile_unchanged",root.language)},
+            {value:"powersave",label:I18n.t("profile_idle",root.language)},
+            {value:"performance",label:I18n.t("profile_games",root.language)}]
+          onChanged:function(mode){root.changeCpu("governor",mode);root.changeCpu("epp",mode==="powersave"?"power":mode==="performance"?"performance":"")}
+        }
         Text {
-          width:parent.width;text:modelData.name+" · "+I18n.t("profile_gpu_fan",root.language)
+          width:parent.width;text:I18n.t("profile_max_mhz",root.language)
           textFormat:Text.PlainText;wrapMode:Text.Wrap;color:root.foreground
           font.family:Style.font.family;font.pixelSize:Style.font.caption
         }
         TextField {
+          objectName:"profileMaxMhz"
           width:parent.width;height:Style.spacing.controlHeight
-          text:root.draft.config && root.draft.config.gpuFans[modelData.id]!==undefined ? String(root.draft.config.gpuFans[modelData.id]) : ""
-          placeholderText:I18n.t("profile_gpu_auto",root.language)
-          validator:IntValidator{bottom:0;top:100}
-          Accessible.name:modelData.name+" %"
-          onTextEdited:root.changeFan(modelData.id,text,true)
+          text:String(root.draft.config ? root.draft.config.cpu.maxMHz || 0 : 0)
+          validator:IntValidator{bottom:0;top:10000}
+          Accessible.name:I18n.t("profile_max_mhz",root.language)
+          onTextEdited:{root.invalidCpuLimit=!acceptableInput;if(acceptableInput)root.changeCpu("maxMHz",Number(text))}
+        }
+        SectionHeading { label:I18n.t("sensors",root.language);iconName:"fans" }
+        Text {
+          width:parent.width
+          visible:!root.channels.length && !root.gpus.some(function(g){return g.vendor==="NVIDIA" || String(g.name).indexOf("NVIDIA")>=0})
+          text:I18n.t("profile_no_fans",root.language)
+          textFormat:Text.PlainText;wrapMode:Text.Wrap;color:root.foreground
+          font.family:Style.font.family;font.pixelSize:Style.font.caption
+        }
+        Repeater {
+          model:root.channels
+          Column {
+            required property var modelData
+            width:parent.width;spacing:Style.spacing.xs
+            Text {
+              width:parent.width
+              text:modelData.id+" · "+I18n.t("map_"+(root.settings["fanPlace_"+modelData.id]||"unknown"),root.language)+" %"
+              textFormat:Text.PlainText;wrapMode:Text.Wrap;color:root.foreground
+              font.family:Style.font.family;font.pixelSize:Style.font.caption
+            }
+            TextField {
+              width:parent.width;height:Style.spacing.controlHeight
+              text:root.draft.config && root.draft.config.fans[modelData.id]!==undefined ? String(root.draft.config.fans[modelData.id]) : ""
+              placeholderText:I18n.t("profile_unchanged",root.language)
+              validator:IntValidator{bottom:0;top:100}
+              Accessible.name:modelData.id+" %"
+              onTextEdited:root.changeFan(modelData.id,text,false)
+            }
+          }
+        }
+        Repeater {
+          model:root.gpus.filter(function(g){return g.vendor==="NVIDIA" || String(g.name).indexOf("NVIDIA")>=0})
+          Column {
+            required property var modelData
+            width:parent.width;spacing:Style.spacing.xs
+            Text {
+              width:parent.width;text:modelData.name+" · "+I18n.t("profile_gpu_fan",root.language)
+              textFormat:Text.PlainText;wrapMode:Text.Wrap;color:root.foreground
+              font.family:Style.font.family;font.pixelSize:Style.font.caption
+            }
+            TextField {
+              width:parent.width;height:Style.spacing.controlHeight
+              text:root.draft.config && root.draft.config.gpuFans[modelData.id]!==undefined ? String(root.draft.config.gpuFans[modelData.id]) : ""
+              placeholderText:I18n.t("profile_gpu_auto",root.language)
+              validator:IntValidator{bottom:0;top:100}
+              Accessible.name:modelData.name+" %"
+              onTextEdited:root.changeFan(modelData.id,text,true)
+            }
+          }
+        }
+        Text {
+          width:parent.width
+          visible:root.automatic.enabled && (root.draft.id==="games" || root.draft.id===root.automaticBaseId)
+          text:I18n.t("profile_auto_edit_hint",root.language)
+          textFormat:Text.PlainText;wrapMode:Text.Wrap;color:root.foreground
+          font.family:Style.font.family;font.pixelSize:Style.font.caption
+        }
+        Text {
+          width:parent.width;text:I18n.t("profile_hint",root.language)
+          textFormat:Text.PlainText;wrapMode:Text.Wrap;color:root.foreground
+          font.family:Style.font.family;font.pixelSize:Style.font.caption
+        }
+        Flow {
+          width:parent.width;spacing:Style.spacing.xs
+          SvgButton {
+            objectName:"duplicatePowerProfileButton"
+            text:I18n.t("profile_duplicate",root.language);iconName:"copy"
+            width:Math.min(implicitWidth,parent.width)
+            foreground:root.foreground;accent:root.accent;fontFamily:Style.font.family
+            bordered:true;focusable:true;enabled:root.profiles.length<12
+            onClicked:{root.newProfile(root.draft);editorViewport.contentY=0;profileName.forceActiveFocus()}
+          }
+          SvgButton {
+            objectName:"deletePowerProfileButton"
+            text:I18n.t(root.deletePending ? "profile_delete_confirm" : "profile_delete",root.language);iconName:"trash"
+            width:Math.min(implicitWidth,parent.width)
+            foreground:root.foreground;accent:root.accent;fontFamily:Style.font.family
+            bordered:true;focusable:true
+            visible:root.profiles.some(function(p){return p.id===root.draft.id})
+            enabled:!root.running && root.profiles.length>1 && root.settings.activePowerProfile!==root.draft.id
+              && !(root.automatic.enabled && (root.draft.id==="games" || root.draft.id===root.automaticBaseId))
+            onClicked:{
+              if(!root.deletePending){root.deletePending=true;return}
+              var remaining=root.profiles.filter(function(p){return p.id!==root.draft.id})
+              root.saveSettings({powerProfiles:JSON.stringify(remaining)})
+              root.selectProfile(remaining[0].id);root.editorOpen=false
+            }
+          }
         }
       }
     }
-    Text {
-      width:parent.width
-      visible:root.automatic.enabled && (root.selectedId==="games" || root.selectedId===root.automaticBaseId)
-      text:I18n.t("profile_auto_edit_hint",root.language)
-      textFormat:Text.PlainText;wrapMode:Text.Wrap;color:root.foreground
-      font.family:Style.font.family;font.pixelSize:Style.font.caption
-    }
-    Text {
-      width:parent.width;text:I18n.t("profile_hint",root.language)
-      textFormat:Text.PlainText;wrapMode:Text.Wrap;color:root.foreground
-      font.family:Style.font.family;font.pixelSize:Style.font.caption
-    }
-    Flow {
-      width:parent.width;spacing:Style.spacing.xs
-      SvgButton {
-        objectName:"deletePowerProfileButton"
-        text:I18n.t(root.deletePending ? "profile_delete_confirm" : "profile_delete",root.language);iconName:"trash"
-        foreground:root.foreground;accent:root.accent;fontFamily:Style.font.family
-        bordered:true;focusable:true
-        enabled:!root.running && root.profiles.length>1 && root.settings.activePowerProfile!==root.selectedId
-          && !(root.automatic.enabled && (root.selectedId==="games" || root.selectedId===root.automaticBaseId))
-        onClicked:{
-          if(!root.deletePending){root.deletePending=true;return}
-          var remaining=root.profiles.filter(function(p){return p.id!==root.selectedId})
-          root.saveSettings({powerProfiles:JSON.stringify(remaining)})
-          root.selectProfile(remaining[0].id);root.editorOpen=false
+    Column {
+      id:editorFooter
+      width:parent.width;anchors.bottom:parent.bottom;spacing:Style.spacing.xs
+      Text {
+        objectName:"profileEditorStatus"
+        width:parent.width;visible:root.statusKey!==""
+        text:I18n.t(root.statusKey,root.language);textFormat:Text.PlainText;wrapMode:Text.Wrap
+        color:root.statusKey==="profile_invalid" || root.statusKey==="profile_failed" ? Host.Color.urgent : root.foreground
+        font.family:Style.font.family;font.pixelSize:Style.font.caption
+      }
+      Row {
+        width:parent.width;spacing:Style.spacing.sm
+        SvgButton {
+          objectName:"cancelPowerProfileButton"
+          width:(parent.width-parent.spacing)/2
+          text:I18n.t("profile_cancel",root.language);iconName:"close"
+          foreground:root.foreground;accent:root.accent;fontFamily:Style.font.family
+          bordered:true;focusable:true;onClicked:root.cancelEdit()
         }
-      }
-      SvgButton {
-        objectName:"savePowerProfileButton"
-        text:I18n.t("profile_save",root.language);iconName:"save"
-        foreground:root.foreground;accent:root.accent;fontFamily:Style.font.family
-        bordered:true;focusable:true;onClicked:if(root.saveDraft())root.editorOpen=false
-      }
-      SvgButton {
-        objectName:"newPowerProfileButton"
-        text:I18n.t("profile_duplicate",root.language);iconName:"copy"
-        foreground:root.foreground;accent:root.accent;fontFamily:Style.font.family
-        bordered:true;focusable:true;enabled:root.profiles.length<12
-        onClicked:{
-          var copy=JSON.parse(JSON.stringify(root.draft))
-          copy.id="custom-"+Date.now();copy.name=I18n.t("profile_new",root.language)
-          root.selectedId=copy.id;root.draft=copy
+        SvgButton {
+          objectName:"savePowerProfileButton"
+          width:(parent.width-parent.spacing)/2
+          text:I18n.t("profile_save",root.language);iconName:"save"
+          foreground:root.foreground;accent:root.accent;fontFamily:Style.font.family
+          bordered:true;focusable:true;onClicked:if(root.saveDraft())root.editorOpen=false
         }
-      }
-      SvgButton {
-        objectName:"restorePowerProfileButton"
-        text:I18n.t("profile_restore",root.language);iconName:"restore"
-        foreground:root.foreground;accent:root.accent;fontFamily:Style.font.family
-        bordered:true;focusable:true;enabled:!root.running
-        onClicked:{root.operation="restore";root.statusKey="profile_pending";applyProcess.running=true}
       }
     }
   }

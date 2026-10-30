@@ -38,6 +38,7 @@ Image {
     kill: '<path d="M7 15H5V9a7 7 0 0 1 14 0v6h-2v5H7Z M10 20v-3m4 3v-3"/><circle cx="9" cy="10" r="1"/><circle cx="15" cy="10" r="1"/>',
     export: '<path d="M12 3v12m-4-4 4 4 4-4M4 15v6h16v-6"/>',
     copy: '<rect x="8" y="8" width="12" height="13" rx="1"/><path d="M16 8V3H3v13h5"/>',
+    back: '<path d="m14 5-7 7 7 7M7 12h14"/>',
     close: '<path d="m6 6 12 12M6 18 18 6"/>'
   })
   readonly property string strokeColor: "#" + [tint.r, tint.g, tint.b].map(function(channel) {

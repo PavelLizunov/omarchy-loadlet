@@ -1,5 +1,14 @@
 # Changelog
 
+## 2.18.5
+
+- Move profile creation and editing to a dedicated page with CPU and cooling
+  sections, a scrolling form, a Back route and pinned Save/Cancel actions.
+- Expose New profile directly on Fans. Saving selects the saved preset but never
+  applies it; Apply and Original control stay outside the editor.
+- Preserve the single profile/status owner, existing settings and hardware-control
+  recovery. Cancel/Back/close discard drafts; expansion preserves them.
+
 ## 2.18.4
 
 - Consolidate desktop diagnostics and laptop corrections on main. Preserve native

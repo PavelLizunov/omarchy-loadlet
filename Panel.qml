@@ -29,6 +29,7 @@ Panel {
     visible: root.profileHost !== null
     width: parent.width
     active: root.opened && !root.settingsOpen
+    editorHost: profileEditorHost
     settings: root.settings
     channels: activity.sensorSnapshot.controls || []
     gpus: root.gpus
@@ -89,8 +90,8 @@ Panel {
         captureInterval: activity.captureAppliedInterval,
         heatThreshold: activity.heatThreshold,
         productName: "Loadlet",
-        iconRevision: "2.18.4",
-        implementationRevision: "main-consolidated-20261030",
+        iconRevision: "2.18.5",
+        implementationRevision: "profile-page-20261030",
         rightClickAction: "none",
         iconTooltip: button.tooltipText,
         iconConsumer: String(Qt.resolvedUrl("Panel.qml")),
@@ -327,6 +328,7 @@ Panel {
     historyReadError = false
     sensorHistoryReader.running = true
   }
+  onFansOpenChanged: if(!fansOpen && powerProfiles.editorOpen)powerProfiles.cancelEdit()
   onSensorsOpenChanged: {
     if (!sensorsOpen) { fansOpen = false; sensorPart = ""; focusedFanChannel = ""; historyFanChannel = "" }
     else if (!fansOpen) loadSensorHistory()
@@ -558,6 +560,7 @@ Panel {
   }
 
   function openDetails() {
+    powerProfiles.cancelEdit()
     root.open()
     root.setSettingsOpen(false)
     root.sensorsOpen = false
@@ -566,6 +569,7 @@ Panel {
   }
 
   function setSettingsOpen(value) {
+    if (value && powerProfiles.editorOpen) powerProfiles.cancelEdit()
     settingsOpen = value
     settingsControlActive = value
     languageExpanded = false
@@ -883,6 +887,7 @@ Panel {
   onTopProcessesChanged: restoreProcessCursor()
 
   onOpenedChanged: {
+    powerProfiles.cancelEdit()
     if (opened) {
       expanded = openExpandedByDefault
       sensorPart = ""
@@ -1018,7 +1023,7 @@ Panel {
           if (processActions.confirmationOpen || (root.searchField && root.searchField.activeFocus)) return
           var key = String(event.text || "").toLowerCase()
           if (key === "e") { root.setExpanded(!root.expanded); event.accepted = true }
-          else if (key === "h" && !root.settingsOpen && !root.languageExpanded) {
+          else if (key === "h" && !root.settingsOpen && !root.languageExpanded && !powerProfiles.editorOpen) {
             processActions.cancel(); root.fansOpen = false; root.sensorsOpen = !root.sensorsOpen
             event.accepted = true
           }
@@ -1028,7 +1033,7 @@ Panel {
         if (processActions.confirmationOpen) processActions.cancel()
         else if (root.languageExpanded) root.languageExpanded = false
         else if (root.settingsOpen) root.setSettingsOpen(false)
-        else if (root.fansOpen && contentLoader.item && contentLoader.item.editingProfile) contentLoader.item.cancelProfileEdit()
+        else if (powerProfiles.editorOpen) powerProfiles.cancelEdit()
         else if (root.computerMapVisible) root.computerMapVisible = false
         else if (root.historyFanChannel) root.returnToFanControls()
         else if (root.sensorsOpen) root.sensorsOpen = false
@@ -1062,7 +1067,7 @@ Panel {
         }
         if (root.languageExpanded) { root.languageExpanded = false; return }
         if (root.settingsOpen) root.setSettingsOpen(false)
-        else if (root.fansOpen && contentLoader.item && contentLoader.item.editingProfile) contentLoader.item.cancelProfileEdit()
+        else if (powerProfiles.editorOpen) powerProfiles.cancelEdit()
         else if (root.computerMapVisible) root.computerMapVisible = false
         else if (root.historyFanChannel) root.returnToFanControls()
         else if (root.sensorsOpen) root.sensorsOpen = false
@@ -1089,7 +1094,7 @@ Panel {
         else if (key === "s") root.setSettingsOpen(!root.settingsOpen)
         else if (key === "?") root.hintsVisible = !root.hintsVisible
         else if (root.settingsOpen || root.languageExpanded) return
-        else if (key === "h") { processActions.cancel(); root.fansOpen = false; root.sensorsOpen = !root.sensorsOpen }
+        else if (key === "h" && !powerProfiles.editorOpen) { processActions.cancel(); root.fansOpen = false; root.sensorsOpen = !root.sensorsOpen }
         else if (root.sensorsOpen) return
         else if (key === "r") root.refresh()
         else if (key === "x" && root.selectedProcess) processActions.request(root.selectedProcess, false)
@@ -1172,7 +1177,7 @@ Panel {
       Row {
         id: pageTabs
         objectName: "pageTabs"
-        visible: !root.settingsOpen && !root.languageExpanded
+        visible: !root.settingsOpen && !root.languageExpanded && !powerProfiles.editorOpen
         anchors.top: persistentHeader.bottom
         anchors.topMargin: Style.spacing.sm
         width: parent.width
@@ -1216,11 +1221,23 @@ Panel {
         }
       }
 
-      // The header and tabs stay pinned; each page owns its internal scrolling.
+      SvgButton {
+        id: profileBack
+        objectName: "profileEditorBack"
+        visible: powerProfiles.editorOpen && !root.settingsOpen && !root.languageExpanded
+        anchors.top: persistentHeader.bottom; anchors.topMargin: Style.spacing.sm
+        width: Math.min(implicitWidth,parent.width);height:Style.space(30)
+        text:I18n.t("profile_back",root.effectiveLanguage);iconName:"back"
+        foreground:root.foreground;accent:root.accent;fontFamily:Style.font.family
+        fontSize:Style.font.bodySmall;focusable:true
+        onClicked:powerProfiles.cancelEdit()
+      }
+
+      // The header and navigation stay pinned; each page owns its internal scrolling.
       Item {
         id: pageArea
         visible: !root.languageExpanded
-        anchors.top: pageTabs.visible ? pageTabs.bottom : persistentHeader.bottom
+        anchors.top: profileBack.visible ? profileBack.bottom : pageTabs.visible ? pageTabs.bottom : persistentHeader.bottom
         anchors.topMargin: Style.spacing.sm
         anchors.left: parent.left
         anchors.right: parent.right
@@ -1270,12 +1287,18 @@ Panel {
         }
         Loader {
           id: contentLoader
+          visible: !powerProfiles.editorOpen
           anchors.top:quickProfileStatus.bottom
           anchors.topMargin:profileShortcuts.visible ? Style.spacing.xs : 0
           anchors.left:parent.left;anchors.right:parent.right;anchors.bottom:parent.bottom
           sourceComponent: root.settingsOpen
             ? settingsContent
             : (root.sensorsOpen ? (root.fansOpen ? fansContent : sensorsContent) : (root.expanded ? expandedContent : compactContent))
+        }
+        Item {
+          id:profileEditorHost
+          anchors.fill:parent
+          visible:powerProfiles.editorOpen && !root.settingsOpen
         }
       }
 
@@ -1387,6 +1410,7 @@ Panel {
           elide: Text.ElideRight
           text: root.settingsOpen
             ? I18n.t("title", root.effectiveLanguage) + " · " + I18n.t("settings", root.effectiveLanguage)
+            : powerProfiles.editorOpen ? I18n.t("title",root.effectiveLanguage) + " · " + I18n.t(powerProfiles.profiles.some(function(p){return p.id===powerProfiles.draft.id}) ? "profile_edit_short" : "profile_new",root.effectiveLanguage)
             : root.sensorsOpen ? I18n.t("title", root.effectiveLanguage) + " · " + I18n.t(root.fansOpen ? "fans" : "sensors", root.effectiveLanguage)
             : (root.expanded
               ? I18n.t("title", root.effectiveLanguage) + " · " + I18n.t("all_processes", root.effectiveLanguage)
@@ -1944,10 +1968,6 @@ Panel {
     Flickable {
       id: fansViewport
       objectName: "fansViewport"
-      readonly property bool editingProfile: powerProfiles.editorOpen
-      function cancelProfileEdit() {
-        if (!powerProfiles.running) { powerProfiles.selectProfile(powerProfiles.selectedId);powerProfiles.editorOpen=false }
-      }
       anchors.fill: parent
       contentWidth: width
       contentHeight: fanBody.implicitHeight

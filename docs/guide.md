@@ -449,10 +449,14 @@ This observation is not generic board compatibility or a driver safety audit.
 
 Fans separates browsing, applying and editing. Select Current settings, Quiet idle,
 Games or a custom preset to see its CPU/fan summary without changing hardware.
-Apply activates it; Edit opens that exact preset and hides unrelated channel
-controls. The header names the active preset separately from the selection.
-Save updates only the preset; Save and apply also activates it. Cancel or Escape
-discards the draft. Duplicate creates a new draft (up to12 saved presets).
+Apply activates it. Edit and New profile open a dedicated page with separate CPU
+and cooling sections, an internally scrolling form and pinned Save/Cancel actions.
+New profile starts from the selected preset without replacing it. Save updates
+only the preset and returns to Fans with that preset selected; Apply is a separate
+action there. The active preset remains distinct from the selection. Back, Cancel,
+Escape, opening Settings or closing Loadlet discard unsaved edits. Expansion and
+language selection preserve the draft. Duplicate creates another draft (up to12
+saved presets). Original control is available on Fans, outside the editor.
 Deletion needs a second click and remains unavailable for active presets or those
 used by running automation. Existing names, values and assignments are preserved.
 Changing a single fan output clears the active profile indication, since it no
@@ -539,7 +543,7 @@ services continue when that grant expires. Revoke a grant by removing only the
 matching `/etc/sudoers.d/60-loadlet-fans-UID` file as root.
 
 To remove optional controls, first disable automatic profiles and use Original
-control in the profile editor. Restore each separately saved motherboard channel
+control on Fans. Restore each separately saved motherboard channel
 as well. The equivalent commands for channels you actually configured are:
 
 ```sh

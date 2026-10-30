@@ -1,5 +1,23 @@
 # Loadlet verification
 
+## Dedicated profile page — 2.18.5
+
+Implementation moves the existing editor into a separate page in the same panel.
+It retains one PowerProfiles owner and the saved schema, while separating all
+hardware actions from Save. The sampler, privileged helpers and capture code are
+unchanged. The task-owned source diff was reviewed directly.
+
+No tests, new test cases, renders, interaction checks, hardware trials or resource
+measurements were run for this UI request. Earlier 91-result UI evidence does not
+cover this page. Existing UI fixtures still assume the inline editor and combined
+Save and apply action; their migration and a new acceptance run remain outstanding.
+Independent review and fluent review of the four updated legacy catalogs were not
+performed. The separate 50-locale migration remains incomplete.
+
+Source publication, installation and loaded identity are recorded separately in
+the local delivery receipt. Neither installation nor a successful load proves
+editor interaction, absence of leaks, or the recording CPU target.
+
 ## Consolidated main — 2.18.4
 
 The user requested consolidation into one current branch and local application.
