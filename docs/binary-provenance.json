@@ -1,18 +1,18 @@
 {
   "schemaVersion": 1,
   "platform": "linux-x86_64",
-  "sourceBaseCommit": "c3ee256010c8f5ac8c7c1df37561e1a66c070b12",
+  "sourceBaseCommit": "50738ae99827d5bce7e07d699b96e6946ff6b6df",
   "sha256": {
-    "activity-sampler": "3d2316a92edd2653ff7b333921909029cc62111e47bf59f6af2ce0a6d848b238",
-    "activity-sampler.cpp": "17af8762df4744cda23e241d623375a8872a8caa42c4d7651ea29ee5c8cccc73",
+    "activity-sampler": "2855bea54aeea6af1e93e3ed806fca8fa4bfc4d28f2807953528e55f983c2347",
+    "activity-sampler.cpp": "0be492f9397bac698fd2ff4cf9e55260252f6f923cdbe833e93791e26ca5d0e2",
     "DiagnosticJournal.h": "4f335f7005396bb1f487779ea2e27e71082edcf52fe658c1bf242f61042ee076",
     "FastDiagnostics.h": "cc31f214b6a596fc365902929b10c7195b67106811bc1bb6f34a7e5fbe944d02",
-    "Makefile": "e1fa831768e57cc241e4dabd5a1ccdfcd01234abff4e03efba7deaa06c7f97fa"
+    "Makefile": "2036fcaf26486a3550ea0f8c257f625cdbe8704f481e5f10fbc7dda5528f50c6"
   },
   "size": 313464,
   "compiler": "GCC 16.2.1 20260810",
   "buildCommand": "LC_ALL=C make activity-sampler",
-  "buildResult": "Integrated laptop corrections with the existing high-resolution recorder; focused journal, capture and report checks passed; full CI and runtime acceptance are separate",
+  "buildResult": "Retain NVML mapping, end each sample session; inert lifetime regression and bounded real-driver comparison passed; full CI and installed acceptance are separate",
   "dynamicRequirements": {
     "glibc": "2.34",
     "libstdc++": "GLIBCXX_3.4.32",

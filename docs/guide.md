@@ -612,9 +612,13 @@ Frames are bounded to 256 KiB before emission. Over-capacity input is rejected,
 not shown as a partial process inventory. The reader also bounds directory
 enumeration and input records. The panel clears unavailable data and retries.
 
-NVIDIA queries require `runtime_status=active`; NVML uses normal initialization
-and is released after a sample. NO_ATTACH is not used because it can make an
-active GPU unavailable to PCI-bus handle lookup. Unknown power state skips NVIDIA
+NVIDIA queries require `runtime_status=active`; each sample uses normal NVML
+initialization and shuts down that session afterward. The driver library stays
+mapped until reader destruction: unloading/reloading it per sample accumulated
+eventfds on the observed driver. This retains about20MiB of additional resident
+driver memory in the short local probe, mostly anonymous memory, not a measured
+continuing allocation per sample. NO_ATTACH
+is not used because it can make an active GPU unavailable to PCI-bus handle lookup. Unknown power state skips NVIDIA
 telemetry. AMD/Intel devices reported as suspended are not queried for dynamic
 sysfs readings. These gates
 are not a guarantee about driver races or measured battery savings.

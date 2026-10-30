@@ -1,5 +1,23 @@
 # Loadlet verification
 
+## Resource lifetime and simplification — 2.18.9
+
+A two-minute live observation found stable shared-shell RSS near1.20GiB despite
+a lifetime high-water mark9.83GiB. The native reader separately accumulated
+28eventfds. An isolated read-only32-query comparison reproduced2->33eventfds
+in the old reader and2->2in the candidate. The real-driver candidate retains
+approximately20MiB additional mapped RSS; this is not a RAM reduction claim.
+The new inert lifetime regression fails the old binary on FD growth and passes
+the candidate, including inactive/unknown admission, per-sample shutdown, resume
+and EOF cleanup. No hardware settings were written.
+
+The unused catalog and nine uncalled production power-model functions were
+removed; all83remaining Model functions are byte-equivalent. Focused model and
+active-catalog checks pass. Exact hosted CI, installed identity and longer-term
+observations are separate delivery evidence. No new visual change or independent
+review. The shared-shell peak remains unattributed; historical reload bursts are
+a lead, not proof. See [scope and limits](docs/resource-simplification-20261030.md).
+
 ## Geometry and module audit — 2.18.8
 
 The explicitly requested audit reproduced a 13 px compact right gutter and a

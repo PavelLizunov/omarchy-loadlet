@@ -1,10 +1,31 @@
-"""Exercise the real native sampler against an inert NVML fixture."""
+"""Exercise power admission and mapping/session lifetimes with inert NVML."""
 from pathlib import Path
 import os
+import selectors
 import subprocess
 import tempfile
+import time
 
 ROOT = Path(__file__).resolve().parents[1]
+SAMPLER = Path(os.environ.get('ACTIVITY_TEST_SAMPLER', ROOT / 'activity-sampler'))
+
+
+def frame(process):
+    data = b''
+    deadline = time.monotonic() + 3
+    with selectors.DefaultSelector() as selector:
+        selector.register(process.stdout, selectors.EVENT_READ)
+        while not data.endswith(b'snapshot-end\tgpus\n'):
+            remaining = deadline - time.monotonic()
+            assert remaining > 0 and selector.select(remaining), 'GPU frame timed out'
+            chunk = os.read(process.stdout.fileno(), 16384)
+            assert chunk, 'Reader exited before frame completed'
+            data += chunk
+            assert len(data) <= 262144
+    assert b'schema\tactivity-gpus\t1\n' in data
+    return data
+
+
 with tempfile.TemporaryDirectory() as directory:
     base = Path(directory)
     device = base / 'sys/class/drm/card0/device'
@@ -14,13 +35,16 @@ with tempfile.TemporaryDirectory() as directory:
     (device / 'vendor').write_text('0x10de\n')
     (device / 'product_name').write_text('Fixture\n')
     power = device / 'power/runtime_status'
-    power.write_text('suspended\n')
     source = base / 'nvml.cpp'
     source.write_text('''
 #include <cstdio>
 #include <cstdlib>
+#include <sys/eventfd.h>
 extern "C" {
 void logcall(const char *s) { auto f=fopen(getenv("NVML_LOG"),"a"); if(f){fputs(s,f);fclose(f);} }
+// Model a driver resource lost on unloading: the provider must not reload it per sample.
+__attribute__((constructor)) void mapped() { eventfd(0,EFD_CLOEXEC);logcall("map\\n"); }
+__attribute__((destructor)) void unmapped() { logcall("unmap\\n"); }
 int nvmlInitWithFlags(unsigned f) { logcall(f==0?"init0\\n":"bad\\n"); return 0; }
 int nvmlShutdown() { logcall("stop\\n"); return 0; }
 int nvmlDeviceGetHandleByPciBusId_v2(const char*,void** d) { *d=(void*)1; return 0; }
@@ -37,9 +61,45 @@ int nvmlDeviceGetClockInfo(void*,unsigned,unsigned* p) { *p=300; return 0; }
                OMARCHY_SYSTEM_STATS_PROC_PATH=str(base/'proc'))
     for status in ['suspended', 'active', 'suspended']:
         power.write_text(status+'\n')
-        result = subprocess.run([str(ROOT/'activity-sampler'), '--activity-gpus'],
-                                env=env, capture_output=True, text=True, timeout=3, check=True)
-        if status == 'active': assert log.read_text() == 'init0\nstop\n'
-        elif log.exists(): assert log.read_text() == 'init0\nstop\n'
-        else: assert not log.exists()
-    print('PASS NVIDIA: suspended skips NVML; active uses normal initialization and shutdown')
+        subprocess.run([str(SAMPLER), '--activity-gpus'], env=env,
+                       capture_output=True, timeout=3, check=True)
+        if log.exists():
+            assert log.read_text() == 'map\ninit0\nstop\nunmap\n'
+        else:
+            assert status == 'suspended'
+    log.unlink()
+    process = subprocess.Popen([str(SAMPLER), '--activity-reader'], env=env,
+                               stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    try:
+        def request(status):
+            power.write_text(status+'\n')
+            process.stdin.write(b'gpus\n')
+            process.stdin.flush()
+            return frame(process)
+
+        for status in ['suspended', 'unknown', 'unsupported']:
+            request(status)
+            assert not log.exists(), 'Inactive/unknown NVIDIA must not initialize NVML'
+        assert b'Fixture\t12\t20\t100' in request('active')
+        steady_fds = len(list(Path(f'/proc/{process.pid}/fd').iterdir()))
+        for _ in range(24):
+            assert b'Fixture\t12\t20\t100' in request('active')
+            assert len(list(Path(f'/proc/{process.pid}/fd').iterdir())) == steady_fds, 'FD growth across samples'
+        calls = log.read_text()
+        assert calls == 'map\n' + 'init0\nstop\n' * 25, 'One mapping, balanced per-sample sessions'
+        request('suspended')
+        request('unknown')
+        assert log.read_text() == calls, 'No calls during inactivity'
+        request('active')
+        assert log.read_text() == calls + 'init0\nstop\n', 'Resume without remapping'
+        process.stdin.close()
+        assert process.wait(timeout=3) == 0
+        assert log.read_text() == calls + 'init0\nstop\nunmap\n', 'Unload only on reader destruction'
+    finally:
+        if process.poll() is None:
+            process.kill()
+            process.wait(timeout=3)
+        process.stdin.close()
+        process.stdout.close()
+        process.stderr.close()
+    print('PASS NVIDIA: inactive admission, one mapping, balanced sessions, bounded FDs, resume and EOF cleanup')

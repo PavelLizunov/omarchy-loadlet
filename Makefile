@@ -59,5 +59,5 @@ check-ui:
 install-local: activity-sampler
 	test ! -e "$(HOME)/.config/omarchy/plugins/slovn.activity-lite"
 	install -d "$(HOME)/.config/omarchy/plugins/slovn.activity-lite"
-	install -m644 Panel.qml PowerProfiles.qml ChoiceDropdown.qml ComputerMap.qml SvgIcon.qml ActivityIcon.qml ActivityIconSvg.js HeatPolicy.js DiagnosticExport.qml Diagnostics.qml ActivityController.qml ProcessActionController.qml Sparkline.qml SensorHistoryChart.qml Model.js I18n.js Messages.js ProfileCodec.js GameDetection.py manifest.json README.md LICENSE ATTRIBUTIONS.md "$(HOME)/.config/omarchy/plugins/slovn.activity-lite/"
+	install -m644 Panel.qml PowerProfiles.qml ChoiceDropdown.qml ComputerMap.qml SvgIcon.qml ActivityIcon.qml ActivityIconSvg.js HeatPolicy.js DiagnosticExport.qml Diagnostics.qml ActivityController.qml ProcessActionController.qml Sparkline.qml SensorHistoryChart.qml Model.js I18n.js ProfileCodec.js GameDetection.py manifest.json README.md LICENSE ATTRIBUTIONS.md "$(HOME)/.config/omarchy/plugins/slovn.activity-lite/"
 	install -m755 activity-sampler process-signal activity-report diagnostic-report power-profile "$(HOME)/.config/omarchy/plugins/slovn.activity-lite/"

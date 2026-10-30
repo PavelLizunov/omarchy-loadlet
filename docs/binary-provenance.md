@@ -7,18 +7,18 @@ with the QML and Python helpers from this public repository.
 
 The distributed executable was rebuilt from `activity-sampler.cpp`,
 `DiagnosticJournal.h`, `FastDiagnostics.h` and Makefile using GCC 16.2.1 20260810
-on Linux x86_64. It retains high-resolution recording in the existing reader and
-integrates the laptop branch
-`d52254712da51579e6bb6628a24603fa9d337885`: journal pressure handling, monotonic
-sensor admission, policy-context budgeting, thermal discovery and GPU metadata
-read reuse. The older laptop binary was not copied over the current recorder.
+on Linux x86_64. Version2.18.9 retains the NVIDIA driver mapping for the reader
+lifetime while shutting down each NVML session after its sample. This removes
+the observed per-sample eventfd growth; active-device admission and the existing
+high-resolution recorder remain unchanged. Inherited laptop corrections remain
+included; see [integration evidence](laptop-integration.md).
 The exact executable size/hash and every build-input hash are recorded in the
 [machine-readable provenance](binary-provenance.json). `LC_ALL=C make
-activity-sampler` completed. Focused journal, fast-capture and report regressions
-passed for this build. Current package/full CI, remote reproduction and installed
-runtime acceptance are separate evidence; earlier passes do not certify this
-combined build. See [integration evidence](laptop-integration.md). This checkpoint
-does not replace the v2.16.0 tag.
+activity-sampler` completed. The inert NVIDIA lifetime regression and a bounded
+32-query real-driver comparison passed. Current full CI, remote reproduction and
+installed runtime acceptance are separate delivery evidence; earlier passes do
+not certify this build. See [resource evidence](resource-simplification-20261030.md).
+This checkpoint does not replace the v2.16.0 tag.
 
 [Machine-readable provenance](binary-provenance.json) binds source, header,
 Makefile and executable SHA256 values. Build hardening and source-path mapping

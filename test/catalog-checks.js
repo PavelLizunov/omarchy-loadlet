@@ -24,13 +24,6 @@ assert.equal(context.resolveLanguage('ru', 'de'), 'ru');
 assert.equal(context.resolveLanguage('', 'en'), 'en');
 assert.match(context.t('status_sending', 'de', 'fixture'), /fixture/);
 assert.match(context.t('status_sending', 'zh', 'fixture'), /fixture/);
-const legacy = vm.createContext({ Qt: { locale: () => ({ name: 'en_US' }) } });
-vm.runInContext(fs.readFileSync(path.join(root, 'Messages.js'), 'utf8').replace(/^\.pragma library\s*/, ''), legacy);
-for (const catalog of Object.values(legacy.strings)) {
-  assert.equal(catalog.title, 'Loadlet');
-  assert.ok(catalog.tooltip.startsWith('Loadlet · '));
-}
-assert.equal(legacy.text('title'), 'Loadlet');
 const installLine = fs.readFileSync(path.join(root, 'Makefile'), 'utf8').split('\n').find(line => line.includes('install -m644'));
 assert.match(installLine, /\bI18n\.js\b/);
 console.log(`PASS catalog/install contract: ${Object.keys(context.strings).length} locales, ${keys.length} keys, placeholder parity`);

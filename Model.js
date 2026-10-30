@@ -164,21 +164,6 @@ function nextSensorHistory(previous, snapshot, limit, maxGap) {
   return result
 }
 
-function emptyPackagePowerSnapshot() {
-  return {
-    schema: 0,
-    sample: 0,
-    packages: []
-  }
-}
-
-function emptyPower() {
-  return {
-    available: false,
-    watts: -1
-  }
-}
-
 function emptyStorageSnapshot() {
   return {
     schema: 0,
@@ -357,31 +342,6 @@ function parseThermalSnapshot(raw) {
       snapshot.sample = number(fields[1])
     } else if (fields[0] === "temperature") {
       snapshot.temperatures.push(temperatureFromFields(fields))
-    }
-  }
-
-  return snapshot
-}
-
-function parsePackagePowerSnapshot(raw) {
-  var snapshot = emptyPackagePowerSnapshot()
-  var lines = String(raw || "").split("\n")
-
-  for (var i = 0; i < lines.length; i++) {
-    if (!lines[i]) continue
-    var fields = lines[i].split("\t")
-    if (fields[0] === "schema") {
-      snapshot.schema = fields[1] === "activity-process-power" ? number(fields[2]) : 0
-    } else if (fields[0] === "sample") {
-      snapshot.sample = number(fields[1])
-    } else if (fields[0] === "package") {
-      var packageValue = {
-        id: String(fields[1] || ""),
-        name: String(fields[2] || fields[1] || "Package"),
-        energy: !fields[3] ? -1 : Math.max(0, number(fields[3])),
-        maximumEnergyRange: Math.max(0, number(fields[4]))
-      }
-      snapshot.packages.push(packageValue)
     }
   }
 
@@ -632,82 +592,6 @@ function nextProcessGpus(previous, current) {
     result[key].byGpu[gpu.id] = Math.max(number(result[key].byGpu[gpu.id], -1), reading.usage)
   }
   return result
-}
-
-function packageEnergyReadable(snapshot) {
-  var packages = snapshot && Array.isArray(snapshot.packages) ? snapshot.packages : []
-  if (packages.length === 0) return false
-
-  for (var i = 0; i < packages.length; i++) {
-    if (number(packages[i].energy, -1) < 0
-        || number(packages[i].maximumEnergyRange) <= 0) {
-      return false
-    }
-  }
-  return true
-}
-
-function packageCountersComparable(previous, current) {
-  if (!previous || !current) return 0
-
-  var before = number(previous.energy, -1)
-  var after = number(current.energy, -1)
-  var previousMaximum = number(previous.maximumEnergyRange)
-  var currentMaximum = number(current.maximumEnergyRange)
-  var validRange = before >= 0
-    && after >= 0
-    && currentMaximum > 0
-    && previousMaximum === currentMaximum
-    && before <= currentMaximum
-    && after <= currentMaximum
-  if (!validRange || after >= before) return validRange
-
-  // A real RAPL wrap crosses the end of the published counter range. Treat
-  // other decreases as a reset/new counter instead of inventing a large draw.
-  return before >= currentMaximum * 0.75
-    && after <= currentMaximum * 0.25
-}
-
-function packageEnergyDelta(previous, current) {
-  if (!packageCountersComparable(previous, current)) return 0
-
-  var before = number(previous.energy)
-  var after = number(current.energy)
-  var currentMaximum = number(current.maximumEnergyRange)
-  if (after >= before) return after - before
-  return currentMaximum - before + after
-}
-
-function nextPackagePower(previous, current) {
-  var before = {}
-  var totalWatts = 0
-  var previousPackages = previous && Array.isArray(previous.packages) ? previous.packages : []
-  var currentPackages = current && Array.isArray(current.packages) ? current.packages : []
-  var seconds = previous && previous.sample > 0 && current.sample > previous.sample
-    ? current.sample - previous.sample
-    : 0
-  var complete = seconds > 0
-    && currentPackages.length > 0
-    && currentPackages.length === previousPackages.length
-
-  for (var i = 0; i < previousPackages.length; i++) {
-    before[previousPackages[i].id] = previousPackages[i]
-  }
-
-  for (var j = 0; j < currentPackages.length; j++) {
-    var value = currentPackages[j]
-    var delta = packageEnergyDelta(before[value.id], value)
-    var comparable = seconds > 0 && packageCountersComparable(before[value.id], value)
-    var watts = comparable ? delta / 1000000 / seconds : -1
-    if (!isFinite(watts) || watts < 0) watts = -1
-    if (watts < 0) complete = false
-    if (watts >= 0) totalWatts += watts
-  }
-
-  return {
-    available: complete,
-    watts: complete ? totalWatts : -1
-  }
 }
 
 function counterPercent(previous, current) {
@@ -1125,48 +1009,6 @@ function nextProcesses(previous, current, totalMemory) {
       elapsed: Math.max(0, current.sample - process.startTicks / clockTicks),
       name: process.name
     })
-  }
-  return result
-}
-
-function processSystemBusyDelta(previous, current) {
-  if (!previous || !current) return -1
-  if (number(previous.schema) <= 0 || number(current.schema) <= 0) return -1
-  if (number(current.sample) <= number(previous.sample)) return -1
-
-  var before = number(previous.systemBusyTicks, -1)
-  var after = number(current.systemBusyTicks, -1)
-  if (before < 0 || after < before) return -1
-  return after - before
-}
-
-function estimateProcessPower(processes, packageWatts, systemBusyDelta) {
-  var values = Array.isArray(processes) ? processes : []
-  var result = []
-  var measuredWatts = Number(packageWatts)
-  var busyDelta = Number(systemBusyDelta)
-  var observedDelta = 0
-  var powerAvailable = packageWatts !== null
-    && packageWatts !== ""
-    && isFinite(measuredWatts)
-    && measuredWatts >= 0
-    && isFinite(busyDelta)
-    && busyDelta > 0
-
-  for (var i = 0; i < values.length; i++) {
-    observedDelta += Math.max(0, number(values[i] && values[i].cpuTicksDelta))
-  }
-  var denominator = Math.max(busyDelta, observedDelta)
-
-  for (var j = 0; j < values.length; j++) {
-    var source = values[j] || {}
-    var clone = {}
-    for (var key in source) clone[key] = source[key]
-    var cpuTicksDelta = Math.max(0, number(source.cpuTicksDelta))
-    clone.power = powerAvailable
-      ? measuredWatts * cpuTicksDelta / denominator
-      : -1
-    result.push(clone)
   }
   return result
 }
@@ -1980,20 +1822,13 @@ if (typeof module !== "undefined") {
     emptySensorSnapshot: emptySensorSnapshot,
     parseSensorSnapshot: parseSensorSnapshot,
     nextSensorHistory: nextSensorHistory,
-    emptyPackagePowerSnapshot: emptyPackagePowerSnapshot,
-    emptyPower: emptyPower,
     emptyStorageSnapshot: emptyStorageSnapshot,
     emptyGpuSnapshot: emptyGpuSnapshot,
     parseSnapshot: parseSnapshot,
     parseProcessSnapshot: parseProcessSnapshot,
     parseThermalSnapshot: parseThermalSnapshot,
-    parsePackagePowerSnapshot: parsePackagePowerSnapshot,
     parseStorageSnapshot: parseStorageSnapshot,
     parseGpuSnapshot: parseGpuSnapshot,
-    packageEnergyReadable: packageEnergyReadable,
-    packageCountersComparable: packageCountersComparable,
-    packageEnergyDelta: packageEnergyDelta,
-    nextPackagePower: nextPackagePower,
     nextGpus: nextGpus,
     nextProcessGpus: nextProcessGpus,
     counterPercent: counterPercent,
@@ -2025,8 +1860,6 @@ if (typeof module !== "undefined") {
     paintCoreLayout: paintCoreLayout,
     emptyCorePaint: emptyCorePaint,
     previewCoreCatalog: previewCoreCatalog,
-    processSystemBusyDelta: processSystemBusyDelta,
-    estimateProcessPower: estimateProcessPower,
     processIdentityKey: processIdentityKey,
     processActionBlockReason: processActionBlockReason,
     filterAndSortProcesses: filterAndSortProcesses,

@@ -1503,16 +1503,18 @@ class NvidiaProvider {
 public:
   explicit NvidiaProvider(std::string fixture) : fixture_(std::move(fixture)) {}
 
-  ~NvidiaProvider() { Close(); }
+  ~NvidiaProvider() {
+    Close();
+    if (library_) dlclose(library_);
+  }
 
   void Close() {
     if (initialized_ && shutdown_)
       shutdown_();
     initialized_ = false;
     attempted_ = false;
-    if (library_)
-      dlclose(library_);
-    library_ = nullptr;
+    // Keep the driver mapped: repeated dlclose/reload leaks its eventfds.
+    // NVML sessions still end after every sample, permitting device idle.
   }
 
   std::vector<NvidiaReading> Read(const std::vector<std::string> &active_ids,
@@ -1650,7 +1652,7 @@ private:
     if (attempted_)
       return initialized_;
     attempted_ = true;
-    library_ = dlopen("libnvidia-ml.so.1", RTLD_NOW | RTLD_LOCAL);
+    if (!library_) library_ = dlopen("libnvidia-ml.so.1", RTLD_NOW | RTLD_LOCAL);
     if (!library_)
       return false;
 

@@ -1,5 +1,16 @@
 # Changelog
 
+## 2.18.9
+
+- Stop repeated NVIDIA library unload/reload from accumulating eventfds in the
+  reader. Retain the mapping, not the NVML session; each sample still shuts down
+  NVML and inactive/unknown GPUs remain excluded.
+- Remove the unimported legacy Messages catalog and nine obsolete power-model
+  functions. Active translations, telemetry and control behavior are unchanged.
+- Add a failing-baseline/passing-candidate lifecycle regression. Document the
+  separate shared-shell memory spike, dependency review and evidence limits in
+  [the resource and simplification report](docs/resource-simplification-20261030.md).
+
 ## 2.18.8
 
 - Align compact and expanded cards with the memory strip and pinned actions.
