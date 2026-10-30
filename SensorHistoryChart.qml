@@ -6,6 +6,14 @@ import qs.Ui
 Item {
   id: root
   objectName: "sensorHistoryChart"
+  property var locale: null
+  // Time runs left to right; the chart is data geometry, not reading order.
+  LayoutMirroring.enabled: false
+  LayoutMirroring.childrenInherit: true
+  function dateTime(value, timeOnly, subsecond) {
+    return locale ? locale.dateTime(value, timeOnly, subsecond)
+      : new Date(value * 1000).toLocaleString(Qt.locale(Host.I18n.formatLocale), Locale.ShortFormat)
+  }
   property var points: []
   property color lineColor: Host.Color.accent
   property real ceiling: 120
@@ -32,7 +40,10 @@ Item {
     return Math.ceil(high * 1.1 / step) * step
   }
   readonly property real axisWidth: Math.ceil(axisMetrics.width) + Style.spacing.sm
-  function formatValue(value) { return Number(value).toFixed(unit === "°C" || unit === "°F" ? 1 : 0) }
+  function formatValue(value) {
+    var decimals = unit === "°C" || unit === "°F" ? 1 : 0
+    return locale ? locale.number(value, decimals) : Host.I18n.formatNumber(value, decimals)
+  }
   function xFor(point) {
     var ratio = endTime > startTime ? (point.time - startTime) / (endTime - startTime) : 0.5
     return 1 + Math.max(0, Math.min(1, ratio)) * Math.max(1, plot.width - 2)
@@ -86,7 +97,7 @@ Item {
     anchors.right: liveButton.left
     anchors.rightMargin: Style.spacing.sm
     anchors.verticalCenter: liveButton.verticalCenter
-    text: root.selectedPoint ? Qt.formatDateTime(new Date(root.selectedPoint.time * 1000), root.subsecond ? "dd.MM HH:mm:ss.zzz" : "dd.MM HH:mm:ss")
+    text: root.selectedPoint ? root.dateTime(root.selectedPoint.time, false, root.subsecond)
       + " · " + root.formatValue(root.selectedPoint.value) + " " + root.unit : root.cursorInGap ? root.gapText : root.hint
     textFormat: Text.PlainText
     color: root.selectedPoint ? root.lineColor : Host.Color.popups.text
@@ -198,13 +209,13 @@ Item {
     anchors.right: parent.right
     height: Style.font.caption + Style.spacing.xs
     Text {
-      text: root.endTime > 0 ? Qt.formatDateTime(new Date(root.startTime * 1000), "HH:mm:ss") : "—"
+      text: root.endTime > 0 ? root.dateTime(root.startTime, true, false) : "—"
       textFormat: Text.PlainText
       color: Host.Color.popups.text; font.pixelSize: Style.font.caption; font.family: Style.font.family
     }
     Text {
       anchors.right: parent.right
-      text: root.endTime > 0 ? Qt.formatDateTime(new Date(root.endTime * 1000), "HH:mm:ss") : "—"
+      text: root.endTime > 0 ? root.dateTime(root.endTime, true, false) : "—"
       textFormat: Text.PlainText
       color: Host.Color.popups.text; font.pixelSize: Style.font.caption; font.family: Style.font.family
     }

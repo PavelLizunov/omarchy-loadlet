@@ -2,6 +2,21 @@
 
 [Overview](../README.md). Details below describe the current native plugin.
 
+## Language
+
+The header language button opens a searchable, scrollable list of Omarchy registry
+languages plus System. Search accepts native names, English names and locale codes.
+System follows live shell-language changes; an explicit choice affects only Loadlet.
+The legacy `zh` preference still selects Simplified Chinese (`zh-CN`), not `zh-TW`.
+Only English, Russian, German and Simplified Chinese have translated catalogs.
+Other choices use English text and show a fallback notice in the picker.
+
+Displayed metrics use the selected language’s decimal separator and digits. Dates
+use its Qt locale. Process IDs and editable hardware values remain machine-form
+numbers. RTL locales mirror the reading layout and Back arrow; charts and physical
+diagram coordinates stay left-to-right. RTL/input acceptance remains unverified.
+See [localization limits](localization.md).
+
 ## Icon indicator
 
 The default Split die has a left CPU eye and a right RAM eye. Both fill from
@@ -182,8 +197,8 @@ work, exact energy use or the physical cause of heat by itself.
 - The language picker blocks process actions. `?` shows or hides keyboard hints.
 - Error messages distinguish unavailable data from an idle machine.
 
-The interface uses `I18n.js` catalogs for Russian, English, German and Simplified
-Chinese. New defaults follow the live Omarchy language with `system`; explicit
+The interface uses native JSON catalogs for Russian, English, German and Simplified
+Chinese, shared through `LoadletLocale.qml`. New defaults follow the live Omarchy language with `system`; explicit
 saved overrides are preserved. Untranslated languages currently fall back to
 English. The [50-locale migration](localization.md) remains incomplete. PID, CPU, VRAM,
 and byte units remain technical identifiers. Helper failures use localized UI
@@ -690,7 +705,7 @@ Check the installed `entryPoints.barWidget`, rather than assuming the root file
 is the active consumer. Settings and diagnostic data remain outside this tree.
 
 If the widget fails to load, check that `ActivityIconSvg.js`, `HeatPolicy.js`,
-`I18n.js`, `Model.js`, all QML files and the executable
+`LoadletLocale.qml`, `i18n/*.json`, `Model.js`, all QML files and the executable
 `activity-sampler`/`process-signal`/`activity-report`/`diagnostic-report` were installed together. Read the
 shell log for QML errors. The status endpoint below reports reader errors without
 starting another collection cycle.

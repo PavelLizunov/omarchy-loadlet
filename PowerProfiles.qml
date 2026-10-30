@@ -5,16 +5,20 @@ import Quickshell.Io
 import qs.Commons
 import qs.Commons as Host
 import qs.Ui
-import "I18n.js" as I18n
 import "ProfileCodec.js" as ProfileCodec
 
 Column {
   id: root
+  function t(key, a, b, c) { return locale ? locale.t(key, a, b, c) : key }
   property var settings: ({})
   property bool active: visible
   property var channels: []
   property var gpus: []
-  property string language: "ru"
+  property var locale: null
+  function number(value) { return locale ? locale.number(value) : Host.I18n.formatNumber(value) }
+  LayoutMirroring.enabled: locale ? locale.rightToLeft : Host.I18n.rightToLeft
+  LayoutMirroring.childrenInherit: true
+  property string language: locale ? locale.language : "en"
   property color foreground: Host.Color.popups.text
   property color accent: Host.Color.accent
   property bool editorOpen: false
@@ -35,19 +39,19 @@ Column {
   property bool automationOptionsOpen: false
   readonly property var selectedProfile: profiles.filter(function(p) { return p.id===root.selectedId })[0] || profiles[0]
   readonly property string activeId: automatic.error ? "" : automatic.enabled ? (automatic.gaming ? "games" : automaticBaseId) : settings.activePowerProfile || ""
-  readonly property string activeName: (profiles.filter(function(p) { return p.id===root.activeId })[0] || {}).name || I18n.t("profile_manual",language)
+  readonly property string activeName: (profiles.filter(function(p) { return p.id===root.activeId })[0] || {}).name || root.t("profile_manual")
   function summary(profile) {
     if (!profile) return ""
     var cpu=profile.config.cpu, values=[]
-    if (typeof cpu.boost === "boolean") values.push(I18n.t(cpu.boost ? "profile_turbo_on" : "profile_turbo_off",language))
+    if (typeof cpu.boost === "boolean") values.push(root.t(cpu.boost ? "profile_turbo_on" : "profile_turbo_off"))
     if (cpu.governor) values.push(cpu.governor)
-    if (cpu.maxMHz) values.push(cpu.maxMHz+" MHz")
+    if (cpu.maxMHz) values.push(root.number(cpu.maxMHz)+" MHz")
     Object.keys(profile.config.fans).forEach(function(id) {
       var place=root.settings["fanPlace_"+id]
-      values.push((place && place!=="unknown" ? I18n.t("map_"+place,root.language) : id)+" "+profile.config.fans[id]+"%")
+      values.push((place && place!=="unknown" ? root.t("map_"+place) : id)+" "+root.number(profile.config.fans[id])+"%")
     })
-    Object.keys(profile.config.gpuFans).forEach(function(id) { values.push("GPU "+profile.config.gpuFans[id]+"%") })
-    return values.join(" · ") || I18n.t("profile_unchanged",language)
+    Object.keys(profile.config.gpuFans).forEach(function(id) { values.push("GPU "+root.number(profile.config.gpuFans[id])+"%") })
+    return values.join(" · ") || root.t("profile_unchanged")
   }
   property var cpuCapabilities: ({policies:[]})
   property bool capabilitiesReady: false
@@ -101,9 +105,9 @@ Column {
       cpu.maxMHz=Math.floor(Number(policy.scaling_max_freq || 0)/1000)
     }
     return [
-      {id:"current",name:I18n.t("profile_current",language),icon:"fans",config:{fans:fans,cpu:cpu,gpuFans:{}}},
-      {id:"idle",name:I18n.t("profile_idle",language),icon:"quiet",config:{fans:fans,cpu:{boost:false,governor:"powersave",epp:"power",maxMHz:0},gpuFans:{}}},
-      {id:"games",name:I18n.t("profile_games",language),icon:"games",config:{fans:fans,cpu:{boost:true,governor:"performance",epp:"performance",maxMHz:0},gpuFans:{}}}
+      {id:"current",name:root.t("profile_current"),icon:"fans",config:{fans:fans,cpu:cpu,gpuFans:{}}},
+      {id:"idle",name:root.t("profile_idle"),icon:"quiet",config:{fans:fans,cpu:{boost:false,governor:"powersave",epp:"power",maxMHz:0},gpuFans:{}}},
+      {id:"games",name:root.t("profile_games"),icon:"games",config:{fans:fans,cpu:{boost:true,governor:"performance",epp:"performance",maxMHz:0},gpuFans:{}}}
     ]
   }
   signal saveSettings(var values)
@@ -143,7 +147,7 @@ Column {
   function newProfile(source) {
     if (running || profiles.length>=12 || !source) return
     var copy=JSON.parse(JSON.stringify(source))
-    copy.id="custom-"+Date.now();copy.name=I18n.t("profile_new",language)
+    copy.id="custom-"+Date.now();copy.name=root.t("profile_new")
     draft=copy;deletePending=false;invalidCpuLimit=false
     statusKey="";editorOpen=true
   }
@@ -252,7 +256,7 @@ Column {
   Text {
     objectName:"activeProfileLabel"
     width:parent.width
-    text:I18n.t(root.automatic.error ? "profile_auto_error" : "profile_active",root.language,root.activeName)
+    text:root.t(root.automatic.error ? "profile_auto_error" : "profile_active",root.activeName)
     textFormat:Text.PlainText;wrapMode:Text.Wrap
     color:root.automatic.error ? Host.Color.urgent : root.foreground
     font.family:Style.font.family;font.pixelSize:Style.font.bodySmall;font.bold:true
@@ -260,7 +264,7 @@ Column {
   ChoiceDropdown {
     objectName:"powerProfileDropdown"
     width:parent.width;visible:!root.editorOpen
-    label:I18n.t("profile_choose",root.language)
+    label:root.t("profile_choose")
     value:root.selectedProfile ? root.selectedProfile.id : ""
     options:root.profiles.map(function(p){return {value:p.id,label:p.name}})
     onChanged:function(id){root.selectProfile(id)}
@@ -277,7 +281,7 @@ Column {
     SvgButton {
       objectName:"applyPowerProfileButton"
       width:(parent.width-parent.spacing)/2
-      text:I18n.t("profile_apply",root.language);iconName:"check"
+      text:root.t("profile_apply");iconName:"check"
       foreground:root.foreground;accent:root.accent;fontFamily:Style.font.family
       bordered:true;focusable:true;enabled:!root.running && root.capabilitiesReady
       onClicked:root.applyProfile(root.selectedProfile)
@@ -286,7 +290,7 @@ Column {
       id:editProfileButton
       objectName:"profileEditorToggle"
       width:(parent.width-parent.spacing)/2
-      text:I18n.t("profile_edit_short",root.language);iconName:"edit"
+      text:root.t("profile_edit_short");iconName:"edit"
       foreground:root.foreground;accent:root.accent;fontFamily:Style.font.family
       bordered:true;focusable:true;enabled:!root.running
       onClicked:root.beginEdit()
@@ -295,7 +299,7 @@ Column {
   SvgButton {
     objectName:"newPowerProfileButton"
     width:parent.width;visible:!root.editorOpen
-    text:I18n.t("profile_new",root.language);iconName:"edit"
+    text:root.t("profile_new");iconName:"edit"
     foreground:root.foreground;accent:root.accent;fontFamily:Style.font.family
     bordered:true;focusable:true;enabled:!root.running && root.profiles.length<12
     onClicked:root.newProfile(root.selectedProfile)
@@ -303,7 +307,7 @@ Column {
   SvgButton {
     objectName:"automationOptionsToggle"
     width:parent.width;visible:!root.editorOpen
-    text:I18n.t("profile_auto_games",root.language);iconName:"games"
+    text:root.t("profile_auto_games");iconName:"games"
     foreground:root.foreground;accent:root.accent;fontFamily:Style.font.family
     bordered:true;focusable:true;selected:root.automationOptionsOpen || root.automatic.enabled
     onClicked:root.automationOptionsOpen=!root.automationOptionsOpen
@@ -312,8 +316,8 @@ Column {
     objectName:"autoGameProfilesToggle"
     visible:!root.editorOpen && (root.automationOptionsOpen || root.automatic.enabled)
     width:parent.width
-    label:I18n.t("profile_auto_games",root.language)
-    description:I18n.t(root.automatic.error ? "profile_auto_error" : root.automatic.gaming ? "profile_auto_playing" : "profile_auto_hint",root.language)
+    label:root.t("profile_auto_games")
+    description:root.t(root.automatic.error ? "profile_auto_error" : root.automatic.gaming ? "profile_auto_playing" : "profile_auto_hint")
     checked:root.automatic.enabled
     enabled:!root.running && root.capabilitiesReady
     foreground:root.foreground;accent:root.accent;fontFamily:Style.font.family
@@ -334,7 +338,7 @@ Column {
   ChoiceDropdown {
     objectName:"automaticBaseProfile"
     width:parent.width;visible:!root.editorOpen && (root.automationOptionsOpen || root.automatic.enabled)
-    label:I18n.t("profile_auto_base",root.language)
+    label:root.t("profile_auto_base")
     value:root.automaticBaseId
     options:root.profiles.filter(function(p){return p.id!=="games"}).map(function(p){return {value:p.id,label:p.name}})
     enabled:!root.running && !root.automatic.enabled
@@ -342,14 +346,14 @@ Column {
   }
   Text {
     width:parent.width;visible:root.statusKey!==""
-    text:I18n.t(root.statusKey,root.language);textFormat:Text.PlainText;wrapMode:Text.Wrap
+    text:root.t(root.statusKey);textFormat:Text.PlainText;wrapMode:Text.Wrap
     color:root.statusKey==="profile_failed" || root.statusKey==="profile_invalid" ? Host.Color.urgent:root.foreground
     font.family:Style.font.family;font.pixelSize:Style.font.caption
   }
   SvgButton {
     objectName:"restorePowerProfileButton"
     width:parent.width;visible:!root.editorOpen
-    text:I18n.t("profile_restore",root.language);iconName:"restore"
+    text:root.t("profile_restore");iconName:"restore"
     foreground:root.foreground;accent:root.accent;fontFamily:Style.font.family
     bordered:true;focusable:true;enabled:!root.running
     onClicked:{root.operation="restore";root.statusKey="profile_pending";applyProcess.running=true}
@@ -370,6 +374,8 @@ Column {
   Item {
     id: editorPage
     objectName:"powerProfileEditorPage"
+    LayoutMirroring.enabled: root.locale ? root.locale.rightToLeft : Host.I18n.rightToLeft
+    LayoutMirroring.childrenInherit: true
     parent:root.editorHost || root
     visible:root.editorOpen && root.editorHost!==null
     width:parent.width;height:parent.height
@@ -416,12 +422,12 @@ Column {
         width:editorViewport.width
         spacing:Style.spacing.sm
         Text {
-          width:parent.width;text:I18n.t("profile_editor_hint",root.language)
+          width:parent.width;text:root.t("profile_editor_hint")
           textFormat:Text.PlainText;wrapMode:Text.Wrap;color:root.foreground
           font.family:Style.font.family;font.pixelSize:Style.font.caption
         }
         Text {
-          width:parent.width;text:I18n.t("profile_name",root.language)
+          width:parent.width;text:root.t("profile_name")
           textFormat:Text.PlainText;color:root.foreground
           font.family:Style.font.family;font.pixelSize:Style.font.caption
         }
@@ -430,11 +436,11 @@ Column {
           objectName:"powerProfileName"
           width:parent.width;height:Style.spacing.controlHeight
           text:root.draft.name || "";maximumLength:40
-          Accessible.name:I18n.t("profile_name",root.language)
+          Accessible.name:root.t("profile_name")
           onTextEdited:{var next=Object.assign({},root.draft);next.name=text;root.draft=next}
         }
         Text {
-          width:parent.width;text:I18n.t("profile_icon",root.language)
+          width:parent.width;text:root.t("profile_icon")
           textFormat:Text.PlainText;color:root.foreground
           font.family:Style.font.family;font.pixelSize:Style.font.caption
         }
@@ -449,7 +455,7 @@ Column {
               required property var modelData
               objectName:"profileIcon-"+modelData.value
               width:(iconPicker.width-iconPicker.spacing*(iconPicker.columns-1))/iconPicker.columns
-              iconName:modelData.value;text:I18n.t(modelData.label,root.language)
+              iconName:modelData.value;text:root.t(modelData.label)
               selected:(root.draft.icon || "fans")===modelData.value
               foreground:root.foreground;accent:root.accent;fontFamily:Style.font.family
               fontSize:Style.font.caption;focusable:true;bordered:true
@@ -459,13 +465,13 @@ Column {
             }
           }
         }
-        SectionHeading { label:I18n.t("cpu",root.language);iconName:"cpu" }
+        SectionHeading { label:root.t("cpu");iconName:"cpu" }
         Toggle {
           objectName:"profileBoostToggle"
           width:parent.width
           visible:root.cpuCapabilities.boost!==null && root.cpuCapabilities.boost!==undefined
             || root.cpuCapabilities.noTurbo!==null && root.cpuCapabilities.noTurbo!==undefined
-          label:I18n.t("profile_boost",root.language)
+          label:root.t("profile_boost")
           checked:!!(root.draft.config && root.draft.config.cpu.boost)
           foreground:root.foreground;accent:root.accent;fontFamily:Style.font.family
           onClicked:root.changeCpu("boost",!checked)
@@ -473,15 +479,15 @@ Column {
         ChoiceDropdown {
           objectName:"profileCpuMode"
           width:parent.width
-          label:I18n.t("profile_cpu_mode",root.language)
+          label:root.t("profile_cpu_mode")
           value:root.draft.config ? root.draft.config.cpu.governor || "" : ""
-          options:[{value:"",label:I18n.t("profile_unchanged",root.language)},
-            {value:"powersave",label:I18n.t("profile_idle",root.language)},
-            {value:"performance",label:I18n.t("profile_games",root.language)}]
+          options:[{value:"",label:root.t("profile_unchanged")},
+            {value:"powersave",label:root.t("profile_idle")},
+            {value:"performance",label:root.t("profile_games")}]
           onChanged:function(mode){root.changeCpu("governor",mode);root.changeCpu("epp",mode==="powersave"?"power":mode==="performance"?"performance":"")}
         }
         Text {
-          width:parent.width;text:I18n.t("profile_max_mhz",root.language)
+          width:parent.width;text:root.t("profile_max_mhz")
           textFormat:Text.PlainText;wrapMode:Text.Wrap;color:root.foreground
           font.family:Style.font.family;font.pixelSize:Style.font.caption
         }
@@ -490,14 +496,14 @@ Column {
           width:parent.width;height:Style.spacing.controlHeight
           text:String(root.draft.config ? root.draft.config.cpu.maxMHz || 0 : 0)
           validator:IntValidator{bottom:0;top:10000}
-          Accessible.name:I18n.t("profile_max_mhz",root.language)
+          Accessible.name:root.t("profile_max_mhz")
           onTextEdited:{root.invalidCpuLimit=!acceptableInput;if(acceptableInput)root.changeCpu("maxMHz",Number(text))}
         }
-        SectionHeading { label:I18n.t("sensors",root.language);iconName:"fans" }
+        SectionHeading { label:root.t("sensors");iconName:"fans" }
         Text {
           width:parent.width
           visible:!root.channels.length && !root.gpus.some(function(g){return g.vendor==="NVIDIA" || String(g.name).indexOf("NVIDIA")>=0})
-          text:I18n.t("profile_no_fans",root.language)
+          text:root.t("profile_no_fans")
           textFormat:Text.PlainText;wrapMode:Text.Wrap;color:root.foreground
           font.family:Style.font.family;font.pixelSize:Style.font.caption
         }
@@ -508,14 +514,14 @@ Column {
             width:parent.width;spacing:Style.spacing.xs
             Text {
               width:parent.width
-              text:modelData.id+" · "+I18n.t("map_"+(root.settings["fanPlace_"+modelData.id]||"unknown"),root.language)+" %"
+              text:modelData.id+" · "+root.t("map_"+(root.settings["fanPlace_"+modelData.id]||"unknown"))+" %"
               textFormat:Text.PlainText;wrapMode:Text.Wrap;color:root.foreground
               font.family:Style.font.family;font.pixelSize:Style.font.caption
             }
             TextField {
               width:parent.width;height:Style.spacing.controlHeight
               text:root.draft.config && root.draft.config.fans[modelData.id]!==undefined ? String(root.draft.config.fans[modelData.id]) : ""
-              placeholderText:I18n.t("profile_unchanged",root.language)
+              placeholderText:root.t("profile_unchanged")
               validator:IntValidator{bottom:0;top:100}
               Accessible.name:modelData.id+" %"
               onTextEdited:root.changeFan(modelData.id,text,false)
@@ -528,14 +534,14 @@ Column {
             required property var modelData
             width:parent.width;spacing:Style.spacing.xs
             Text {
-              width:parent.width;text:modelData.name+" · "+I18n.t("profile_gpu_fan",root.language)
+              width:parent.width;text:modelData.name+" · "+root.t("profile_gpu_fan")
               textFormat:Text.PlainText;wrapMode:Text.Wrap;color:root.foreground
               font.family:Style.font.family;font.pixelSize:Style.font.caption
             }
             TextField {
               width:parent.width;height:Style.spacing.controlHeight
               text:root.draft.config && root.draft.config.gpuFans[modelData.id]!==undefined ? String(root.draft.config.gpuFans[modelData.id]) : ""
-              placeholderText:I18n.t("profile_gpu_auto",root.language)
+              placeholderText:root.t("profile_gpu_auto")
               validator:IntValidator{bottom:0;top:100}
               Accessible.name:modelData.name+" %"
               onTextEdited:root.changeFan(modelData.id,text,true)
@@ -545,12 +551,12 @@ Column {
         Text {
           width:parent.width
           visible:root.automatic.enabled && (root.draft.id==="games" || root.draft.id===root.automaticBaseId)
-          text:I18n.t("profile_auto_edit_hint",root.language)
+          text:root.t("profile_auto_edit_hint")
           textFormat:Text.PlainText;wrapMode:Text.Wrap;color:root.foreground
           font.family:Style.font.family;font.pixelSize:Style.font.caption
         }
         Text {
-          width:parent.width;text:I18n.t("profile_hint",root.language)
+          width:parent.width;text:root.t("profile_hint")
           textFormat:Text.PlainText;wrapMode:Text.Wrap;color:root.foreground
           font.family:Style.font.family;font.pixelSize:Style.font.caption
         }
@@ -558,7 +564,7 @@ Column {
           width:parent.width;spacing:Style.spacing.xs
           SvgButton {
             objectName:"duplicatePowerProfileButton"
-            text:I18n.t("profile_duplicate",root.language);iconName:"copy"
+            text:root.t("profile_duplicate");iconName:"copy"
             width:Math.min(implicitWidth,parent.width)
             foreground:root.foreground;accent:root.accent;fontFamily:Style.font.family
             bordered:true;focusable:true;enabled:root.profiles.length<12
@@ -566,7 +572,7 @@ Column {
           }
           SvgButton {
             objectName:"deletePowerProfileButton"
-            text:I18n.t(root.deletePending ? "profile_delete_confirm" : "profile_delete",root.language);iconName:"trash"
+            text:root.t(root.deletePending ? "profile_delete_confirm" : "profile_delete");iconName:"trash"
             width:Math.min(implicitWidth,parent.width)
             foreground:root.foreground;accent:root.accent;fontFamily:Style.font.family
             bordered:true;focusable:true
@@ -589,7 +595,7 @@ Column {
       Text {
         objectName:"profileEditorStatus"
         width:parent.width;visible:root.statusKey!==""
-        text:I18n.t(root.statusKey,root.language);textFormat:Text.PlainText;wrapMode:Text.Wrap
+        text:root.t(root.statusKey);textFormat:Text.PlainText;wrapMode:Text.Wrap
         color:root.statusKey==="profile_invalid" || root.statusKey==="profile_failed" ? Host.Color.urgent : root.foreground
         font.family:Style.font.family;font.pixelSize:Style.font.caption
       }
@@ -598,14 +604,14 @@ Column {
         SvgButton {
           objectName:"cancelPowerProfileButton"
           width:(parent.width-parent.spacing)/2
-          text:I18n.t("profile_cancel",root.language);iconName:"close"
+          text:root.t("profile_cancel");iconName:"close"
           foreground:root.foreground;accent:root.accent;fontFamily:Style.font.family
           bordered:true;focusable:true;onClicked:root.cancelEdit()
         }
         SvgButton {
           objectName:"savePowerProfileButton"
           width:(parent.width-parent.spacing)/2
-          text:I18n.t("profile_save",root.language);iconName:"save"
+          text:root.t("profile_save");iconName:"save"
           foreground:root.foreground;accent:root.accent;fontFamily:Style.font.family
           bordered:true;focusable:true;onClicked:if(root.saveDraft())root.editorOpen=false
         }

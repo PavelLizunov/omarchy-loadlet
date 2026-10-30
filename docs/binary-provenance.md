@@ -26,6 +26,11 @@ are in Makefile. An optional local reproduction is `make -B activity-sampler`;
 that is a developer verification command, not an installation prerequisite.
 Other compiler versions can legitimately produce different executable hashes.
 
+Version2.18.10 changes only the Makefile installation list to include the locale
+adapter and JSON catalogs. Its current Makefile hash is recorded separately from
+the unchanged 2.18.9 executable and compilation recipe. No new native build or
+reproducibility check was run for that packaging change.
+
 ## Runtime compatibility
 
 The package is an ELF64 Linux x86_64 executable, with baseline x86-64 code generation

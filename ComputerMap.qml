@@ -2,12 +2,13 @@ import QtQuick
 import qs.Commons
 import qs.Commons as Host
 import qs.Ui
-import "I18n.js" as I18n
 
 Item {
   id: root
+  function t(key, a, b, c) { return locale ? locale.t(key, a, b, c) : key }
   objectName: "computerMap"
-  property string language: "ru"
+  property var locale: null
+  property string language: locale ? locale.language : "en"
   property string selectedPart: ""
   property var readings: ({})
   signal picked(string part)
@@ -35,6 +36,8 @@ Item {
   Item {
     id: drawing
     objectName: "computerMapDrawing"
+    LayoutMirroring.enabled: false
+    LayoutMirroring.childrenInherit: true
     x: (root.width-width)/2
     y: root.stacked ? 0 : (root.height-height)/2
     width: root.stacked ? parent.width : Math.max(0, parent.width - root.labelWidth * 2 - Style.spacing.sm * 2)
@@ -95,7 +98,7 @@ Item {
         }
         activeFocusOnTab: true
         Accessible.role: Accessible.Button
-        Accessible.name: I18n.t("map_"+modelData.key,root.language) + ": " + ((root.readings[modelData.key] || {}).text || I18n.t("map_no_data",root.language))
+        Accessible.name: root.t("map_"+modelData.key) + ": " + ((root.readings[modelData.key] || {}).text || root.t("map_no_data"))
         Keys.onReturnPressed: root.picked(modelData.key)
         Keys.onSpacePressed: root.picked(modelData.key)
         MouseArea {
@@ -115,7 +118,7 @@ Item {
         id: callout
         required property var modelData
         required property int index
-        readonly property var reading: root.readings[modelData.key] || ({text:I18n.t("map_no_data",root.language)})
+        readonly property var reading: root.readings[modelData.key] || ({text:root.t("map_no_data")})
         readonly property real pointX: drawing.x + modelData.x * drawing.width
         readonly property real pointY: drawing.y + modelData.y * drawing.height
         x: modelData.side ? root.width - width : 0
@@ -143,7 +146,7 @@ Item {
           foreground: root.ink; accent: root.accent
           selected: root.selectedPart===callout.modelData.key
           bordered: true; focusable: true
-          tooltipText: I18n.t("map_"+callout.modelData.key,root.language) + "\n" + (callout.reading.detail || I18n.t("map_no_data",root.language))
+          tooltipText: root.t("map_"+callout.modelData.key) + "\n" + (callout.reading.detail || root.t("map_no_data"))
           Accessible.name: title.text + ": " + value.text
           onClicked: root.picked(callout.modelData.key)
           Column {
@@ -152,7 +155,7 @@ Item {
             Text {
               id: title
               width: parent.width
-              text: (callout.index+1) + " · " + I18n.t((root.compact ? "map_short_" : "map_")+callout.modelData.key,root.language)
+              text: (callout.index+1) + " · " + root.t((root.compact ? "map_short_" : "map_")+callout.modelData.key)
               textFormat: Text.PlainText; wrapMode: Text.Wrap
               color: root.ink; font.family: Style.font.family; font.pixelSize: Style.font.caption
             }

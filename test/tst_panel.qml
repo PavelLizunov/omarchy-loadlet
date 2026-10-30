@@ -111,10 +111,10 @@ Item {
       compare(plugin.effectiveLanguage,"ru");compare(ctrl.language,"ru")
       plugin.persistSettings({locale:"system"})
       Host.I18n.languageFile.fixtureText="uk";wait(10)
-      compare(plugin.effectiveLanguage,"en","Untranslated locale uses English, not Russian")
+      compare(plugin.effectiveLanguage,"uk","Keep the registry locale while using English text fallback")
       Host.I18n.languageFile.fixtureText="zh-TW";wait(10)
-      compare(plugin.effectiveLanguage,"en","Traditional Chinese must not use Simplified")
-      plugin.persistSettings({locale:"zh"});compare(plugin.effectiveLanguage,"zh")
+      compare(plugin.effectiveLanguage,"zh-TW","Traditional Chinese must not use Simplified")
+      plugin.persistSettings({locale:"zh"});compare(plugin.effectiveLanguage,"zh-CN")
     }
     function test_fast_diagnostic_controls_and_report() {
       plugin.setSettingsOpen(true);plugin.settingsSection="diagnostics";wait(40)
@@ -828,7 +828,8 @@ Item {
       var header=nodes(plugin).filter(function(n){return n.text==='Loadlet'})
       verify(header.length>0,'the retained brand is visible in every supported locale')
       var tip=plugin.barIcon.parent.tooltipText
-      verify(tip.indexOf('27%')>=0 && tip.indexOf('9.11 GiB / 14.9 GiB')>=0,'raw below-threshold measurements stay visible')
+      var memoryText=(data.locale==='ru'||data.locale==='de') ? '9,11 GiB / 14,9 GiB' : '9.11 GiB / 14.9 GiB'
+      verify(tip.indexOf('27%')>=0 && tip.indexOf(memoryText)>=0,'localized below-threshold measurements stay visible')
       var lines=tip.split('\n')
       verify(lines.length<=4,'hover must not include the settings tutorial')
       verify(lines.every(function(line){return line.length<=48}),'tooltip line exceeds compact copy budget')

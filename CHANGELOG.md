@@ -1,5 +1,17 @@
 # Changelog
 
+## 2.18.10
+
+- Move the four existing catalogs into plugin-owned JSON, using native
+  Commons.Translations with one shared adapter for saved language overrides.
+- Add a bounded searchable picker for the host registry. Preserve legacy zh as
+  zh-CN; untranslated choices use English, not another language.
+- Localize displayed metric numbers, dates and abbreviated durations; inherit
+  RTL reading layout while preserving chart and physical diagram coordinates.
+- Accept all 50 registry codes for an explicitly requested inline agent answer.
+  The other 46 UI catalogs, fluent review, plural conversion and complete RTL
+  acceptance remain unfinished. Tests and visual checks were not run for this batch.
+
 ## 2.18.9
 
 - Stop repeated NVIDIA library unload/reload from accumulating eventfds in the

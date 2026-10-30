@@ -83,8 +83,10 @@ not uninstall system helpers/services or delete your local history.
 [2.16.0 audit evidence and limits](docs/release-2.16.0.md) ·
 [Issues](https://github.com/PavelLizunov/omarchy-loadlet/issues)
 
-Russian, English, German and Simplified Chinese are currently translated.
-The [50-locale Omarchy migration](docs/localization.md) is in progress. Report the plugin
+Russian, English, German and Simplified Chinese have native JSON catalogs.
+The searchable language picker follows the Omarchy registry and preserves saved
+overrides. The other 46 languages still use English text fallback; this is not
+50 translated interfaces. [Localization progress and limits](docs/localization.md). Report the plugin
 version, Omarchy version and reproducible steps. Do not post private diagnostic
 exports without reviewing them. Marketplace review is commit-specific and separate
 from GitHub releases; a listing badge does not certify current upstream code.

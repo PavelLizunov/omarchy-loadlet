@@ -12,7 +12,7 @@ const context = vm.createContext({
   gpuEnabled: false, storageEnabled: false, sensorSummaryEnabled: false,
   sensorHistory: {}, sensorsUpdatedAt: 0,
   Heat: {}, journalEnabled: false, journalWriterEnabled: false, journalError: '', heatLevel: 0,
-  Model: require('../Model.js'), I18n: {t: x => x}, language: 'ru', active: true, collectionEnabled: true,
+  Model: require('../Model.js'), locale: {t: x => x}, language: 'ru', active: true, collectionEnabled: true,
   state: 'stopped', pending: '', buffer: [], bufferSize: 0, failures: 0,
   errorText: '', expanded: false, due: {}, lastTick: 0,
   reader: {running: false, writes: [], write(x) { this.writes.push(x); }},
@@ -21,6 +21,7 @@ const context = vm.createContext({
   historySamples: 60, metrics: {}, heatThreshold: 80, thermalFresh: false
 });
 vm.runInNewContext(fs.readFileSync(path.join(__dirname,'../HeatPolicy.js'),'utf8'), context.Heat);
+context.root = context;
 context.backgroundInterval = Number(source.match(/readonly property int backgroundInterval: (\d+)/)[1]);
 vm.runInContext(source.match(/readonly property int glanceMaxAge: (.*)/)[1].replace(/^/, 'glanceMaxAge = '), context);
 assert.equal(context.backgroundInterval, 15000);

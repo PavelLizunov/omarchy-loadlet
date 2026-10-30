@@ -3,7 +3,6 @@ import Quickshell
 import Quickshell.Io
 import qs.Commons as Host
 import "Model.js" as Model
-import "I18n.js" as I18n
 import "HeatPolicy.js" as Heat
 
 // Detail sampling is panel-gated. Optional icon sampling requests CPU/RAM and CPU thermals.
@@ -11,7 +10,11 @@ Item {
   id: root
   visible: false
   property var settings: ({})
-  readonly property string language: I18n.resolveLanguage(settings && settings.locale || "system", Host.I18n.language)
+  property var locale: null
+  readonly property string language: locale ? locale.language : "en"
+  function t(key, a, b, c) {
+    return locale ? locale.t(key, a, b, c) : key
+  }
   property bool active: false
   property bool backgroundEnabled: false
   readonly property bool journalEnabled: settings && settings.diagnosticJournal === true
@@ -198,7 +201,7 @@ Item {
   }
 
   function fail() {
-    errorText = I18n.t("reader_error", language)
+    errorText = root.t("reader_error")
     failures = Math.min(5, failures + 1)
     clearGlance()
     stop()
@@ -528,7 +531,7 @@ Item {
       root.state = "stopped"
       if (!root.collectionEnabled) return
       if (!expected) {
-        root.errorText = I18n.t("reader_error", root.language)
+        root.errorText = root.t("reader_error")
         root.failures = Math.min(5, root.failures + 1)
         root.resetData()
         root.clearGlance()

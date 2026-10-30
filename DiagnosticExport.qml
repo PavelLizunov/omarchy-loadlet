@@ -1,13 +1,14 @@
 import QtQuick
 import Quickshell
 import Quickshell.Io
-import "I18n.js" as I18n
 
 // One bounded, user-requested local export; never starts an AI or applies advice.
 Item {
   id: root
+  function t(key, a, b, c) { return locale ? locale.t(key, a, b, c) : key }
   visible: false
-  property string language: "ru"
+  property var locale: null
+  property string language: locale ? locale.language : "en"
   property int hours: 2
   property string resultPath: ""
   property string error: ""
@@ -21,7 +22,7 @@ Item {
     deadline.restart();exporter.running=true
   }
   function copyPrompt() {
-    if (resultPath) Quickshell.clipboardText=I18n.t("diagnostic_prompt",language,resultPath)
+    if (resultPath) Quickshell.clipboardText=root.t("diagnostic_prompt",resultPath)
   }
   Process {
     id: exporter
@@ -31,17 +32,17 @@ Item {
     onExited: function(code) {
       deadline.stop()
       if(root.timedOut) return
-      if(code!==0) {root.error=I18n.t("diagnostic_export_failed",root.language);return}
+      if(code!==0) {root.error=root.t("diagnostic_export_failed");return}
       try {
         var data=JSON.parse(output.text)
         if(typeof data.path!=='string' || data.path[0]!=='/') throw new Error('path')
         root.resultPath=data.path
-      } catch(e) { root.error=I18n.t("diagnostic_export_failed",root.language) }
+      } catch(e) { root.error=root.t("diagnostic_export_failed") }
     }
   }
   Timer {
     id: deadline; interval: 10000
-    onTriggered: { root.timedOut=true;exporter.signal(9);root.error=I18n.t("diagnostic_export_failed",root.language) }
+    onTriggered: { root.timedOut=true;exporter.signal(9);root.error=root.t("diagnostic_export_failed") }
   }
   Component.onDestruction: if(exporter.running) exporter.signal(9)
 }

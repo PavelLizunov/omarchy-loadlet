@@ -61,6 +61,9 @@ Item {
   property string temperatureUnitSetting: "Celsius"
   property bool opened: false
   function booleanSetting(key, fallback) { return fallback }
+  function t(key) { return key }
+  function formatBytes(value) { return String(value) }
+  function formatTemperature(value, unit) { return String(value) }
   function percentText(value) { return Math.round(value)+"%" }
   function toggle() { opened=!opened }
   QtObject {
@@ -91,9 +94,7 @@ Item {
     property double thermalUpdatedAt: 0
     property real iconTemperature: 55
   }
-  QtObject { id: inertI18n; function t(key, language) { return key } }
-  QtObject { id: inertModel; function formatBytes(value) { return String(value) } function formatTemperature(value, unit) { return String(value) } }
-''' + block.replace('I18n.t(', 'inertI18n.t(').replace('Model.format', 'inertModel.format') + '\n}\n')
+''' + block + '\n}\n')
     (base / 'tst_raster.qml').write_text('''import QtQuick
 import QtTest
 import RasterHost.Ui as NativeHost

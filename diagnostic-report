@@ -470,7 +470,7 @@ def main():
     parser.add_argument('--analyze',action='store_true')
     parser.add_argument('--question',default='Explain the recording and possible causes of heat or slowdown.')
     parser.add_argument('--model',default='')
-    parser.add_argument('--language',choices=('ru','en','de','zh'),default='ru')
+    parser.add_argument('--language',choices=('ar','bg','bn','ca','cs','da','de','el','en','es-MX','et','fa','fi','fil','fr','ga','he','hi','hr','hu','id','is','it','ja','ko','lt','lv','ms','nl','no','pl','pt','pt-BR','ro','ru','si','sk','sl','sr','sv','sw','ta','th','tr','uk','ur','uz','vi','zh','zh-CN','zh-TW'),default='en')
     parser.add_argument('--rollups',action='store_true',help='Read aggregate-only ten-second history instead of raw samples')
     parser.add_argument('--launch')
     parser.add_argument('--handoff',help='Export the selected period and open a discovered terminal agent')

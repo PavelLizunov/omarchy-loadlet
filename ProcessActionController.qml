@@ -2,18 +2,19 @@ import QtQuick
 import Quickshell
 import Quickshell.Io
 import "Model.js" as Model
-import "I18n.js" as I18n
 
 // Owns the guarded process-action lifecycle.
 Item {
   id: root
+  function t(key, a, b, c) { return locale ? locale.t(key, a, b, c) : key }
 
   width: 0
   height: 0
   visible: false
 
   property bool active: false
-  property string language: "ru"
+  property var locale: null
+  property string language: locale ? locale.language : "en"
 
   readonly property string signalHelperPath: decodeURIComponent(
     String(Qt.resolvedUrl("process-signal")).replace(/^file:\/\//, ""))
@@ -43,7 +44,7 @@ Item {
       "Only your own processes can be ended": "blocked_owner",
       "Desktop session is protected": "blocked_desktop"
     }
-    return reason ? I18n.t(keys[reason] || "status_error", language) : ""
+    return reason ? root.t(keys[reason] || "status_error") : ""
   }
 
   function request(process, force) {
@@ -88,7 +89,7 @@ Item {
     _activeAction = _pendingAction
     _pendingAction = null
     _failed = false
-    _status = I18n.t("status_sending", root.language, _activeAction.name)
+    _status = root.t("status_sending", _activeAction.name)
     signalProc.command = [
       "/usr/bin/python3", "-I", signalHelperPath,
       _activeAction.action,
@@ -107,11 +108,11 @@ Item {
     if (active) {
       if (exitCode === 0) {
         _failed = false
-        _status = I18n.t("status_sent", root.language, action ? action.name : "process", action ? action.pid : "")
+        _status = root.t("status_sent", action ? action.name : "process", action ? String(action.pid) : "")
       } else {
         _failed = true
         // Helper stderr remains a machine diagnostic, never bypasses the UI locale.
-        _status = I18n.t("status_error", root.language)
+        _status = root.t("status_error")
       }
     }
 

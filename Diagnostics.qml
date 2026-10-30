@@ -5,13 +5,13 @@ import Quickshell.Io
 import qs.Commons
 import qs.Commons as Host
 import qs.Ui
-import "I18n.js" as I18n
 
 Column {
   id: root
   objectName: "fastDiagnostics"
   property var activity
-  property string language: "ru"
+  property var locale: null
+  property string language: locale ? locale.language : "en"
   property int periodSeconds: 7200
   property string session: ""
   property double rangeStart: 0
@@ -62,7 +62,12 @@ Column {
     return best && Math.abs(best.time-target)<=Math.max(3,report.resolution_seconds || 1) ? best : null
   }
   spacing: Style.spacing.md
-  function t(key,a,b,c) { return I18n.t(key,language,a,b,c) }
+  function t(key,a,b,c) { return locale ? locale.t(key,a,b,c) : key }
+  function number(value, decimals) { return locale ? locale.number(value, decimals) : Host.I18n.formatNumber(value, decimals) }
+  function dateTime(value, timeOnly) {
+    return locale ? locale.dateTime(value, timeOnly, false)
+      : new Date(value * 1000).toLocaleString(Qt.locale(Host.I18n.formatLocale), Locale.ShortFormat)
+  }
   function modelLabel(value) {
     var found=agentModels.find(function(m){return m.value===value})
     return found ? found.label : value
@@ -167,7 +172,7 @@ Column {
   Text {
     visible:root.rangeEnd>root.rangeStart || root.session!==""
     width:parent.width;wrapMode:Text.WordWrap;textFormat:Text.PlainText
-    text:root.rangeEnd>root.rangeStart ? root.t("capture_selected_range",Qt.formatDateTime(new Date(root.rangeStart*1000),"dd.MM HH:mm:ss"),Qt.formatDateTime(new Date(root.rangeEnd*1000),"HH:mm:ss")) : root.t("capture_selected_session")
+    text:root.rangeEnd>root.rangeStart ? root.t("capture_selected_range",root.dateTime(root.rangeStart,false),root.dateTime(root.rangeEnd,true)) : root.t("capture_selected_session")
     color:Host.Color.popups.text;font.family:Style.font.family;font.pixelSize:Style.font.caption
   }
   Column {
@@ -273,7 +278,7 @@ Column {
     Text {
       visible:root.answerModel!==""
       width:parent.width;wrapMode:Text.WordWrap;textFormat:Text.PlainText
-      text:root.modelLabel(root.answerModel)+(root.answerRange.length===2 ? " · "+Qt.formatDateTime(new Date(root.answerRange[0]*1000),"dd.MM HH:mm:ss")+" – "+Qt.formatDateTime(new Date(root.answerRange[1]*1000),"dd.MM HH:mm:ss") : "")
+      text:root.modelLabel(root.answerModel)+(root.answerRange.length===2 ? " · "+root.dateTime(root.answerRange[0],false)+" – "+root.dateTime(root.answerRange[1],false) : "")
       color:Host.Color.popups.text;font.family:Style.font.family;font.pixelSize:Style.font.caption
     }
     TextEdit {
@@ -339,11 +344,12 @@ Column {
       width:parent.width;wrapMode:Text.WordWrap;textFormat:Text.PlainText
       text:root.t("capture_coverage",root.report.records || 0,(root.report.gaps || []).length)
         +"\n"+root.t("capture_limits",root.report.invalid_records || 0,root.report.omitted_by_capacity || 0)
-        +(root.report.available_range && root.report.available_range[0]!==null ? "\n"+Qt.formatDateTime(new Date(root.report.available_range[0]*1000),"dd.MM HH:mm:ss")+" – "+Qt.formatDateTime(new Date(root.report.available_range[1]*1000),"dd.MM HH:mm:ss") : "")
+        +(root.report.available_range && root.report.available_range[0]!==null ? "\n"+root.dateTime(root.report.available_range[0],false)+" – "+root.dateTime(root.report.available_range[1],false) : "")
       color:Host.Color.popups.text;font.family:Style.font.family;font.pixelSize:Style.font.caption
     }
     SensorHistoryChart {
       id:thermalPlot;objectName:"captureThermalPlot"
+      locale: root.locale
       subsecond:true
       visible:root.sensor!==null
       width:parent.width;height:Style.space(150)
@@ -364,6 +370,7 @@ Column {
     }
     SensorHistoryChart {
       id:cpuPlot;objectName:"captureCpuPlot"
+      locale: root.locale
       subsecond:true
       visible:root.cpu!==null && root.sensor!==root.cpu
       width:parent.width;height:Style.space(130)
@@ -383,15 +390,15 @@ Column {
     Text {
       visible:(root.report.events || []).length>0
       width:parent.width;wrapMode:Text.WordWrap;textFormat:Text.PlainText
-      text:(root.report.events || []).slice(-6).map(function(e){return Qt.formatDateTime(new Date(e.time*1000),"HH:mm:ss")+" · "+(e.type==="marker" ? root.t("capture_marker") : e.reason || e.type)}).join("\n")
+      text:(root.report.events || []).slice(-6).map(function(e){return root.dateTime(e.time,true)+" · "+(e.type==="marker" ? root.t("capture_marker") : e.reason || e.type)}).join("\n")
       color:Host.Color.popups.text;font.family:Style.font.family;font.pixelSize:Style.font.caption
     }
     Text {
       objectName:"captureProcessWindow"
       width:parent.width;wrapMode:Text.WordWrap;textFormat:Text.PlainText
       visible:root.report.records>0
-      text:root.processFrame ? root.t("capture_process_at",Qt.formatDateTime(new Date(root.processFrame.time*1000),"HH:mm:ss"))
-        +"\n"+root.processFrame.processes.map(function(p){return p.name+" · PID "+p.pid+" · "+(p.cpu===null ? "—" : Number(p.cpu).toFixed(1)+"%")}).join("\n")
+      text:root.processFrame ? root.t("capture_process_at",root.dateTime(root.processFrame.time,true))
+        +"\n"+root.processFrame.processes.map(function(p){return p.name+" · PID "+p.pid+" · "+(p.cpu===null ? "—" : root.number(p.cpu,1)+"%")}).join("\n")
         :root.t("capture_no_process")
       color:Host.Color.popups.text;font.family:Style.font.family;font.pixelSize:Style.font.caption
     }
@@ -410,7 +417,7 @@ Column {
       objectName:"captureInterval"
       width:parent.width;label:root.t("capture_interval")
       value:String(root.activity ? root.activity.captureInterval : 500)
-      options:[1000,500,250].map(function(n){return {value:String(n),label:n+" ms"}})
+      options:[1000,500,250].map(function(n){return {value:String(n),label:root.number(n)+" ms"}})
       foreground:Host.Color.popups.text;accent:Host.Color.accent
       onChanged:function(value){if(root.activity)root.activity.setCaptureInterval(Number(value))}
     }
@@ -422,7 +429,7 @@ Column {
     ChoiceDropdown {
       width:parent.width;label:root.t("capture_session");value:root.session;enabled:!root.busy
       options:[{value:"",label:root.t("capture_all_sessions")}].concat((root.report.sessions || []).map(function(s){
-        return {value:s.id,label:Qt.formatDateTime(new Date(s.start*1000),"dd.MM HH:mm:ss")}
+        return {value:s.id,label:root.dateTime(s.start,false)}
       }))
       foreground:Host.Color.popups.text;accent:Host.Color.accent
       onChanged:function(value){root.session=value}
@@ -465,7 +472,7 @@ Column {
         width:(parent.width-parent.spacing)/2
         text:root.t("diagnostic_copy_prompt")
         foreground:Host.Color.popups.text;accent:Host.Color.accent;bordered:true;focusable:true
-        onClicked:Quickshell.clipboardText=I18n.t("diagnostic_prompt",root.language,root.reportPath)
+        onClicked:Quickshell.clipboardText=root.t("diagnostic_prompt",root.reportPath)
       }
     }
   }
@@ -505,7 +512,7 @@ Column {
           if(typeof result.path!=="string" || result.path[0]!=="/")throw new Error("path")
           root.reportPath=result.path
           if(root.action==="handoff") {
-            Quickshell.clipboardText=I18n.t("diagnostic_prompt",root.language,result.path)+"\n"+root.agentQuestion
+            Quickshell.clipboardText=root.t("diagnostic_prompt",result.path)+"\n"+root.agentQuestion
             root.notice=root.t("capture_handed_off")
           }
         } else if(root.action==="read") {

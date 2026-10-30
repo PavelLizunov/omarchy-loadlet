@@ -6,6 +6,7 @@ import shutil
 import subprocess
 import tempfile
 import sys
+import json
 
 ROOT = Path(__file__).resolve().parents[1]
 HOST = Path(os.environ.get('ACTIVITY_TEST_HOST', '/usr/share/omarchy/shell')).resolve()
@@ -47,7 +48,11 @@ Item {
   function reload() {}
   property string fixtureText: ""
   onFixtureTextChanged: loaded()
-  function text() { return fixtureText }
+  function text() {
+    if (path.endsWith("/locales.json")) return FixtureCatalogs.registry
+    var match = path.match(/\/i18n\/([^/]+)\.json$/)
+    return match ? (FixtureCatalogs.catalogs[match[1]] || "{}") : fixtureText
+  }
 }''',
     'Io/SplitParser': 'import QtQuick\nItem { signal read(string line) }',
     'Io/StdioCollector': '''import QtQuick
@@ -70,13 +75,23 @@ def prepare(directory):
                'singleton Style 1.0 Style.qml', 'singleton Util 1.0 Util.qml']
     if (commons / 'I18n.qml').is_file():
         exports.append('singleton I18n 1.0 I18n.qml')
-    exports.append('ShellIpc 1.0 ShellIpc.qml')
+    exports += ['ShellIpc 1.0 ShellIpc.qml', 'Translations 1.0 Translations.qml']
     (commons / 'qmldir').write_text('module ActivityHost.Commons\n' + '\n'.join(exports) + '\n')
     (commons / 'ShellIpc.qml').write_text('import QtQuick\nItem { property string target: "" }\n')
+    catalogs = {p.stem:p.read_text() for p in (ROOT/'i18n').glob('*.json')}
+    registry_path = HOST.parent / 'default/i18n/locales.json'
+    # The pinned CI host is sparse; read its registry blob without changing workflows.
+    registry = registry_path.read_text() if registry_path.is_file() else subprocess.check_output(
+        ['git', '-C', str(HOST.parent), 'show', 'HEAD:default/i18n/locales.json'],
+        text=True, timeout=30)
     for name, source in TYPES.items():
+        if name == 'Io/FileView':
+            source = source.replace('import QtQuick', 'import QtQuick\nimport "FixtureCatalogs.js" as FixtureCatalogs', 1)
         dest = imports / 'ActivityFixture' / (name + '.qml')
         dest.parent.mkdir(parents=True, exist_ok=True)
         dest.write_text(source)
+    (imports / 'ActivityFixture/Io/FixtureCatalogs.js').write_text(
+        'var catalogs = '+json.dumps(catalogs)+';\nvar registry = '+json.dumps(registry)+';\n')
     (imports / 'ActivityFixture/qmldir').write_text('module ActivityFixture\nsingleton Quickshell 1.0 Quickshell.qml\nIpcHandler 1.0 IpcHandler.qml\n')
     (imports / 'ActivityFixture/Hyprland/qmldir').write_text('module ActivityFixture.Hyprland\nsingleton Hyprland 1.0 Hyprland.qml\n')
     (imports / 'ActivityFixture/Io/qmldir').write_text('module ActivityFixture.Io\n' + ''.join(
@@ -140,8 +155,9 @@ Item {
 ''' + bubble.replace('id: tooltipBubble', 'id: tooltipBubble\n        objectName: "activityTooltipBubble"') + '\n}\n')
     plugin = base / 'plugin'
     plugin.mkdir()
-    for name in ['Panel.qml', 'PowerProfiles.qml', 'ChoiceDropdown.qml', 'ComputerMap.qml', 'SvgIcon.qml', 'ActivityIcon.qml', 'ActivityIconSvg.js', 'HeatPolicy.js', 'DiagnosticExport.qml', 'Diagnostics.qml', 'ActivityController.qml', 'ProcessActionController.qml', 'Sparkline.qml', 'SensorHistoryChart.qml', 'Model.js', 'I18n.js', 'ProfileCodec.js']:
+    for name in ['Panel.qml', 'PowerProfiles.qml', 'ChoiceDropdown.qml', 'ComputerMap.qml', 'SvgIcon.qml', 'ActivityIcon.qml', 'ActivityIconSvg.js', 'HeatPolicy.js', 'DiagnosticExport.qml', 'Diagnostics.qml', 'ActivityController.qml', 'ProcessActionController.qml', 'Sparkline.qml', 'SensorHistoryChart.qml', 'Model.js', 'LoadletLocale.qml', 'ProfileCodec.js']:
         shutil.copyfile(ROOT / name, plugin / name)
+    shutil.copytree(ROOT / 'i18n', plugin / 'i18n')
     shutil.copyfile(ROOT / 'test/mock-data.js', base / 'mock-data.js')
     shutil.copyfile(ROOT / 'test/tst_panel.qml', base / 'tst_panel.qml')
     # Native MCP statically registers Quickshell; an identically named mock

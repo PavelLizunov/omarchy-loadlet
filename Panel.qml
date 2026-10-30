@@ -7,11 +7,20 @@ import qs.Commons
 import qs.Commons as Host
 import qs.Ui
 import "Model.js" as Model
-import "I18n.js" as I18n
 import "ActivityIconSvg.js" as IconVector
 
 Panel {
   id: root
+
+  LoadletLocale { id: strings; requestedLanguage: root.setting("locale", "system") }
+  function t(key, a, b, c) { return strings.t(key, a, b, c) }
+  function number(value, decimals) { return strings.number(value, decimals) }
+  function formatBytes(value, suffix) { return Model.formatBytes(value, suffix, root.number) }
+  function formatCompactBytes(value) { return Model.formatCompactBytes(value, root.number) }
+  function formatDuration(value) { return strings.duration(value) }
+  function formatTemperature(value, unit) { return Model.formatTemperature(value, unit, root.number) }
+  LayoutMirroring.enabled: strings.rightToLeft
+  LayoutMirroring.childrenInherit: true
 
   moduleName: "slovn.activity-lite"
   ipcTarget: "slovn.activity-lite"
@@ -33,7 +42,7 @@ Panel {
     settings: root.settings
     channels: activity.sensorSnapshot.controls || []
     gpus: root.gpus
-    language: root.effectiveLanguage
+    locale: strings
     foreground: root.foreground; accent: root.accent
     onSaveSettings: function(values) { root.persistSettings(values) }
     onApplied: { root.clearFanDrafts(); activity.refresh() }
@@ -91,8 +100,11 @@ Panel {
         captureInterval: activity.captureAppliedInterval,
         heatThreshold: activity.heatThreshold,
         productName: "Loadlet",
-        iconRevision: "2.18.9",
-        implementationRevision: "nvml-lifetime-20261030",
+        iconRevision: "2.18.10",
+        implementationRevision: "native-locale-20261030",
+        language: strings.language,
+        rightToLeft: strings.rightToLeft,
+        translatedCatalog: strings.hasCatalog,
         rightClickAction: "none",
         iconTooltip: button.tooltipText,
         iconConsumer: String(Qt.resolvedUrl("Panel.qml")),
@@ -257,22 +269,22 @@ Panel {
       var rpm = sensors.filter(function(s) { return s.fan && s.unit !== "percent" }).map(function(s) { return s.value })
       var percent = sensors.filter(function(s) { return s.fan && s.unit === "percent" }).map(function(s) { return s.value })
       var detail = sensors.map(function(s) { return root.sensorOwner(s) + " · " + root.sensorLabel(s) + ": "
-        + (!s.fan ? Model.formatTemperature(s.value,root.temperatureUnitSetting) : Math.round(s.value) + (s.unit === "percent" ? "%" : " RPM")) })
+        + (!s.fan ? root.formatTemperature(s.value,root.temperatureUnitSetting) : root.number(s.value, 0) + (s.unit === "percent" ? "%" : " RPM")) })
       if (activity.sensorsFresh && part.indexOf("fan_") === 0) {
         (activity.sensorSnapshot.controls || []).forEach(function(channel) {
           if (root.fanPlace(channel.id) !== part || typeof channel.rpm !== "number" || channel.rpm < 0
               || root.currentSensors.some(function(s) { return root.fanChannel(s) === channel.id })) return
-          rpm.push(channel.rpm); detail.push(channel.id + ": " + channel.rpm + " RPM")
+          rpm.push(channel.rpm); detail.push(channel.id + ": " + root.number(channel.rpm) + " RPM")
         })
       }
       function range(values,unit) {
         if (!values.length) return ""
         var lo=Math.round(Math.min.apply(null,values)), hi=Math.round(Math.max.apply(null,values))
-        return (lo===hi ? String(lo) : lo+"–"+hi) + unit
+        return (lo===hi ? root.number(lo) : root.number(lo)+"–"+root.number(hi)) + unit
       }
       var tempValues=temperatures.map(function(t) { return root.temperatureUnitSetting === "Fahrenheit" ? t*9/5+32 : t })
       var text=[range(tempValues,root.temperatureUnitSetting === "Fahrenheit" ? "°F" : "°C"),range(rpm," RPM"),range(percent,"%")].filter(function(s) { return s }).join(" · ")
-      result[part]={text:text || I18n.t("map_no_data",root.effectiveLanguage),detail:detail.join("\n"),
+      result[part]={text:text || root.t("map_no_data"),detail:detail.join("\n"),
         hot:temperatures.some(function(t) { return t >= activity.heatThreshold })}
     })
     return result
@@ -381,6 +393,14 @@ Panel {
   property bool settingsControlActive: false
   property bool hintsVisible: false
   property bool languageExpanded: false
+  onLanguageExpandedChanged: {
+    if (languageExpanded) {
+      languageSearch.text = ""
+      Qt.callLater(function() { if (root.languageExpanded) languageSearch.forceActiveFocus() })
+    } else if (root.opened) {
+      Qt.callLater(function() { persistentHeader.focusLanguage() })
+    }
+  }
   property bool cursorActive: false
   property int selectedProcessIndex: 0
   property string selectedProcessKey: ""
@@ -390,7 +410,7 @@ Panel {
   property Item searchField: null
   property var processViewport: null
 
-  readonly property string effectiveLanguage: I18n.resolveLanguage(root.setting("locale", "system"), Host.I18n.language)
+  readonly property string effectiveLanguage: strings.language
   readonly property color foreground: Host.Color.popups.text
   readonly property color accent: Host.Color.accent
   readonly property color urgent: Host.Color.urgent
@@ -419,7 +439,7 @@ Panel {
     ? processGpuColumns.length * (colAdapterGpuWidth + tableSpacing) - colGpuWidth - tableSpacing : 0
   readonly property real processOptionalWidth: tableWidth - processGpuExtraWidth
   function processGpuColumnsFor(compact) {
-    return compact || !processGpuColumns.length ? [{id:"",name:I18n.t("col_gpu",effectiveLanguage)}] : processGpuColumns
+    return compact || !processGpuColumns.length ? [{id:"",name:root.t("col_gpu")}] : processGpuColumns
   }
   readonly property int colRssWidth: Style.space(82)
   readonly property int colRamPctWidth: Style.space(56)
@@ -462,36 +482,36 @@ Panel {
   function tileTitle(key) {
     if (key.indexOf("gpu:") === 0) {
       var gpu = root.gpus.filter(function(item) { return "gpu:" + item.id === key })[0]
-      return gpu ? root.compactGpuName(gpu) : I18n.t("gpu", effectiveLanguage) + " " + key.slice(4)
+      return gpu ? root.compactGpuName(gpu) : root.t("gpu") + " " + key.slice(4)
     }
-    return I18n.t(key === "temperature" ? "temperatures" : key, effectiveLanguage)
+    return root.t(key === "temperature" ? "temperatures" : key)
   }
   function sensorOwner(sensor) {
     var manual = root.sensorPlace(sensor)
-    if (manual !== "automatic") return I18n.t("map_" + manual, effectiveLanguage)
+    if (manual !== "automatic") return root.t("map_" + manual)
       + (sensor.owner ? " · " + sensor.owner : "")
     var category = String(sensor.category || "unknown")
     var owner = String(sensor.owner || "")
-    var prefix = I18n.t("sensor_owner_" + category, effectiveLanguage)
+    var prefix = root.t("sensor_owner_" + category)
     return prefix + (owner ? " · " + owner : "")
       + (category === "memory" && sensor.location ? " · " + sensor.location : "")
   }
   function sensorLabel(sensor) {
     var label = String(sensor.label || "")
     var mapped = { Tctl: "sensor_cpu_control", Tdie: "sensor_cpu_die", Composite: "sensor_composite", edge: "sensor_gpu_edge", junction: "sensor_gpu_hotspot", mem: "sensor_gpu_memory" }
-    if (mapped[label]) return I18n.t(mapped[label], effectiveLanguage)
-    if (sensor.category === "gpu" && label === sensor.owner) return I18n.t("temp_unit", effectiveLanguage)
+    if (mapped[label]) return root.t(mapped[label])
+    if (sensor.category === "gpu" && label === sensor.owner) return root.t("temp_unit")
     var boardChannel = label.match(/^temp(\d+)$/i)
-    if (sensor.category === "motherboard" && boardChannel) return I18n.t("board_temp_channel",effectiveLanguage,boardChannel[1])
+    if (sensor.category === "motherboard" && boardChannel) return root.t("board_temp_channel",boardChannel[1])
     var ccd = label.match(/^Tccd(\d+)$/i)
-    if (ccd) return I18n.t("sensor_ccd", effectiveLanguage, ccd[1])
+    if (ccd) return root.t("sensor_ccd", ccd[1])
     var fan = label.match(/^fan(\d+)$/i)
     if (fan) {
       var place = root.fanPlace(root.fanChannel(sensor))
-      return I18n.t("sensor_fan", effectiveLanguage, fan[1])
-        + (place !== "unknown" ? " · " + I18n.t("map_" + place, effectiveLanguage) : "")
+      return root.t("sensor_fan", fan[1])
+        + (place !== "unknown" ? " · " + root.t("map_" + place) : "")
     }
-    return I18n.t("sensor_reading", effectiveLanguage)
+    return root.t("sensor_reading")
   }
   property string selectedDiskId: "all"
   property string selectedStoragePath: ""
@@ -555,9 +575,9 @@ Panel {
   readonly property bool openExpandedByDefault: booleanSetting("openExpanded", false)
   readonly property int iconShapeSetting: IconVector.shapeIndex(setting("iconShape", IconVector.defaultShape))
   readonly property int iconLoadThresholdSetting: IconVector.loadThreshold(setting("iconLoadThreshold", 50))
-  readonly property string iconLegend: I18n.t(iconShapeSetting === IconVector.defaultShape
-    ? "icon_split_legend" : "icon_legend", effectiveLanguage)
-    + "\n" + I18n.t("icon_load_threshold_desc", effectiveLanguage, iconLoadThresholdSetting)
+  readonly property string iconLegend: root.t(iconShapeSetting === IconVector.defaultShape
+    ? "icon_split_legend" : "icon_legend")
+    + "\n" + root.t("icon_load_threshold_desc", iconLoadThresholdSetting)
 
   function refresh() {
     activity.refresh()
@@ -666,7 +686,7 @@ Panel {
   }
 
   function percentText(value) {
-    return Math.round(Number(value) || 0) + "%"
+    return root.number(Number(value) || 0, 0) + "%"
   }
 
   function booleanSetting(name, fallback) {
@@ -729,21 +749,21 @@ Panel {
 
   function swapBadgeText() {
     if (!hasSnapshot || !snapshot.memory.swapTotal) return ""
-    return I18n.t("swap", root.effectiveLanguage) + " " + percentText(metrics.swap)
+    return root.t("swap") + " " + percentText(metrics.swap)
   }
 
   function memoryBreakdownText() {
-    if (!snapshot.memory.total) return I18n.t("used", root.effectiveLanguage) + " — · " + I18n.t("cache", root.effectiveLanguage) + " —"
-    var usedText = Model.formatCompactBytes(snapshot.memory.total - snapshot.memory.available)
-    var totalText = Model.formatCompactBytes(snapshot.memory.total)
-    var cacheText = Model.formatCompactBytes(snapshot.memory.cached)
-    return usedText + " / " + totalText + " · " + I18n.t("cache", root.effectiveLanguage) + " " + cacheText
+    if (!snapshot.memory.total) return root.t("used") + " — · " + root.t("cache") + " —"
+    var usedText = root.formatCompactBytes(snapshot.memory.total - snapshot.memory.available)
+    var totalText = root.formatCompactBytes(snapshot.memory.total)
+    var cacheText = root.formatCompactBytes(snapshot.memory.cached)
+    return usedText + " / " + totalText + " · " + root.t("cache") + " " + cacheText
   }
 
   function cpuCardDetail() {
     var parts = []
     if (cpuTemperature)
-      parts.push(Model.formatTemperature(cpuTemperature.value, temperatureUnitSetting))
+      parts.push(root.formatTemperature(cpuTemperature.value, temperatureUnitSetting))
     return parts.join(" · ")
   }
 
@@ -751,25 +771,25 @@ Panel {
     if (!showFrequencies) return ""
     var frequency = Number(value)
     if (!isFinite(frequency) || frequency < 0) return ""
-    return Math.round(frequency) + " " + unit
+    return root.number(frequency, 0) + " " + unit
   }
 
   function gpuFrequencyText(gpu) {
     if (!showFrequencies) return ""
     var frequency = Number(gpu && gpu.frequencyMHz)
     if (!isFinite(frequency) || frequency < 0) return ""
-    if (frequency === 0) return I18n.t("gpu_idle", effectiveLanguage)
-    return Math.round(frequency) + " MHz"
+    if (frequency === 0) return root.t("gpu_idle")
+    return root.number(frequency, 0) + " MHz"
   }
 
   function cpuCardLabel() {
     var frequency = frequencyText(snapshot.cpuFrequencyMHz, "MHz")
-    return frequency ? I18n.t("cpu", root.effectiveLanguage) + " · " + frequency : I18n.t("cpu", root.effectiveLanguage)
+    return frequency ? root.t("cpu") + " · " + frequency : root.t("cpu")
   }
 
   function memoryCardLabel() {
     var speed = frequencyText(snapshot.memorySpeedMTs, "MT/s")
-    return speed ? I18n.t("ram", root.effectiveLanguage) + " · " + speed : I18n.t("ram", root.effectiveLanguage)
+    return speed ? root.t("ram") + " · " + speed : root.t("ram")
   }
 
   function compactGpuName(gpu) {
@@ -795,7 +815,7 @@ Panel {
 
   function gpuUsageText(gpu) {
     var usage = Number(gpu && gpu.usage)
-    return isFinite(usage) && usage >= 0 ? Math.round(usage) + "%" : I18n.t("sampling", root.effectiveLanguage)
+    return isFinite(usage) && usage >= 0 ? root.number(usage, 0) + "%" : root.t("sampling")
   }
 
   function gpuUsageAndClockText(gpu) {
@@ -805,18 +825,18 @@ Panel {
   }
 
   function gpuMemoryLabel(gpu) {
-    if (gpu && gpu.memoryKind === "shared") return I18n.t("gpu_shared", effectiveLanguage)
+    if (gpu && gpu.memoryKind === "shared") return root.t("gpu_shared")
     if (gpu && gpu.memoryKind === "vram") return "VRAM"
-    return I18n.t("gpu_memory", effectiveLanguage)
+    return root.t("gpu_memory")
   }
 
   function gpuMemoryText(gpu) {
     var used = Number(gpu && gpu.memoryUsed)
     var total = Number(gpu && gpu.memoryTotal)
     if (!isFinite(used) || used < 0) return "—"
-    var usedText = Model.formatCompactBytes(used)
+    var usedText = root.formatCompactBytes(used)
     if (!isFinite(total) || total <= 0) return usedText
-    return usedText + " / " + Model.formatCompactBytes(total)
+    return usedText + " / " + root.formatCompactBytes(total)
   }
 
   function resetDriveSelection() {
@@ -852,8 +872,8 @@ Panel {
   }
 
   function diskCardLabel() {
-    if (!canCycleDisks) return I18n.t("disk", root.effectiveLanguage)
-    return activeDisk && activeDisk.id !== "all" ? String(activeDisk.name || I18n.t("disk", root.effectiveLanguage)) : I18n.t("disk", root.effectiveLanguage)
+    if (!canCycleDisks) return root.t("disk")
+    return activeDisk && activeDisk.id !== "all" ? String(activeDisk.name || root.t("disk")) : root.t("disk")
   }
 
   function diskPagerText() {
@@ -873,7 +893,7 @@ Panel {
   }
 
   function storageCardLabel() {
-    if (!canCycleStorage) return I18n.t("storage", root.effectiveLanguage)
+    if (!canCycleStorage) return root.t("storage")
     return Model.storageVolumeLabel(activeStorage && activeStorage.path)
   }
 
@@ -883,12 +903,12 @@ Panel {
 
   function storageCardValue() {
     if (storageSnapshot.sample <= 0) return "—"
-    return activeStorage ? Model.formatBytes(activeStorage.used) + " / " + Model.formatBytes(activeStorage.total) : "—"
+    return activeStorage ? root.formatBytes(activeStorage.used) + " / " + root.formatBytes(activeStorage.total) : "—"
   }
 
   function storageCardDetail() {
     if (storageSnapshot.sample <= 0) return ""
-    return activeStorage ? Model.formatBytes(activeStorage.available) + " " + I18n.t("free", root.effectiveLanguage) : ""
+    return activeStorage ? root.formatBytes(activeStorage.available) + " " + root.t("free") : ""
   }
 
   function pressureColor(value) {
@@ -945,6 +965,7 @@ Panel {
 
   ActivityController {
     id: activity
+    locale: strings
     onCapturePreferencesRequested: function(wanted, interval) {
       root.persistSettings({diagnosticCapture:wanted, diagnosticCaptureInterval:interval})
     }
@@ -959,13 +980,13 @@ Panel {
       return key === "temperature" || key === "fans" || key === "gpu" || key.indexOf("gpu:") === 0
     }))
   }
-  DiagnosticExport { id: diagnosticExport; language: root.effectiveLanguage }
+  DiagnosticExport { id: diagnosticExport; locale: strings }
 
   ProcessActionController {
     id: processActions
     active: root.opened
     enabled: !root.settingsOpen && !root.languageExpanded && root.overviewOpen
-    language: root.effectiveLanguage
+    locale: strings
     onConfirmationRequested: processConfirm.selectedIndex = 0
     onFocusRequested: if (root.opened) keyCatcher.forceActiveFocus()
     onRefreshRequested: activity.refreshProcessCycle()
@@ -1005,14 +1026,14 @@ Panel {
     }
     tooltipText: (activity.glanceFresh
       ? "CPU " + (activity.glanceCpu >= 0 ? root.percentText(activity.glanceCpu) : "—")
-        + " · " + I18n.t("ram", root.effectiveLanguage) + " "
-        + Model.formatBytes(activity.glanceMemoryUsed) + " / " + Model.formatBytes(activity.glanceMemoryTotal) + "\n"
-      : I18n.t("icon_no_data", root.effectiveLanguage) + "\n")
+        + " · " + root.t("ram") + " "
+        + root.formatBytes(activity.glanceMemoryUsed) + " / " + root.formatBytes(activity.glanceMemoryTotal) + "\n"
+      : root.t("icon_no_data") + "\n")
       + (activity.thermalFresh
-        ? I18n.t("cpu", root.effectiveLanguage) + " " + Model.formatTemperature(activity.iconTemperature, root.temperatureUnitSetting)
-          + (activity.heatAlert ? " · " + I18n.t("icon_hot", root.effectiveLanguage) : "") + "\n"
+        ? root.t("cpu") + " " + root.formatTemperature(activity.iconTemperature, root.temperatureUnitSetting)
+          + (activity.heatAlert ? " · " + root.t("icon_hot") : "") + "\n"
         : "")
-      + I18n.t("tooltip", root.effectiveLanguage)
+      + root.t("tooltip")
     onPressed: function(buttonCode) {
       if (buttonCode === Qt.LeftButton) root.toggle()
     }
@@ -1033,6 +1054,8 @@ Panel {
 
     PanelKeyCatcher {
       id: keyCatcher
+      LayoutMirroring.enabled: strings.rightToLeft
+      LayoutMirroring.childrenInherit: true
       anchors.fill: parent
       // The real KeyboardPanel lives in a separate window. Handle fallback keys
       // here, inside that window, rather than on the bar widget's root item.
@@ -1139,7 +1162,7 @@ Panel {
         height: Style.space(36)
       }
 
-      // 2. Expandable Language Selection (matches slovn.mx-ergo & slovn.cetra standard)
+      // A bounded picker keeps the registry accessible without growing the panel.
       Column {
         id: languageSection
         visible: root.languageExpanded
@@ -1152,45 +1175,68 @@ Panel {
 
         PanelSectionHeader {
           width: parent.width
-          text: I18n.t("language", root.effectiveLanguage)
+          text: root.t("language")
           foreground: root.foreground
           fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
         }
 
-        Grid {
-          id: languageGrid
+        Text {
+          visible: !strings.hasCatalog
           width: parent.width
-          columns: 3
-          spacing: Style.space(6)
-
-          readonly property real itemWidth: Math.floor((width - spacing * 2) / 3)
-
-          Repeater {
-            model: [
-              { code: "system", label: I18n.t("lang_system", root.effectiveLanguage) },
-              { code: "ru", label: "Русский" },
-              { code: "en", label: "English" },
-              { code: "de", label: "Deutsch" },
-              { code: "zh", label: "简体中文" }
-            ]
-
-            Button {
-              width: languageGrid.itemWidth
-              height: Style.space(32)
-              text: modelData.label
-              fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
-              fontSize: Style.font.caption
-              foreground: root.foreground
-              accent: root.accent
-              bordered: true
-              focusable: true
-              selected: root.setting("locale", "system") === modelData.code
-              onClicked: {
-                var code = modelData.code
-                root.languageExpanded = false
-                root.persistSettings({ locale: code })
-              }
+          text: root.t("language_fallback")
+          textFormat: Text.PlainText
+          wrapMode: Text.WordWrap
+          color: root.foreground
+          font.family: Style.font.family
+          font.pixelSize: Style.font.caption
+        }
+        TextField {
+          id: languageSearch
+          objectName: "languageSearch"
+          width: parent.width
+          placeholderText: root.t("language_search")
+          Accessible.name: placeholderText
+          text: ""
+          Keys.onDownPressed: { languageList.currentIndex = 0; languageList.forceActiveFocus() }
+        }
+        ListView {
+          id: languageList
+          objectName: "languageList"
+          width: parent.width
+          height: Math.max(0, Math.min(contentHeight, Style.space(160), keyCatcher.height - languageSection.y - y))
+          clip: true
+          boundsBehavior: Flickable.StopAtBounds
+          model: [{value:"system", label:root.t("lang_system"), description:""}].concat(strings.languages)
+            .filter(function(item) {
+              var query = languageSearch.text.trim().toLowerCase()
+              return !query || (item.label + " " + item.description + " " + item.value).toLowerCase().indexOf(query) >= 0
+            })
+          ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+          function choose(code) {
+            root.persistSettings({locale:code})
+            root.languageExpanded = false
+          }
+          function chooseCurrent() { if (currentItem) choose(currentItem.modelData.value) }
+          Keys.onReturnPressed: chooseCurrent()
+          Keys.onEnterPressed: chooseCurrent()
+          Keys.onSpacePressed: chooseCurrent()
+          delegate: Button {
+            required property var modelData
+            required property int index
+            width: languageList.width
+            height: Style.space(32)
+            text: modelData.label
+            fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
+            fontSize: Style.font.caption
+            foreground: root.foreground; accent: root.accent
+            bordered: true; focusable: true
+            hasCursor: languageList.activeFocus && languageList.currentIndex === index
+            onActiveFocusChanged: if (activeFocus) {
+              languageList.currentIndex = index
+              languageList.positionViewAtIndex(index, ListView.Contain)
             }
+            selected: modelData.value === (strings.followsSystem ? "system" : root.effectiveLanguage)
+            onClicked: languageList.choose(modelData.value)
           }
         }
       }
@@ -1229,7 +1275,7 @@ Panel {
             width: implicitWidth + pageTabs.extraTabWidth
             height: pageTabs.height
             horizontalPadding: Style.spacing.xs
-            text: I18n.t(pageKey, root.effectiveLanguage)
+            text: root.t(pageKey)
             fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
             fontSize: Style.font.bodySmall
             foreground: root.foreground; accent: root.accent
@@ -1257,7 +1303,7 @@ Panel {
         visible: powerProfiles.editorOpen && !root.settingsOpen && !root.languageExpanded
         anchors.top: pageTabs.bottom; anchors.topMargin: Style.spacing.sm
         width: Math.min(implicitWidth,parent.width);height:Style.space(30)
-        text:I18n.t("profile_back",root.effectiveLanguage);iconName:"back"
+        text:root.t("profile_back");iconName:"back"
         foreground:root.foreground;accent:root.accent;fontFamily:Style.font.family
         fontSize:Style.font.bodySmall;focusable:true
         onClicked:powerProfiles.cancelEdit()
@@ -1310,7 +1356,7 @@ Panel {
           visible:profileShortcuts.visible && powerProfiles.statusKey!==""
           anchors.top:profileShortcuts.bottom
           width:parent.width;height:visible ? Style.font.caption+Style.spacing.sm : 0
-          text:I18n.t(powerProfiles.statusKey,root.effectiveLanguage)
+          text:root.t(powerProfiles.statusKey)
           textFormat:Text.PlainText;elide:Text.ElideRight
           color:powerProfiles.statusKey==="profile_failed" ? root.urgent : root.dim
           font.family:Style.font.family;font.pixelSize:Style.font.caption
@@ -1339,15 +1385,14 @@ Panel {
         opened: processActions.confirmationOpen
         z: 100
         message: processActions.pendingAction
-          ? I18n.t(processActions.pendingAction.action === "KILL" ? "confirm_kill" : "confirm_terminate",
-                   root.effectiveLanguage,
+          ? root.t(processActions.pendingAction.action === "KILL" ? "confirm_kill" : "confirm_terminate",
                    processActions.pendingAction.name,
-                   processActions.pendingAction.pid)
+                   String(processActions.pendingAction.pid))
           : ""
         confirmText: processActions.pendingAction && processActions.pendingAction.action === "KILL"
-          ? I18n.t("btn_kill", root.effectiveLanguage)
-          : I18n.t("btn_terminate", root.effectiveLanguage)
-        cancelText: I18n.t("cancel", root.effectiveLanguage)
+          ? root.t("btn_kill")
+          : root.t("btn_terminate")
+        cancelText: root.t("cancel")
         background: Host.Color.popups.background
         foreground: root.foreground
         selectedText: root.accent
@@ -1402,6 +1447,7 @@ Panel {
   // --- Header Component: Permanent, outside scrolling, uniform 24px button height ---
   component ActivityHeader: Item {
     id: activityHeader
+    function focusLanguage() { headerLanguageButton.forceActiveFocus() }
     readonly property int headerControlHeight: Style.space(24)
 
     Row {
@@ -1440,13 +1486,13 @@ Panel {
           width: parent.width
           elide: Text.ElideRight
           text: root.settingsOpen
-            ? I18n.t("title", root.effectiveLanguage) + " · " + I18n.t("settings", root.effectiveLanguage)
-            : powerProfiles.editorOpen ? I18n.t("title",root.effectiveLanguage) + " · " + I18n.t(powerProfiles.profiles.some(function(p){return p.id===powerProfiles.draft.id}) ? "profile_edit_short" : "profile_new",root.effectiveLanguage)
-            : root.profilesOpen ? I18n.t("title",root.effectiveLanguage) + " · " + I18n.t("profiles",root.effectiveLanguage)
-            : root.sensorsOpen ? I18n.t("title", root.effectiveLanguage) + " · " + I18n.t(root.fansOpen ? "fans" : "sensors", root.effectiveLanguage)
+            ? root.t("title") + " · " + root.t("settings")
+            : powerProfiles.editorOpen ? root.t("title") + " · " + root.t(powerProfiles.profiles.some(function(p){return p.id===powerProfiles.draft.id}) ? "profile_edit_short" : "profile_new")
+            : root.profilesOpen ? root.t("title") + " · " + root.t("profiles")
+            : root.sensorsOpen ? root.t("title") + " · " + root.t(root.fansOpen ? "fans" : "sensors")
             : (root.expanded
-              ? I18n.t("title", root.effectiveLanguage) + " · " + I18n.t("all_processes", root.effectiveLanguage)
-              : I18n.t("title", root.effectiveLanguage))
+              ? root.t("title") + " · " + root.t("all_processes")
+              : root.t("title"))
           color: root.foreground
           font.family: root.bar ? root.bar.fontFamily : Style.font.family
           font.pixelSize: Style.font.heading
@@ -1457,8 +1503,8 @@ Panel {
           width: parent.width
           elide: Text.ElideRight
           text: root.hasSnapshot
-            ? (I18n.t("uptime_prefix", root.effectiveLanguage) + " " + Model.formatDuration(root.snapshot.uptime))
-            : I18n.t("sampling", root.effectiveLanguage)
+            ? (root.t("uptime_prefix") + " " + root.formatDuration(root.snapshot.uptime))
+            : root.t("sampling")
           color: root.dim
           font.family: root.bar ? root.bar.fontFamily : Style.font.family
           font.pixelSize: Style.font.caption
@@ -1489,7 +1535,7 @@ Panel {
         selected: root.languageExpanded
         horizontalPadding: Style.space(7)
         verticalPadding: 0
-        tooltipText: I18n.t("language", root.effectiveLanguage) + " (" + root.effectiveLanguage.toUpperCase() + ")"
+        tooltipText: root.t("language") + " (" + root.effectiveLanguage.toUpperCase() + ")"
         onClicked: {
           root.languageExpanded = !root.languageExpanded
         }
@@ -1500,7 +1546,7 @@ Panel {
         size: parent.parent.headerControlHeight
         anchors.verticalCenter: parent.verticalCenter
         iconName: "help"
-        tooltipText: I18n.t("shortcuts", root.effectiveLanguage)
+        tooltipText: root.t("shortcuts")
         foreground: root.hintsVisible ? root.accent : root.foreground
         hoverColor: root.accent
         fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
@@ -1514,7 +1560,7 @@ Panel {
         size: parent.parent.headerControlHeight
         anchors.verticalCenter: parent.verticalCenter
         iconName: "settings"
-        tooltipText: I18n.t("settings", root.effectiveLanguage)
+        tooltipText: root.t("settings")
         foreground: root.settingsOpen ? root.accent : root.foreground
         hoverColor: root.accent
         fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
@@ -1529,7 +1575,7 @@ Panel {
         size: parent.parent.headerControlHeight
         anchors.verticalCenter: parent.verticalCenter
         iconName: root.expanded ? "collapse" : "expand"
-        tooltipText: root.expanded ? I18n.t("collapse", root.effectiveLanguage) : I18n.t("expand", root.effectiveLanguage)
+        tooltipText: root.expanded ? root.t("collapse") : root.t("expand")
         foreground: root.foreground
         fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
         bordered: true
@@ -1541,7 +1587,7 @@ Panel {
         size: parent.parent.headerControlHeight
         anchors.verticalCenter: parent.verticalCenter
         iconName: "close"
-        tooltipText: I18n.t("close_panel", root.effectiveLanguage)
+        tooltipText: root.t("close_panel")
         foreground: root.foreground; hoverColor: root.accent
         fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
         bordered: true; focusable: true
@@ -1570,7 +1616,7 @@ Panel {
         SvgButton {
           width: (parent.width - parent.spacing) / 2
           height: parent.height
-          text: I18n.t("btn_terminate", root.effectiveLanguage)
+          text: root.t("btn_terminate")
           iconName: "stop"
           focusable: true
           bordered: true
@@ -1584,7 +1630,7 @@ Panel {
         SvgButton {
           width: (parent.width - parent.spacing) / 2
           height: parent.height
-          text: I18n.t("btn_kill", root.effectiveLanguage)
+          text: root.t("btn_kill")
           iconName: "kill"
           focusable: true
           bordered: true
@@ -1612,7 +1658,7 @@ Panel {
         Text {
           anchors.centerIn: parent
           width: parent.width - Style.spacing.md * 2
-          text: activity.errorText || processActions.status || I18n.t("hints_compact", root.effectiveLanguage)
+          text: activity.errorText || processActions.status || root.t("hints_compact")
           textFormat: Text.PlainText
           color: (activity.errorText !== "" || processActions.failed) ? root.urgent : root.dim
           font.family: root.bar ? root.bar.fontFamily : Style.font.family
@@ -1682,10 +1728,10 @@ Panel {
             anchors.leftMargin: Style.spacing.sm
             anchors.rightMargin: Style.spacing.sm
             anchors.topMargin: Style.spacing.xs
-            text: I18n.t("ram", root.effectiveLanguage) + "  " + (memoryStrip.ready
+            text: root.t("ram") + "  " + (memoryStrip.ready
               ? root.percentText(root.metrics.memory) + " · "
-                + Model.formatCompactBytes(root.snapshot.memory.total - root.snapshot.memory.available)
-                + " / " + Model.formatCompactBytes(root.snapshot.memory.total)
+                + root.formatCompactBytes(root.snapshot.memory.total - root.snapshot.memory.available)
+                + " / " + root.formatCompactBytes(root.snapshot.memory.total)
               : "—")
             textFormat: Text.PlainText
             color: memoryStrip.ready ? root.pressureColor(root.metrics.memory) : root.dim
@@ -1733,7 +1779,7 @@ Panel {
 
           Text {
             visible: root.topProcesses.length === 0
-            text: root.processMetricsReady ? I18n.t("no_processes", root.effectiveLanguage) : I18n.t("sampling", root.effectiveLanguage)
+            text: root.processMetricsReady ? root.t("no_processes") : root.t("sampling")
             color: root.dim
             font.family: root.bar ? root.bar.fontFamily : Style.font.family
             font.pixelSize: Style.font.bodySmall
@@ -1772,7 +1818,7 @@ Panel {
       width: parent.width
       objectName: parent.showToggle ? "computerMapToggle" : "navigatorMapToggle"
       visible: parent.showToggle
-      text: I18n.t(root.computerMapVisible ? "map_close" : "map_open", root.effectiveLanguage)
+      text: root.t(root.computerMapVisible ? "map_close" : "map_open")
       iconName: "diagram"
       selected: root.computerMapVisible
       foreground: root.foreground; accent: root.accent
@@ -1784,7 +1830,7 @@ Panel {
       width: parent.width
       height: visible ? implicitHeight : 0
       visible: root.computerMapVisible
-      language: root.effectiveLanguage
+      locale: strings
       selectedPart: root.sensorPart
       readings: root.mapReadings
       onPicked: function(part) { root.selectPart(part) }
@@ -1792,7 +1838,7 @@ Panel {
     Text {
       visible: root.computerMapVisible
       width: parent.width
-      text: I18n.t("map_hint", root.effectiveLanguage)
+      text: root.t("map_hint")
       textFormat: Text.PlainText; wrapMode: Text.Wrap
       color: root.dim; font.family: Style.font.family; font.pixelSize: Style.font.caption
     }
@@ -1800,7 +1846,7 @@ Panel {
       width: parent.width
       objectName: "clearSensorFilter"
       visible: !root.computerMapVisible && root.sensorPart !== ""
-      text: I18n.t("map_filter", root.effectiveLanguage, I18n.t("map_" + root.sensorPart, root.effectiveLanguage))
+      text: root.t("map_filter", root.t("map_" + root.sensorPart))
       foreground: root.foreground; accent: root.accent
       fontFamily: Style.font.family; fontSize: Style.font.caption
       bordered: true; focusable: true
@@ -1860,10 +1906,10 @@ Panel {
           SvgButton {
             objectName: "computerMapToggle"
             anchors.left: parent.left
-            tooltipText: I18n.t(root.computerMapVisible ? "map_close" : "map_open", root.effectiveLanguage)
+            tooltipText: root.t(root.computerMapVisible ? "map_close" : "map_open")
             width: Math.min(implicitWidth,(parent.width-Style.spacing.sm)/2)
             height: parent.height
-            text: I18n.t("map_open_short", root.effectiveLanguage)
+            text: root.t("map_open_short")
             iconName: "diagram"; selected: root.computerMapVisible
             foreground: root.foreground; accent: root.accent
             fontFamily: Style.font.family; fontSize: Style.font.caption; focusable: true
@@ -1874,12 +1920,12 @@ Panel {
             anchors.right: parent.right
             width: Math.min(implicitWidth,(parent.width-Style.spacing.sm)/2)
             height: parent.height
-            text: I18n.t(activity.sensorRecording ? "sensor_recording_short_on" : "sensor_recording_short_off",root.effectiveLanguage)
+            text: root.t(activity.sensorRecording ? "sensor_recording_short_on" : "sensor_recording_short_off")
             iconName: activity.sensorRecording ? "recording" : "record"
             foreground: root.foreground; accent: root.accent
             fontFamily: Style.font.family; fontSize: Style.font.caption
             focusable: true
-            tooltipText: I18n.t("sensor_recording_hint",root.effectiveLanguage)
+            tooltipText: root.t("sensor_recording_hint")
             Accessible.role: Accessible.CheckBox
             Accessible.checked: activity.sensorRecording
             onClicked: root.persistSettings({sensorRecording:!activity.sensorRecording})
@@ -1890,7 +1936,7 @@ Panel {
           objectName: "backToFanControls"
           visible: root.historyFanChannel !== "" && !root.computerMapVisible
           width: parent.width
-          text: I18n.t("fan_back_controls", root.effectiveLanguage, root.historyFanChannel)
+          text: root.t("fan_back_controls", root.historyFanChannel)
           iconName: "fans"; foreground: root.foreground; accent: root.accent
           fontFamily: Style.font.family; fontSize: Style.font.caption; focusable: true; bordered: true
           onClicked: root.returnToFanControls()
@@ -1904,7 +1950,7 @@ Panel {
         Text {
           width: parent.width
           visible: activity.sensorRecordingError !== "" || root.historyReadError
-          text: I18n.t(root.historyReadError ? "sensor_history_error" : "sensor_recording_error",root.effectiveLanguage)
+          text: root.t(root.historyReadError ? "sensor_history_error" : "sensor_recording_error")
           textFormat: Text.PlainText; wrapMode: Text.Wrap
           color: activity.sensorRecordingError || root.historyReadError ? root.urgent : root.dim
           font.family: Style.font.family; font.pixelSize: Style.font.caption
@@ -1913,7 +1959,7 @@ Panel {
           objectName: "retrySensorHistory"
           visible: root.historyReadError
           width: parent.width
-          text: I18n.t("sensor_history_retry", root.effectiveLanguage)
+          text: root.t("sensor_history_retry")
           foreground: root.foreground; accent: root.accent; fontFamily: Style.font.family
           fontSize: Style.font.caption; bordered: true; focusable: true; enabled: !root.historyPending
           onClicked: root.loadSensorHistory()
@@ -1925,7 +1971,7 @@ Panel {
             width: parent.width - sensorCategoryButton.width - parent.spacing
             enabled: root.filteredSensors.length > 0
             objectName: "sensorDropdown"
-            label: I18n.t("sensor_device", root.effectiveLanguage)
+            label: root.t("sensor_device")
             value: root.selectedSensor ? root.selectedSensor.id : ""
             options: root.filteredSensors.map(function(sensor) {
               return {value:sensor.id,label:root.sensorOwner(sensor) + " · " + root.sensorLabel(sensor)}
@@ -1943,8 +1989,8 @@ Panel {
             anchors.bottom: parent.bottom
             width: Math.min(implicitWidth,parent.width*0.4)
             height: sensorDropdown.rowHeight
-            text: I18n.t("map_category_short",root.effectiveLanguage)
-            tooltipText: I18n.t("map_sensor_assignment",root.effectiveLanguage)
+            text: root.t("map_category_short")
+            tooltipText: root.t("map_sensor_assignment")
             iconName: "category"; selected: root.sensorOptionsOpen
             enabled: !!root.selectedSensor
             foreground: root.foreground; accent: root.accent
@@ -1961,8 +2007,8 @@ Panel {
               required property int modelData
               width: (coolingControls.width - Style.spacing.xs * 2) / 3
               height: Style.space(26)
-              text: modelData < 3600 ? I18n.t("sensor_minutes",root.effectiveLanguage,modelData/60)
-                : I18n.t("sensor_hours",root.effectiveLanguage,modelData/3600)
+              text: modelData < 3600 ? root.t("sensor_minutes",modelData/60)
+                : root.t("sensor_hours",modelData/3600)
               selected: root.sensorWindowSeconds === modelData
               foreground: root.foreground; accent: root.accent
               fontSize: Style.font.caption
@@ -1976,7 +2022,7 @@ Panel {
         Text {
           width:parent.width
           visible:!root.computerMapVisible && root.fanStatusKey!==""
-          text:I18n.t(root.fanStatusKey,root.effectiveLanguage)
+          text:root.t(root.fanStatusKey)
           textFormat:Text.PlainText;wrapMode:Text.Wrap
           color:root.fanStatusKey==="fan_action_failed" ? root.urgent : root.dim
           font.family:Style.font.family;font.pixelSize:Style.font.caption
@@ -1992,8 +2038,8 @@ Panel {
         Text {
           visible: !root.computerMapVisible && !root.selectedSensor
           width: parent.width
-          text: root.historyPending ? I18n.t("sampling",root.effectiveLanguage)
-            : I18n.t(root.sensorPart ? "map_no_sensors" : "no_temperature_sensors",root.effectiveLanguage)
+          text: root.historyPending ? root.t("sampling")
+            : root.t(root.sensorPart ? "map_no_sensors" : "no_temperature_sensors")
           textFormat: Text.PlainText; wrapMode: Text.Wrap
           color: root.dim
           font.family: root.bar ? root.bar.fontFamily : Style.font.family
@@ -2043,7 +2089,7 @@ Panel {
         Text {
           width:parent.width
           visible:!root.computerMapVisible && root.fanStatusKey!==""
-          text:I18n.t(root.fanStatusKey,root.effectiveLanguage)
+          text:root.t(root.fanStatusKey)
           textFormat:Text.PlainText;wrapMode:Text.Wrap
           color:root.fanStatusKey==="fan_action_failed" ? root.urgent : root.dim
           font.family:Style.font.family;font.pixelSize:Style.font.caption
@@ -2056,11 +2102,11 @@ Panel {
             id: fanChannelDropdown
             objectName: "fanChannelDropdown"
             width: parent.width
-            label: I18n.t("map_channel",root.effectiveLanguage)
+            label: root.t("map_channel")
             enabled: !!root.activeFanChannel
             value: root.activeFanChannel
             options: (activity.sensorSnapshot.controls || []).map(function(channel) {
-              return {value:channel.id,label:channel.id+" · "+I18n.t("map_"+root.fanPlace(channel.id),root.effectiveLanguage)+" · "+I18n.t("fan_rpm",root.effectiveLanguage,channel.rpm)}
+              return {value:channel.id,label:channel.id+" · "+root.t("map_"+root.fanPlace(channel.id))+" · "+root.t("fan_rpm",channel.rpm)}
             })
             foreground: root.foreground; accent: root.accent; fontFamily:Style.font.family
             onChanged: function(value) {
@@ -2072,7 +2118,7 @@ Panel {
         Text {
           visible: !root.computerMapVisible && root.sensorPart.indexOf("fan_") === 0
           width: parent.width
-          text: I18n.t("map_assignment_hint", root.effectiveLanguage)
+          text: root.t("map_assignment_hint")
           textFormat: Text.PlainText; wrapMode: Text.Wrap
           color: root.dim; font.family: Style.font.family; font.pixelSize: Style.font.caption
         }
@@ -2095,7 +2141,7 @@ Panel {
                 objectName: "fanAssignmentToggle"
                 height: Style.spacing.controlHeight
                 width: parent.width
-                text: I18n.t("map_assignment", root.effectiveLanguage, fanChannelCard.channel.id)
+                text: root.t("map_assignment", fanChannelCard.channel.id)
                 iconName: "category"; selected: root.fanAssignmentOpen
                 foreground: root.foreground; accent: root.accent; fontFamily: Style.font.family
                 fontSize: Style.font.caption; bordered: true; focusable: true
@@ -2106,9 +2152,9 @@ Panel {
                 objectName: "fanAssignmentDropdown"
                 width: parent.width
                 visible: root.fanAssignmentOpen
-                label: I18n.t("map_assignment", root.effectiveLanguage, fanChannelCard.channel.id)
+                label: root.t("map_assignment", fanChannelCard.channel.id)
                 value: root.fanPlace(fanChannelCard.channel.id)
-                options: root.fanPlaces.map(function(place) { return {value:place,label:I18n.t("map_" + place,root.effectiveLanguage)} })
+                options: root.fanPlaces.map(function(place) { return {value:place,label:root.t("map_" + place)} })
                 foreground: root.foreground; accent: root.accent
                 fontFamily: Style.font.family
                 onChanged: function(place) {
@@ -2118,9 +2164,9 @@ Panel {
               }
               Text {
                 width: parent.width
-                text: fanChannelCard.channel.id + " · " + I18n.t("fan_rpm",root.effectiveLanguage,fanChannelCard.channel.rpm)
-                  + " · " + Math.round(fanChannelCard.channel.duty/255*100) + "% · "
-                  + I18n.t(fanChannelCard.channel.mode === 2 ? "fan_mode_auto" : fanChannelCard.channel.mode === 0 ? "fan_mode_full" : "fan_mode_manual",root.effectiveLanguage)
+                text: fanChannelCard.channel.id + " · " + root.t("fan_rpm",fanChannelCard.channel.rpm)
+                  + " · " + root.number(fanChannelCard.channel.duty/255*100, 0) + "% · "
+                  + root.t(fanChannelCard.channel.mode === 2 ? "fan_mode_auto" : fanChannelCard.channel.mode === 0 ? "fan_mode_full" : "fan_mode_manual")
                 textFormat: Text.PlainText; wrapMode: Text.Wrap
                 color: root.foreground
                 font.family: root.bar ? root.bar.fontFamily : Style.font.family
@@ -2145,7 +2191,7 @@ Panel {
                   color: root.foreground
                   font.family: Style.font.family
                   font.pixelSize: Style.font.body
-                  Accessible.name: I18n.t("fan_output_percent", root.effectiveLanguage)
+                  Accessible.name: root.t("fan_output_percent")
                   background: Rectangle {
                     color: Host.Color.popups.background
                     radius: Style.cornerRadius
@@ -2163,8 +2209,8 @@ Panel {
                   objectName: "saveFanOutputButton"
                   width: (parent.width - parent.spacing) / 2
                   height: Style.spacing.controlHeight
-                  text: I18n.t("fan_save_output", root.effectiveLanguage)
-                  tooltipText: I18n.t("fan_output_percent", root.effectiveLanguage)
+                  text: root.t("fan_save_output")
+                  tooltipText: root.t("fan_output_percent")
                   iconName: "save"
                   foreground: root.foreground; accent: root.accent; fontFamily: Style.font.family
                   bordered: true; focusable: true
@@ -2174,7 +2220,7 @@ Panel {
               }
               Text {
                 width: parent.width
-                text: I18n.t("fan_profile_hint", root.effectiveLanguage)
+                text: root.t("fan_profile_hint")
                 textFormat: Text.PlainText; wrapMode: Text.Wrap
                 color: root.dim; font.family: Style.font.family; font.pixelSize: Style.font.caption
               }
@@ -2184,9 +2230,9 @@ Panel {
                   id: fanDurationDropdown
                   objectName: "fanDurationDropdown"
                   width:(parent.width-parent.spacing)/2
-                  label:I18n.t("fan_boost_duration",root.effectiveLanguage)
+                  label:root.t("fan_boost_duration")
                   value:String(root.fanDuration)
-                  options:[5,10,30].map(function(n){return {value:String(n),label:I18n.t("sensor_minutes",root.effectiveLanguage,n)}})
+                  options:[5,10,30].map(function(n){return {value:String(n),label:root.t("sensor_minutes",n)}})
                   foreground:root.foreground;accent:root.accent;fontFamily:Style.font.family
                   onChanged:function(value){root.fanDuration=Number(value)}
                 }
@@ -2195,7 +2241,7 @@ Panel {
                   anchors.bottom:parent.bottom
                   objectName: "fanHistoryButton"
                   height: fanDurationDropdown.rowHeight
-                  text:I18n.t("map_fan_history",root.effectiveLanguage);iconName:"history"
+                  text:root.t("map_fan_history");iconName:"history"
                   foreground:root.foreground;accent:root.accent;fontFamily:Style.font.family
                   bordered:true;focusable:true
                   onClicked:root.showFanHistory(fanChannelCard.channel.id)
@@ -2210,7 +2256,7 @@ Panel {
                   Button {
                     required property int modelData
                     width: (speeds.width - speeds.spacing*2)/3
-                    text: I18n.t("fan_boost_percent", root.effectiveLanguage, modelData)
+                    text: root.t("fan_boost_percent", modelData)
                     foreground: root.foreground; accent: root.accent
                     fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
                     focusable: true; bordered: true; enabled: !fanController.running
@@ -2221,7 +2267,7 @@ Panel {
               SvgButton {
                 objectName: "fanIdentificationToggle"
                 width: parent.width
-                text: I18n.t(root.fanIdentificationOpen ? "fan_identify_close" : "fan_identify_open", root.effectiveLanguage)
+                text: root.t(root.fanIdentificationOpen ? "fan_identify_close" : "fan_identify_open")
                 iconName: "fans"; selected: root.fanIdentificationOpen
                 foreground: root.foreground; accent: root.accent; fontFamily: Style.font.family
                 fontSize: Style.font.caption; bordered: true; focusable: true
@@ -2230,8 +2276,8 @@ Panel {
               Text {
                 visible: root.fanIdentificationOpen
                 width: parent.width
-                text: I18n.t("fan_trial_target", root.effectiveLanguage,
-                  fanChannelCard.channel.id, I18n.t("map_" + root.fanPlace(fanChannelCard.channel.id), root.effectiveLanguage))
+                text: root.t("fan_trial_target",
+                  fanChannelCard.channel.id, root.t("map_" + root.fanPlace(fanChannelCard.channel.id)))
                 textFormat: Text.PlainText; wrapMode: Text.Wrap
                 color: root.foreground; font.family: Style.font.family; font.pixelSize: Style.font.caption
               }
@@ -2242,7 +2288,7 @@ Panel {
                   id: identifyPercentDropdown
                   objectName:"identifyPercentDropdown"
                   width:(parent.width-parent.spacing)/2
-                  label:I18n.t("fan_identify_level",root.effectiveLanguage)
+                  label:root.t("fan_identify_level")
                   value:String(root.identificationPercent)
                   options:[0,5,10,20,30,40,50,60,80,100].map(function(n){return {value:String(n),label:n+"%"}})
                   foreground:root.foreground;accent:root.accent;fontFamily:Style.font.family
@@ -2252,7 +2298,7 @@ Panel {
                   objectName:"identifyFanButton"
                   height: identifyPercentDropdown.rowHeight
                   width:(parent.width-parent.spacing)/2;anchors.bottom:parent.bottom
-                  text:I18n.t(root.identificationPercent === 0 ? "fan_stop_trial" : "fan_run_trial",root.effectiveLanguage,root.identificationPercent);iconName:"fans"
+                  text:root.t(root.identificationPercent === 0 ? "fan_stop_trial" : "fan_run_trial",root.identificationPercent);iconName:"fans"
                   foreground:root.urgent;accent:root.urgent;fontFamily:Style.font.family
                   bordered:true;focusable:true;enabled:!fanController.running
                   onClicked:root.fanAction(fanChannelCard.channel.id,root.identificationPercent,"identify")
@@ -2261,14 +2307,14 @@ Panel {
               Text {
                 width:parent.width
                 visible: root.fanIdentificationOpen
-                text:I18n.t("fan_identify_hint",root.effectiveLanguage)
+                text:root.t("fan_identify_hint")
                 textFormat:Text.PlainText;wrapMode:Text.Wrap
                 color:root.dim;font.family:Style.font.family;font.pixelSize:Style.font.caption
               }
               SvgButton {
                 objectName: "fanRestoreButton"
                 width: parent.width
-                text: I18n.t("fan_restore",root.effectiveLanguage)
+                text: root.t("fan_restore")
                 iconName: "restore"
                 foreground: root.foreground; accent: root.accent
                 fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
@@ -2278,7 +2324,7 @@ Panel {
               Text {
                 visible: root.fanAssignmentOpen || root.fanIdentificationOpen
                 width: parent.width
-                text: I18n.t("fan_control_limits", root.effectiveLanguage)
+                text: root.t("fan_control_limits")
                 textFormat: Text.PlainText; wrapMode: Text.Wrap
                 color: root.dim; font.family: Style.font.family; font.pixelSize: Style.font.caption
               }
@@ -2288,7 +2334,7 @@ Panel {
         Text {
           width: parent.width
           visible: !root.computerMapVisible && (!activity.sensorSnapshot.controls || activity.sensorSnapshot.controls.length === 0)
-          text: I18n.t("fan_control_unavailable",root.effectiveLanguage)
+          text: root.t("fan_control_unavailable")
           textFormat: Text.PlainText; wrapMode: Text.Wrap
           color: root.dim
           font.family: root.bar ? root.bar.fontFamily : Style.font.family
@@ -2318,9 +2364,9 @@ Panel {
     readonly property bool historyGaps: points.some(function(point,index) { return point.breakBefore === true || (index > 0 && point.breakBefore === undefined && point.time - points[index-1].time > 60) })
     readonly property real span: points.length > 1 ? points[points.length - 1].time - points[0].time : 0
     function valueText(value) {
-      if (!fan) return Model.formatTemperature(value, root.temperatureUnitSetting)
-      return sensor.unit === "percent" ? Math.round(value) + "%"
-        : I18n.t("fan_rpm", root.effectiveLanguage, Math.round(value))
+      if (!fan) return root.formatTemperature(value, root.temperatureUnitSetting)
+      return sensor.unit === "percent" ? root.number(value, 0) + "%"
+        : root.t("fan_rpm", Math.round(value))
     }
     implicitHeight: sensorCardBody.implicitHeight + Style.spacing.md * 2
     height: implicitHeight
@@ -2335,9 +2381,9 @@ Panel {
         objectName: "sensorAssignmentDropdown"
         width: parent.width
         visible: root.sensorOptionsOpen
-        label: I18n.t("map_sensor_assignment", root.effectiveLanguage)
+        label: root.t("map_sensor_assignment")
         value: root.sensorPlace(sensorCard.sensor)
-        options: root.sensorPlaces.map(function(place) { return {value:place,label:I18n.t("map_" + place,root.effectiveLanguage)} })
+        options: root.sensorPlaces.map(function(place) { return {value:place,label:root.t("map_" + place)} })
         foreground: root.foreground; accent: root.accent
         fontFamily: Style.font.family
         onChanged: function(place) {
@@ -2386,35 +2432,36 @@ Panel {
         font.bold: true
       }
       SensorHistoryChart {
+        locale: strings
         width: parent.width
         height: Style.space(132)
         points: sensorCard.points.map(function(point) { return {time:point.time,value:!sensorCard.fan && root.temperatureUnitSetting === "Fahrenheit" ? point.value*9/5+32 : point.value,breakBefore:point.breakBefore} })
         windowSeconds: root.sensorWindowSeconds
         referenceTime: sensorCard.chartNow
-        liveText: I18n.t("chart_live",root.effectiveLanguage)
-        gapText: I18n.t("chart_gap",root.effectiveLanguage)
-        emptyText: I18n.t(root.historyPending ? "sampling" : "chart_empty",root.effectiveLanguage)
+        liveText: root.t("chart_live")
+        gapText: root.t("chart_gap")
+        emptyText: root.t(root.historyPending ? "sampling" : "chart_empty")
         ceiling: sensorCard.fan ? (sensorCard.sensor.unit === "percent" ? 100 : 0) : (root.temperatureUnitSetting === "Fahrenheit" ? 248 : 120)
         unit: sensorCard.fan ? (sensorCard.sensor.unit === "percent" ? "%" : "RPM") : (root.temperatureUnitSetting === "Fahrenheit" ? "°F" : "°C")
-        hint: I18n.t("chart_short_hint",root.effectiveLanguage)
+        hint: root.t("chart_short_hint")
         lineColor: root.accent
       }
       Text {
         width: parent.width
         visible: root.sensorOptionsOpen
-        text: I18n.t("chart_interaction",root.effectiveLanguage)
+        text: root.t("chart_interaction")
         textFormat: Text.PlainText; wrapMode: Text.Wrap
         color: root.dim; font.family: Style.font.family; font.pixelSize: Style.font.caption
       }
       Text {
         width: parent.width
         text: sensorCard.readings.length > 1
-          ? I18n.t("sensor_range", root.effectiveLanguage,
+          ? root.t("sensor_range",
               sensorCard.valueText(Math.min.apply(null, sensorCard.readings)),
               sensorCard.valueText(Math.max.apply(null, sensorCard.readings)))
-            + " · " + I18n.t("sensor_duration", root.effectiveLanguage, Math.round(sensorCard.span))
-            + (sensorCard.historyGaps ? " · " + I18n.t("sensor_gaps",root.effectiveLanguage) : "")
-          : I18n.t("sensor_wait_history", root.effectiveLanguage)
+            + " · " + root.t("sensor_duration", Math.round(sensorCard.span))
+            + (sensorCard.historyGaps ? " · " + root.t("sensor_gaps") : "")
+          : root.t("sensor_wait_history")
         textFormat: Text.PlainText
         wrapMode: Text.Wrap
         color: root.dim
@@ -2443,7 +2490,7 @@ Panel {
         SvgButton {
           width: (parent.width - parent.spacing) / 2
           height: parent.height
-          text: I18n.t("reset_defaults", root.effectiveLanguage)
+          text: root.t("reset_defaults")
           iconName: "restore"
           foreground: root.dim
           accent: root.accent
@@ -2456,7 +2503,7 @@ Panel {
         SvgButton {
           width: (parent.width - parent.spacing) / 2
           height: parent.height
-          text: I18n.t("done", root.effectiveLanguage)
+          text: root.t("done")
           iconName: "check"
           foreground: root.foreground
           accent: root.accent
@@ -2476,7 +2523,7 @@ Panel {
           Button {
             required property string modelData
             width:(settingsTabs.width-settingsTabs.spacing*3)/4;height:Style.space(28)
-            text:I18n.t("settings_"+modelData,root.effectiveLanguage)
+            text:root.t("settings_"+modelData)
             selected:root.settingsSection===modelData
             foreground:root.foreground;accent:root.accent;fontFamily:Style.font.family;fontSize:Style.font.caption
             bordered:true;focusable:true
@@ -2520,7 +2567,7 @@ Panel {
 
               PanelSectionHeader {
                 visible:false
-                text: I18n.t("settings", root.effectiveLanguage)
+                text: root.t("settings")
                 foreground: root.foreground
                 fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
               }
@@ -2528,7 +2575,7 @@ Panel {
               Text {
                 width: parent.width
                 visible:false
-                text: I18n.t("settings_desc", root.effectiveLanguage)
+                text: root.t("settings_desc")
                 color: root.dim
                 font.family: root.bar ? root.bar.fontFamily : Style.font.family
                 font.pixelSize: Style.font.caption
@@ -2540,23 +2587,23 @@ Panel {
                 visible:root.settingsSection==="tiles"
               PanelSectionHeader {
                 width: parent.width
-                text: I18n.t("compact_tiles", root.effectiveLanguage)
+                text: root.t("compact_tiles")
                 foreground: root.foreground
                 fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
               }
               ChoiceDropdown {
                 width: parent.width
-                label: I18n.t("compact_tile_count", root.effectiveLanguage)
+                label: root.t("compact_tile_count")
                 value: String(root.compactTileCount)
-                options: [{value:"2",label:"2"},{value:"3",label:"3"}]
+                options: [2,3].map(function(n) { return {value:String(n),label:root.number(n)} })
                 foreground: root.foreground; accent: root.accent
                 fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
                 onChanged: function(value) { root.persistSettings({compactTileCount:Number(value)}) }
               }
               Toggle {
                 width: parent.width
-                label: I18n.t("compact_ram_strip", root.effectiveLanguage)
-                description: I18n.t("compact_ram_strip_hint", root.effectiveLanguage)
+                label: root.t("compact_ram_strip")
+                description: root.t("compact_ram_strip_hint")
                 checked: root.booleanSetting("compactRamStrip", true)
                 foreground: root.foreground; accent: root.accent
                 fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
@@ -2567,7 +2614,7 @@ Panel {
                 ChoiceDropdown {
                   required property int index
                   width: parent.width
-                  label: I18n.t("compact_tile_slot", root.effectiveLanguage, index + 1)
+                  label: root.t("compact_tile_slot", index + 1)
                   value: String(root.setting("compactTile" + index, ["cpu", "ram", "gpu"][index]))
                   options: root.tileOptions.map(function(key) { return { value: key, label: root.tileTitle(key) } })
                   foreground: root.foreground
@@ -2594,10 +2641,10 @@ Panel {
                   visible:root.settingsSection==="icon"
                   objectName: "iconShapeDropdown"
                   width: (preferenceGrid.width - preferenceGrid.columnSpacing * (preferenceGrid.columns - 1)) / preferenceGrid.columns
-                  label: I18n.t("icon_shape", root.effectiveLanguage)
+                  label: root.t("icon_shape")
                   value: String(root.iconShapeSetting)
                   options: Array.from({length: IconVector.bodies.length}, function(_, i) {
-                    return {value: String(i), label: I18n.t("icon_shape_" + i, root.effectiveLanguage)}
+                    return {value: String(i), label: root.t("icon_shape_" + i)}
                   })
                   foreground: root.foreground
                   accent: root.accent
@@ -2609,10 +2656,10 @@ Panel {
                   visible:root.settingsSection==="icon"
                   objectName: "iconLoadThresholdDropdown"
                   width: (preferenceGrid.width - preferenceGrid.columnSpacing * (preferenceGrid.columns - 1)) / preferenceGrid.columns
-                  label: I18n.t("icon_load_threshold", root.effectiveLanguage)
+                  label: root.t("icon_load_threshold")
                   value: String(root.iconLoadThresholdSetting)
                   options: Array.from({length: 11}, function(_, i) {
-                    return {value: String(i * 10), label: i * 10 + "%"}
+                    return {value: String(i * 10), label: root.number(i * 10) + "%"}
                   })
                   foreground: root.foreground
                   accent: root.accent
@@ -2624,7 +2671,7 @@ Panel {
                   visible:root.settingsSection==="icon"
                   objectName: "iconHeatDropdown"
                   width: (preferenceGrid.width - preferenceGrid.columnSpacing * (preferenceGrid.columns - 1)) / preferenceGrid.columns
-                  label: I18n.t("icon_heat_threshold", root.effectiveLanguage)
+                  label: root.t("icon_heat_threshold")
                   value: String(activity.heatThreshold)
                   options: [70, 75, 80, 85, 90, 95, 100].map(function(n) {
                     return {value: String(n), label: n + " °C"}
@@ -2638,7 +2685,7 @@ Panel {
                 Text {
                   visible:root.settingsSection==="icon"
                   width: (preferenceGrid.width - preferenceGrid.columnSpacing * (preferenceGrid.columns - 1)) / preferenceGrid.columns
-                  text: I18n.t("icon_heat_desc", root.effectiveLanguage, activity.heatThreshold - 5)
+                  text: root.t("icon_heat_desc", activity.heatThreshold - 5)
                   color: root.dim
                   font.family: root.bar ? root.bar.fontFamily : Style.font.family
                   font.pixelSize: Style.font.caption
@@ -2648,8 +2695,8 @@ Panel {
                 Text {
                   visible:root.settingsSection==="icon"
                   width: (preferenceGrid.width - preferenceGrid.columnSpacing * (preferenceGrid.columns - 1)) / preferenceGrid.columns
-                  text: root.iconLegend + "\n" + I18n.t(root.iconShapeSetting === IconVector.defaultShape
-                    ? "icon_split_colors" : "icon_load_colors", root.effectiveLanguage)
+                  text: root.iconLegend + "\n" + root.t(root.iconShapeSetting === IconVector.defaultShape
+                    ? "icon_split_colors" : "icon_load_colors")
                   color: root.dim
                   font.family: root.bar ? root.bar.fontFamily : Style.font.family
                   font.pixelSize: Style.font.caption
@@ -2660,8 +2707,8 @@ Panel {
                   visible:root.settingsSection==="icon"
                   objectName: "iconMotionToggle"
                   width: (preferenceGrid.width - preferenceGrid.columnSpacing * (preferenceGrid.columns - 1)) / preferenceGrid.columns
-                  label: I18n.t("icon_motion", root.effectiveLanguage)
-                  description: I18n.t("icon_motion_desc", root.effectiveLanguage)
+                  label: root.t("icon_motion")
+                  description: root.t("icon_motion_desc")
                   checked: root.booleanSetting("iconMotion", true)
                   foreground: root.foreground
                   accent: root.accent
@@ -2672,7 +2719,7 @@ Panel {
                 Text {
                   visible:root.settingsSection==="icon"
                   width: (preferenceGrid.width - preferenceGrid.columnSpacing * (preferenceGrid.columns - 1)) / preferenceGrid.columns
-                  text: I18n.t("heat_steps",root.effectiveLanguage,activity.heatThreshold)
+                  text: root.t("heat_steps",activity.heatThreshold)
                   color: root.dim
                   font.family: root.bar ? root.bar.fontFamily : Style.font.family
                   font.pixelSize: Style.font.caption
@@ -2683,12 +2730,12 @@ Panel {
                   visible:root.settingsSection==="sampling"
                   id: speedDropdown
                   width: (preferenceGrid.width - preferenceGrid.columnSpacing * (preferenceGrid.columns - 1)) / preferenceGrid.columns
-                  label: I18n.t("speed", root.effectiveLanguage)
+                  label: root.t("speed")
                   value: root.samplingSpeedSetting
                   options: [
-                    { value: "Efficient", label: I18n.t("speed_efficient", root.effectiveLanguage) },
-                    { value: "Balanced", label: I18n.t("speed_balanced", root.effectiveLanguage) },
-                    { value: "Fast", label: I18n.t("speed_fast", root.effectiveLanguage) }
+                    { value: "Efficient", label: root.t("speed_efficient") },
+                    { value: "Balanced", label: root.t("speed_balanced") },
+                    { value: "Fast", label: root.t("speed_fast") }
                   ]
                   foreground: root.foreground
                   accent: root.accent
@@ -2699,12 +2746,12 @@ Panel {
                 ChoiceDropdown {
                   visible:root.settingsSection==="sampling"
                   width: (preferenceGrid.width - preferenceGrid.columnSpacing * (preferenceGrid.columns - 1)) / preferenceGrid.columns
-                  label: I18n.t("history", root.effectiveLanguage)
+                  label: root.t("history")
                   value: String(root.historySamplesSetting)
                   options: [
-                    { value: "30", label: "30" },
-                    { value: "60", label: "60" },
-                    { value: "120", label: "120" }
+                    { value: "30", label: root.number(30) },
+                    { value: "60", label: root.number(60) },
+                    { value: "120", label: root.number(120) }
                   ]
                   foreground: root.foreground
                   accent: root.accent
@@ -2715,11 +2762,11 @@ Panel {
                 ChoiceDropdown {
                   visible:root.settingsSection==="sampling"
                   width: (preferenceGrid.width - preferenceGrid.columnSpacing * (preferenceGrid.columns - 1)) / preferenceGrid.columns
-                  label: I18n.t("temp_unit", root.effectiveLanguage)
+                  label: root.t("temp_unit")
                   value: root.temperatureUnitSetting
                   options: [
-                    { value: "Celsius", label: I18n.t("celsius", root.effectiveLanguage) },
-                    { value: "Fahrenheit", label: I18n.t("fahrenheit", root.effectiveLanguage) }
+                    { value: "Celsius", label: root.t("celsius") },
+                    { value: "Fahrenheit", label: root.t("fahrenheit") }
                   ]
                   foreground: root.foreground
                   accent: root.accent
@@ -2730,8 +2777,8 @@ Panel {
                 Toggle {
                   visible:root.settingsSection==="sampling"
                   width: (preferenceGrid.width - preferenceGrid.columnSpacing * (preferenceGrid.columns - 1)) / preferenceGrid.columns
-                  label: I18n.t("icon_indicator", root.effectiveLanguage)
-                  description: I18n.t("icon_indicator_desc", root.effectiveLanguage)
+                  label: root.t("icon_indicator")
+                  description: root.t("icon_indicator_desc")
                   checked: root.booleanSetting("iconIndicator", true)
                   foreground: root.foreground
                   accent: root.accent
@@ -2742,8 +2789,8 @@ Panel {
                 Toggle {
                   visible:root.settingsSection==="sampling"
                   width: (preferenceGrid.width - preferenceGrid.columnSpacing * (preferenceGrid.columns - 1)) / preferenceGrid.columns
-                  label: I18n.t("open_expanded", root.effectiveLanguage)
-                  description: I18n.t("open_expanded_desc", root.effectiveLanguage)
+                  label: root.t("open_expanded")
+                  description: root.t("open_expanded_desc")
                   checked: root.openExpandedByDefault
                   foreground: root.foreground
                   accent: root.accent
@@ -2754,8 +2801,8 @@ Panel {
                 Toggle {
                   visible:root.settingsSection==="sampling"
                   width: (preferenceGrid.width - preferenceGrid.columnSpacing * (preferenceGrid.columns - 1)) / preferenceGrid.columns
-                  label: I18n.t("frequencies", root.effectiveLanguage)
-                  description: I18n.t("frequencies_desc", root.effectiveLanguage)
+                  label: root.t("frequencies")
+                  description: root.t("frequencies_desc")
                   checked: root.showFrequencies
                   foreground: root.foreground
                   accent: root.accent
@@ -2779,14 +2826,14 @@ Panel {
                 width: parent.width
                 panelOpen: root.opened
                 activity: root.activityController
-                language: root.effectiveLanguage
+                locale: strings
                 savedAgentModel: String(root.setting("diagnosticAgentModel", ""))
                 onAgentModelSelected: function(model) { root.persistSettings({diagnosticAgentModel:model}) }
               }
               Button {
                 objectName: "legacyDiagnosticsToggle"
                 width: parent.width
-                text: I18n.t("capture_legacy",root.effectiveLanguage)
+                text: root.t("capture_legacy")
                 selected: legacyDiagnostics.visible
                 iconText: legacyDiagnostics.visible ? "▾" : "▸"
                 foreground: activity.journalError ? root.urgent : root.foreground
@@ -2800,8 +2847,8 @@ Panel {
                 Toggle {
                   objectName: "diagnosticJournalToggle"
                   width: parent.width
-                  label: I18n.t("diagnostic_journal",root.effectiveLanguage)
-                  description: I18n.t("diagnostic_journal_desc",root.effectiveLanguage)
+                  label: root.t("diagnostic_journal")
+                  description: root.t("diagnostic_journal_desc")
                   checked: root.booleanSetting("diagnosticJournal",false)
                   foreground: root.foreground;accent: root.accent
                   fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
@@ -2809,8 +2856,8 @@ Panel {
                 }
                 Text {
                   width: parent.width
-                  text: activity.journalError ? I18n.t("diagnostic_write_failed",root.effectiveLanguage)
-                    : I18n.t("diagnostic_retention",root.effectiveLanguage)
+                  text: activity.journalError ? root.t("diagnostic_write_failed")
+                    : root.t("diagnostic_retention")
                   color: activity.journalError ? root.urgent : root.dim
                   font.family: root.bar ? root.bar.fontFamily : Style.font.family
                   font.pixelSize: Style.font.caption;wrapMode: Text.WordWrap
@@ -2818,9 +2865,9 @@ Panel {
                 ChoiceDropdown {
                   objectName: "diagnosticPeriodDropdown"
                   width: parent.width
-                  label: I18n.t("diagnostic_period",root.effectiveLanguage)
+                  label: root.t("diagnostic_period")
                   value: String(diagnosticExport.hours)
-                  options: [1,2,6,24,168].map(function(n){return {value:String(n),label:I18n.t("diagnostic_hours",root.effectiveLanguage,n)}})
+                  options: [1,2,6,24,168].map(function(n){return {value:String(n),label:root.t("diagnostic_hours",n)}})
                   foreground: root.foreground;accent: root.accent
                   fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
                   onChanged: function(n){diagnosticExport.hours=Number(n)}
@@ -2829,7 +2876,7 @@ Panel {
                   objectName: "diagnosticExportButton"
                   iconName: "export"
                   width: parent.width
-                  text: I18n.t(diagnosticExport.running ? "diagnostic_exporting" : "diagnostic_export",root.effectiveLanguage)
+                  text: root.t(diagnosticExport.running ? "diagnostic_exporting" : "diagnostic_export")
                   enabled: !diagnosticExport.running
                   foreground: root.foreground;accent: root.accent
                   fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
@@ -2850,7 +2897,7 @@ Panel {
                   iconName: "copy"
                   width: parent.width
                   visible: diagnosticExport.resultPath!==""
-                  text: I18n.t("diagnostic_copy_prompt",root.effectiveLanguage)
+                  text: root.t("diagnostic_copy_prompt")
                   foreground: root.foreground;accent: root.accent
                   fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
                   focusable: true;bordered: true
@@ -2884,7 +2931,7 @@ Panel {
         SvgButton {
           width: (parent.width - parent.spacing) / 2
           height: parent.height
-          text: I18n.t("btn_terminate", root.effectiveLanguage)
+          text: root.t("btn_terminate")
           iconName: "stop"
           focusable: true
           bordered: true
@@ -2898,7 +2945,7 @@ Panel {
         SvgButton {
           width: (parent.width - parent.spacing) / 2
           height: parent.height
-          text: I18n.t("btn_kill", root.effectiveLanguage)
+          text: root.t("btn_kill")
           iconName: "kill"
           focusable: true
           bordered: true
@@ -2926,7 +2973,7 @@ Panel {
         Text {
           anchors.centerIn: parent
           width: parent.width - Style.spacing.md * 2
-          text: activity.errorText || processActions.status || I18n.t("hints_expanded", root.effectiveLanguage)
+          text: activity.errorText || processActions.status || root.t("hints_expanded")
           textFormat: Text.PlainText
           color: (activity.errorText !== "" || processActions.failed) ? root.urgent : root.dim
           font.family: root.bar ? root.bar.fontFamily : Style.font.family
@@ -2990,7 +3037,7 @@ Panel {
           spacing: Style.spacing.sm
 
           PanelSectionHeader {
-            text: I18n.t("all_processes", root.effectiveLanguage) + (root.processes.length > 0 ? " · " + root.sortedProcesses.length : "")
+            text: root.t("all_processes") + (root.processes.length > 0 ? " · " + root.number(root.sortedProcesses.length) : "")
             foreground: root.foreground
             fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
             anchors.verticalCenter: parent.verticalCenter
@@ -3004,7 +3051,7 @@ Panel {
           TextField {
             id: searchBox
             width: Math.max(Style.space(160), Math.min(Style.space(240), parent.width * 0.35))
-            placeholderText: I18n.t("search_placeholder", root.effectiveLanguage)
+            placeholderText: root.t("search_placeholder")
             foreground: root.foreground
             accent: root.accent
             font.pixelSize: Style.font.bodySmall
@@ -3082,8 +3129,8 @@ Panel {
           anchors.centerIn: parent
           visible: processList.count === 0
           text: root.processQuery
-            ? I18n.t("no_processes", root.effectiveLanguage) + " (“" + root.processQuery + "”)"
-            : (root.processMetricsReady ? I18n.t("no_processes", root.effectiveLanguage) : I18n.t("sampling", root.effectiveLanguage))
+            ? root.t("no_processes") + " (“" + root.processQuery + "”)"
+            : (root.processMetricsReady ? root.t("no_processes") : root.t("sampling"))
           textFormat: Text.PlainText
           color: root.dim
           font.family: root.bar ? root.bar.fontFamily : Style.font.family
@@ -3106,26 +3153,26 @@ Panel {
       ? activity.sensorSnapshot.temperatures.filter(function(sensor) { return sensor.category === "gpu" && sensor.location === summary.gpu.id })[0] || null : null
     iconName: kind
     label: kind === "cpu" ? (!root.expanded && root.compactTileCount === 3 ? "CPU" : root.cpuCardLabel())
-      : kind === "ram" ? (!root.expanded && root.compactTileCount === 3 ? I18n.t("ram",root.effectiveLanguage) : root.memoryCardLabel())
+      : kind === "ram" ? (!root.expanded && root.compactTileCount === 3 ? root.t("ram") : root.memoryCardLabel())
       : kind === "gpu" && gpu ? root.compactGpuName(gpu) : root.tileTitle(kind)
     value: kind === "cpu" ? (activity.cpuReady ? root.percentText(root.metrics.cpu) : "—")
       : kind === "ram" ? (root.hasSnapshot ? root.percentText(root.metrics.memory) : "—")
       : kind === "gpu" ? (gpu ? root.gpuUsageText(gpu) : "—")
-      : kind === "temperature" ? (root.cpuTemperature ? Model.formatTemperature(root.cpuTemperature.value, root.temperatureUnitSetting) : "—")
+      : kind === "temperature" ? (root.cpuTemperature ? root.formatTemperature(root.cpuTemperature.value, root.temperatureUnitSetting) : "—")
       : kind === "fans" ? (activity.sensorsFresh && activity.sensorSnapshot.fans.length
-          ? (activity.sensorSnapshot.fans[0].unit === "percent" ? activity.sensorSnapshot.fans[0].value + "%"
-            : I18n.t("fan_rpm", root.effectiveLanguage, activity.sensorSnapshot.fans[0].value)) : "—")
-      : kind === "network" ? Model.formatBytes(root.metrics.download, "/s")
-      : kind === "disk" ? Model.formatBytes(root.diskCardRead(), "/s")
-      : root.activeStorage ? Model.formatCompactBytes(root.activeStorage.used) + " / " + Model.formatCompactBytes(root.activeStorage.total) : "—"
-    detail: kind === "cpu" ? (root.cpuTemperature ? I18n.t("temp_unit", root.effectiveLanguage) + " " + root.cpuCardDetail() : I18n.t("sampling", root.effectiveLanguage))
+          ? (activity.sensorSnapshot.fans[0].unit === "percent" ? root.number(activity.sensorSnapshot.fans[0].value) + "%"
+            : root.t("fan_rpm", activity.sensorSnapshot.fans[0].value)) : "—")
+      : kind === "network" ? root.formatBytes(root.metrics.download, "/s")
+      : kind === "disk" ? root.formatBytes(root.diskCardRead(), "/s")
+      : root.activeStorage ? root.formatCompactBytes(root.activeStorage.used) + " / " + root.formatCompactBytes(root.activeStorage.total) : "—"
+    detail: kind === "cpu" ? (root.cpuTemperature ? root.t("temp_unit") + " " + root.cpuCardDetail() : root.t("sampling"))
       : kind === "ram" ? root.memoryBreakdownText()
-      : kind === "gpu" && gpu ? [root.gpuFrequencyText(gpu), gpuTemperature ? Model.formatTemperature(gpuTemperature.value, root.temperatureUnitSetting) : ""].filter(function(value) { return value !== "" }).join(" · ")
+      : kind === "gpu" && gpu ? [root.gpuFrequencyText(gpu), gpuTemperature ? root.formatTemperature(gpuTemperature.value, root.temperatureUnitSetting) : ""].filter(function(value) { return value !== "" }).join(" · ")
         + "\n" + root.gpuMemoryLabel(gpu) + " " + root.gpuMemoryText(gpu)
-      : kind === "temperature" ? I18n.t("cpu", root.effectiveLanguage)
-      : kind === "fans" ? (activity.sensorsFresh && activity.sensorSnapshot.fans.length ? root.sensorOwner(activity.sensorSnapshot.fans[0]) : I18n.t("no_fan_sensors", root.effectiveLanguage))
-      : kind === "network" ? "\uf093 " + Model.formatBytes(root.metrics.upload, "/s")
-      : kind === "disk" ? "\uf093 " + Model.formatBytes(root.diskCardWrite(), "/s") : root.storageCardDetail()
+      : kind === "temperature" ? root.t("cpu")
+      : kind === "fans" ? (activity.sensorsFresh && activity.sensorSnapshot.fans.length ? root.sensorOwner(activity.sensorSnapshot.fans[0]) : root.t("no_fan_sensors"))
+      : kind === "network" ? "\uf093 " + root.formatBytes(root.metrics.upload, "/s")
+      : kind === "disk" ? "\uf093 " + root.formatBytes(root.diskCardWrite(), "/s") : root.storageCardDetail()
     paint: kind === "cpu" && (root.expanded || root.compactTileCount === 2) ? (root.expanded ? root.corePaintExpanded : root.corePaintCompact) : Model.emptyCorePaint()
     history: kind === "cpu" ? root.metrics.cpuHistory : kind === "ram" ? root.metrics.memoryHistory
       : kind === "network" ? root.metrics.networkHistory : kind === "disk" ? root.diskCardHistory() : []
@@ -3420,7 +3467,7 @@ Panel {
         y: Number(cell.y || 0) * heat.height / Math.max(1, heat.implicitHeight)
         size: Math.max(1, Number(cell.size || 0) * Math.min(heat.width / Math.max(1, heat.implicitWidth), heat.height / Math.max(1, heat.implicitHeight)))
         usage: Number(cell.usage || 0)
-        tooltipText: I18n.t("core_usage", root.effectiveLanguage, String(cell.name || "cpu" + index), Math.round(usage))
+        tooltipText: root.t("core_usage", String(cell.name || "cpu" + index), Math.round(usage))
       }
     }
   }
@@ -3476,14 +3523,14 @@ Panel {
         width: root.processNameWidth(headerRoot.width, headerRoot.compact)
         sortKey: "name"
         label: headerRoot.compact
-          ? I18n.t("busiest_processes", root.effectiveLanguage)
-          : I18n.t("col_name", root.effectiveLanguage)
+          ? root.t("busiest_processes")
+          : root.t("col_name")
       }
       ProcessSortCell {
         visible: root.showProcessPidColumn
         width: root.colPidWidth
         sortKey: "pid"
-        label: I18n.t("col_pid", root.effectiveLanguage)
+        label: root.t("col_pid")
         alignment: Text.AlignRight
       }
       ProcessCell {
@@ -3492,14 +3539,14 @@ Panel {
         anchors.top: parent.top
         visible: !headerRoot.compact && root.showProcessUserColumn
         width: root.colUserWidth
-        text: I18n.t("col_user", root.effectiveLanguage)
+        text: root.t("col_user")
         leftPadding: Style.spacing.sm
         dimmed: true
       }
       ProcessSortCell {
         width: root.colCpuWidth
         sortKey: "cpu"
-        label: I18n.t("col_cpu", root.effectiveLanguage)
+        label: root.t("col_cpu")
         alignment: Text.AlignRight
       }
       Repeater {
@@ -3508,8 +3555,8 @@ Panel {
           required property var modelData
           width: modelData.id ? root.colAdapterGpuWidth : root.colGpuWidth
           sortKey: modelData.id ? "gpu:" + modelData.id : "gpu"
-          label: modelData.id ? root.processGpuHeading(modelData) : I18n.t("col_gpu", root.effectiveLanguage)
-          detail: modelData.id ? I18n.t("col_gpu", root.effectiveLanguage) : ""
+          label: modelData.id ? root.processGpuHeading(modelData) : root.t("col_gpu")
+          detail: modelData.id ? root.t("col_gpu") : ""
           tooltipText: modelData.id ? modelData.name + " · " + modelData.id : ""
           alignment: Text.AlignRight
         }
@@ -3517,21 +3564,21 @@ Panel {
       ProcessSortCell {
         width: root.colRssWidth
         sortKey: "memory"
-        label: I18n.t("col_rss", root.effectiveLanguage)
+        label: root.t("col_rss")
         alignment: Text.AlignRight
       }
       ProcessSortCell {
         visible: root.showProcessRamPercentColumn
         width: root.colRamPctWidth
         sortKey: "memory"
-        label: I18n.t("col_ram", root.effectiveLanguage)
+        label: root.t("col_ram")
         alignment: Text.AlignRight
       }
       ProcessSortCell {
         visible: !headerRoot.compact && root.showProcessTimeColumn
         width: root.colTimeWidth
         sortKey: "runtime"
-        label: I18n.t("col_time", root.effectiveLanguage)
+        label: root.t("col_time")
         alignment: Text.AlignRight
       }
       // Spacer matching the [✕] button width so header columns align 1:1 with data columns
@@ -3636,7 +3683,7 @@ Panel {
         id: cpuValue
         objectName: rowRoot.rowIndex === 0 ? "firstProcess-cpu" : ""
         width: root.colCpuWidth
-        text: Number(processData.cpu || 0).toFixed(1) + "%"
+        text: root.number(processData.cpu || 0, 1) + "%"
         alignment: Text.AlignRight
         emphasized: Number(processData.cpu || 0) >= 25
       }
@@ -3651,7 +3698,7 @@ Panel {
               ? rowRoot.processData.gpuById[modelData.id] : -1)
             : Number(rowRoot.processData.gpu === undefined ? -1 : rowRoot.processData.gpu)
           width: modelData.id ? root.colAdapterGpuWidth : root.colGpuWidth
-          text: usage >= 0 ? usage.toFixed(1) + "%" : "—"
+          text: usage >= 0 ? root.number(usage, 1) + "%" : "—"
           alignment: Text.AlignRight
           emphasized: usage >= 25
         }
@@ -3661,7 +3708,7 @@ Panel {
         id: rssValue
         objectName: rowRoot.rowIndex === 0 ? "firstProcess-memory" : ""
         width: root.colRssWidth
-        text: Model.formatBytes(processData.rss || 0)
+        text: root.formatBytes(processData.rss || 0)
         alignment: Text.AlignRight
         emphasized: Number(processData.memory || 0) >= 15
       }
@@ -3670,7 +3717,7 @@ Panel {
         id: memoryValue
         visible: root.showProcessRamPercentColumn
         width: root.colRamPctWidth
-        text: Number(processData.memory || 0).toFixed(1) + "%"
+        text: root.number(processData.memory || 0, 1) + "%"
         dimmed: true
         alignment: Text.AlignRight
       }
@@ -3678,7 +3725,7 @@ Panel {
       ProcessCell {
         visible: !rowRoot.compact && root.showProcessTimeColumn
         width: root.colTimeWidth
-        text: Model.formatDuration(processData.elapsed)
+        text: root.formatDuration(processData.elapsed)
         dimmed: true
         alignment: Text.AlignRight
       }

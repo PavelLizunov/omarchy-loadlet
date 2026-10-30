@@ -1,5 +1,19 @@
 # Loadlet verification
 
+## Native locale migration — 2.18.10
+
+Source changes replace the active JavaScript catalogs with four native JSON
+catalogs and one shared override/format adapter. The registry picker, numeric/date
+presentation and RTL wiring are implemented. The other46translations, plural
+conversion, fluent review and full RTL/input acceptance remain open.
+
+Existing fixture inputs and expectations were adapted, but tests, linters,
+previews, provider calls and performance observations were not run in this
+continuation. The checkpoint uses `[skip ci]`; earlier green jobs do not certify
+these bytes. The sampler and privileged helpers are unchanged. Installation and
+loaded identity are separate; no loaded-identity or user-interaction pass is
+claimed here. See [implementation and limits](docs/localization.md).
+
 ## Resource lifetime and simplification — 2.18.9
 
 A two-minute live observation found stable shared-shell RSS near1.20GiB despite

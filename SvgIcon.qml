@@ -5,6 +5,7 @@ import qs.Commons as Host
 Image {
   id: root
   property string name: ""
+  mirror: name === "back" && LayoutMirroring.enabled
   property color tint: Host.Color.popups.text
   // Small original outline symbols; no font or external asset dependency.
   readonly property var paths: ({

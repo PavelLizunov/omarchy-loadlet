@@ -1711,7 +1711,7 @@ function filterAndSortProcesses(processes, query, sortKey, ascending) {
   return values
 }
 
-function formatBytes(value, suffix) {
+function formatBytes(value, suffix, formatter) {
   var bytes = Math.max(0, number(value))
   var units = ["B", "KiB", "MiB", "GiB", "TiB"]
   var unit = 0
@@ -1720,10 +1720,10 @@ function formatBytes(value, suffix) {
     unit++
   }
   var precision = bytes >= 100 || unit === 0 ? 0 : (bytes >= 10 ? 1 : 2)
-  return bytes.toFixed(precision) + " " + units[unit] + (suffix || "")
+  return (formatter ? formatter(bytes, precision) : bytes.toFixed(precision)) + " " + units[unit] + (suffix || "")
 }
 
-function formatCompactBytes(value) {
+function formatCompactBytes(value, formatter) {
   var bytes = Math.max(0, number(value))
   var units = ["B", "K", "M", "G", "T"]
   var unit = 0
@@ -1732,7 +1732,7 @@ function formatCompactBytes(value) {
     unit++
   }
   var precision = bytes >= 100 || unit === 0 ? 0 : 1
-  return bytes.toFixed(precision) + units[unit]
+  return (formatter ? formatter(bytes, precision) : bytes.toFixed(precision)) + units[unit]
 }
 
 function formatDuration(value) {
@@ -1778,12 +1778,12 @@ function samplingProfile(value) {
   }
 }
 
-function formatTemperature(value, unit) {
+function formatTemperature(value, unit, formatter) {
   var celsius = Number(value)
   if (!isFinite(celsius)) return "—"
   var fahrenheit = String(unit || "Celsius").toLowerCase() === "fahrenheit"
   var displayed = fahrenheit ? celsius * 9 / 5 + 32 : celsius
-  return Math.round(displayed) + (fahrenheit ? "°F" : "°C")
+  return (formatter ? formatter(displayed, 0) : Math.round(displayed)) + (fahrenheit ? "°F" : "°C")
 }
 
 function temperatureRank(temperature) {
