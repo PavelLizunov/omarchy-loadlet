@@ -59,7 +59,8 @@ active branch, HEAD and index are preserved. Existing local work is not replaced
 | Fast capture/report/controller | PASS | Existing synthetic lifecycle, private storage, export and cold-import cases |
 | Power/fan checks | PASS | Mocked failed GPU stop, independent rollback, recovery identity, failed fan-save rollback and locked restore; no hardware writes |
 | Inert actual-consumer UI | PASS, 91 panel results, 4 raster results at each DPR 1/2 | No warnings; includes callback order, failed/malformed/late status and shared Overview apply |
-| Full CI/package reproduction | Pending exact checkpoint run | No prior CI result reused |
+| Local package/content/manifest | PASS | Hash binding, inert reader and scoped content heuristics; not a universal security conclusion |
+| First CI run, 41050414308 | FAIL on `ae10533fa0f574c97d96f62a0dcf283c1d1dfad4` | Exact byte reproduction passed; core and UI stopped at the fixture issues below |
 | Installed behavior / visual inspection | NOT RUN for this integration | No deployment, root-helper installation or new image acceptance |
 | Performance / long-session stability | NOT RUN for this integration | No new CPU, memory, latency or energy conclusion |
 
@@ -69,6 +70,16 @@ QML checks use inert I/O with the accessibility bridge disabled. They do not
 establish physical input, real systemd recovery, provider response or screen
 reader acceptance. The laptop's original reproductions were reviewed, not all
 re-executed here; new regressions cover the specific cases listed above.
+
+The first CI run exposed two fixture defects. The pinned host updates language
+in FileView's `loaded` callback; the newer local host also observes the text
+binding. The inert FileView now emits `loaded` when fixture text changes, so both
+host implementations receive a real load event. The capture-stop test inferred
+its latest session from the last row across unordered filesystem chunks. It now
+uses the session returned by `capture-500` and sorts that session by sequence.
+The lateness/no-catch-up assertions are unchanged. These test fixes do not change
+production code or turn the failed run into a pass; the follow-up CI result is
+reported against its own exact commit.
 
 Native build and focused checks ran locally as ordinary requested integration
 work. Full suite and independent package reproduction use existing GitHub CI.

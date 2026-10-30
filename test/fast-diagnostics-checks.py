@@ -56,15 +56,17 @@ with tempfile.TemporaryDirectory(prefix='loadlet-fast-') as tmp:
         count=sum(p.stat().st_size for p in (state/'omarchy/activity-lite/diagnostics').glob('*.jsonl'))
         time.sleep(.3)
         assert count==sum(p.stat().st_size for p in (state/'omarchy/activity-lite/diagnostics').glob('*.jsonl'))
-        command('capture-500');time.sleep(.6)
+        capture_status=command('capture-500')
+        latest=next(line.split('\t',1)[1] for line in capture_status if line.startswith('session\t'))
+        time.sleep(.6)
         os.kill(process.pid,signal.SIGSTOP);time.sleep(2.1);os.kill(process.pid,signal.SIGCONT)
         command('capture-status');time.sleep(.55)
         process.terminate();assert process.wait(timeout=3)==0
         rows=[json.loads(line) for p in (state/'omarchy/activity-lite/diagnostics').glob('samples-*.jsonl') for line in p.read_text().splitlines()]
         assert len({r['session'] for r in rows})==2
         assert len([r for r in rows if r['type']=='stop'])==2
-        latest=rows[-1]['session'];resumed=[r for r in rows if r['session']==latest and r['type']=='tick']
-        assert any(r['lateness_ms']>=1500 for r in resumed)
+        resumed=sorted((r for r in rows if r['session']==latest and r['type']=='tick'),key=lambda r:r['sequence'])
+        assert any(r['lateness_ms']>=1500 for r in resumed), resumed
         assert all(b['mono_ms']-a['mono_ms']>100 for a,b in zip(resumed,resumed[1:])), 'Catch-up burst'
         assert any(r['type']=='rollup' for p in (state/'omarchy/activity-lite/diagnostics-rollup').glob('*.jsonl') for r in map(json.loads,p.read_text().splitlines()))
         for p in (state/'omarchy/activity-lite/diagnostics').glob('*.jsonl'):

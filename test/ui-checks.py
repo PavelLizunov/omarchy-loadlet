@@ -46,6 +46,7 @@ Item {
   signal fileChanged()
   function reload() {}
   property string fixtureText: ""
+  onFixtureTextChanged: loaded()
   function text() { return fixtureText }
 }''',
     'Io/SplitParser': 'import QtQuick\nItem { signal read(string line) }',
