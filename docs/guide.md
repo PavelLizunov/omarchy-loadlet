@@ -183,7 +183,9 @@ work, exact energy use or the physical cause of heat by itself.
 - Error messages distinguish unavailable data from an idle machine.
 
 The interface uses `I18n.js` catalogs for Russian, English, German and Simplified
-Chinese. Russian is the default; `system` follows the Qt locale. PID, CPU, VRAM,
+Chinese. New defaults follow the live Omarchy language with `system`; explicit
+saved overrides are preserved. Untranslated languages currently fall back to
+English. The [50-locale migration](localization.md) remains incomplete. PID, CPU, VRAM,
 and byte units remain technical identifiers. Helper failures use localized UI
 messages rather than displaying untranslated stderr.
 

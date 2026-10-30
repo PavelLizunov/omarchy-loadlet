@@ -10,6 +10,7 @@ import "ProfileCodec.js" as ProfileCodec
 Column {
   id: root
   property var settings: ({})
+  property bool active: visible
   property var channels: []
   property var gpus: []
   property string language: "ru"
@@ -141,14 +142,18 @@ Column {
     return true
   }
   function applyProfile(profile) {
-    if (running) return
+    if (running || !profile) return
     pendingId=profile.id
     pendingPayload=ProfileCodec.encode(profile.config)
     operation="apply";statusKey="profile_pending";applyProcess.running=true
   }
+  function refreshStatus() {
+    if (active && !statusProcess.running) {statusDeadline.restart();statusProcess.running=true}
+  }
+  onActiveChanged: if(active)refreshStatus()
   Component.onCompleted: {
     selectProfile(settings.activePowerProfile || selectedId)
-    statusDeadline.restart();statusProcess.running=true
+    refreshStatus()
   }
   Component.onDestruction: {
     deadline.stop();statusDeadline.stop()
@@ -189,8 +194,8 @@ Column {
     }
   }
   Timer {
-    interval:5000;repeat:true;running:root.visible
-    onTriggered:if(!statusProcess.running){statusDeadline.restart();statusProcess.running=true}
+    interval:5000;repeat:true;running:root.active
+    onTriggered:root.refreshStatus()
   }
   Timer { id:statusDeadline;interval:5000;onTriggered:statusProcess.signal(9) }
   Timer { id:deadline;interval:360000;onTriggered:{root.operationExpired=true;applyProcess.signal(15);root.statusKey="profile_failed"} }

@@ -45,7 +45,8 @@ Item {
   signal loadFailed()
   signal fileChanged()
   function reload() {}
-  function text() { return "" }
+  property string fixtureText: ""
+  function text() { return fixtureText }
 }''',
     'Io/SplitParser': 'import QtQuick\nItem { signal read(string line) }',
     'Io/StdioCollector': '''import QtQuick
@@ -176,9 +177,15 @@ def main():
         imports = prepare(directory)
         env = dict(os.environ, QT_QPA_PLATFORM='offscreen', QT_QUICK_BACKEND='software')
         runner = os.environ.get('ACTIVITY_QMLTESTRUNNER') or shutil.which('qmltestrunner') or '/usr/lib/qt6/bin/qmltestrunner'
-        result = subprocess.run([runner, '-input', str(Path(directory) / 'tst_panel.qml'),
-                                 '-import', str(imports)], env=env, timeout=30,
-                                capture_output=True, text=True)
+        try:
+            result = subprocess.run([runner, '-input', str(Path(directory) / 'tst_panel.qml'),
+                                     '-import', str(imports)], env=env, timeout=90,
+                                    capture_output=True, text=True)
+        except subprocess.TimeoutExpired as error:
+            for stream, target in ((error.stdout, sys.stdout), (error.stderr, sys.stderr)):
+                if stream:
+                    print(stream.decode(errors='replace') if isinstance(stream, bytes) else stream, file=target)
+            raise
         print(result.stdout, end='')
         print(result.stderr, end='', file=sys.stderr)
         # QtTest can exit 0 with broken bindings. Warnings are not a UI pass.

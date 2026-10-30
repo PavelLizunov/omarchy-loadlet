@@ -1,6 +1,7 @@
 import QtQuick
 import Quickshell
 import Quickshell.Io
+import qs.Commons as Host
 import "Model.js" as Model
 import "I18n.js" as I18n
 import "HeatPolicy.js" as Heat
@@ -10,7 +11,7 @@ Item {
   id: root
   visible: false
   property var settings: ({})
-  readonly property string language: I18n.resolveLanguage(settings && settings.locale || "ru", Qt.locale().name)
+  readonly property string language: I18n.resolveLanguage(settings && settings.locale || "system", Host.I18n.language)
   property bool active: false
   property bool backgroundEnabled: false
   readonly property bool journalEnabled: settings && settings.diagnosticJournal === true

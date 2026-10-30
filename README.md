@@ -79,7 +79,8 @@ not uninstall system helpers/services or delete your local history.
 [2.16.0 audit evidence and limits](docs/release-2.16.0.md) ·
 [Issues](https://github.com/PavelLizunov/omarchy-loadlet/issues)
 
-Russian, English, German and Simplified Chinese are supported. Report the plugin
+Russian, English, German and Simplified Chinese are currently translated.
+The [50-locale Omarchy migration](docs/localization.md) is in progress. Report the plugin
 version, Omarchy version and reproducible steps. Do not post private diagnostic
 exports without reviewing them. Marketplace review is commit-specific and separate
 from GitHub releases; a listing badge does not certify current upstream code.

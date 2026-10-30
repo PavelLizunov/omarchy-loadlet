@@ -8,6 +8,7 @@ import importlib.util
 import json
 import math
 import os
+import re
 from pathlib import Path
 import shutil
 import selectors
@@ -15,8 +16,11 @@ import signal
 import tempfile
 import stat
 import subprocess
+import sys
 import time
 
+# The host watches the runtime tree; importing a sibling must not reload it.
+sys.dont_write_bytecode = True
 ROOT = Path(__file__).resolve().parent
 loader = importlib.machinery.SourceFileLoader('legacy_report', str(ROOT/'activity-report'))
 spec = importlib.util.spec_from_loader(loader.name, loader)
@@ -259,7 +263,7 @@ def export(summary, directory, start, end, session):
     return str(parent_path/name)
 
 
-def launch(runner, path):
+def launch(runner, path, question=''):
     path=Path(path)
     if path.parent!=state_path()/'exports' or not path.name.startswith('diagnostics-'):
         raise ValueError('Expected a Loadlet diagnostic export')
@@ -271,13 +275,60 @@ def launch(runner, path):
             if not stat.S_ISREG(s.st_mode) or s.st_uid!=os.getuid() or s.st_size>512*1024:raise ValueError('Invalid report')
         finally:os.close(source)
     finally:os.close(fd)
-    prompt=f'Analyze the Loadlet diagnostic report in {path}. Read AGENT-PROMPT.md and summary.json. Explain observed evidence, gaps and possible causes.'
+    prompt=f'Analyze the Loadlet diagnostic report in {path}. Read AGENT-PROMPT.md and summary.json. Explain observed evidence, gaps and possible causes.\nQuestion: {question}'
     if runner=='omarchy':argv=['omarchy-agent-prompt',prompt]
-    elif runner=='pi':argv=['omarchy-launch-tui','pi',prompt]
-    else:raise ValueError('Unsupported agent launcher')
-    if not shutil.which(argv[0]) or (runner!='omarchy' and not shutil.which(runner)):
-        raise ValueError('Agent launcher is unavailable')
+    else:
+        found=next((a for a in discovered_agents()['agents'] if a['value']==runner),None)
+        if not found:raise ValueError('Selected agent is unavailable')
+        # Other native agents open in the export directory; the UI copies the prompt.
+        args={'pi':[prompt],'claude':['--',prompt],'codex':['--',prompt]}.get(runner,[])
+        argv=['omarchy-launch-tui',found['executable'],*args]
+    if not shutil.which(argv[0]):raise ValueError('Agent launcher is unavailable')
     subprocess.run(argv,cwd=path,check=True,timeout=15)
+
+
+def discovered_agents():
+    catalog=Path('/usr/share/omarchy/default/omarchy/omarchy-menu.jsonc')
+    names={}
+    try:
+        with catalog.open('rb') as stream:raw=stream.read(1024*1024+1)
+        if len(raw)<=1024*1024:
+            for line in raw.decode('utf-8').splitlines():
+                if re.match(r'\s*"setup\.default\.agent\.[a-z0-9-]+"\s*:',line):
+                    item=next(iter(json.loads('{'+line.strip().rstrip(',')+'}').values()))
+                    action=item.get('action','')
+                    if re.fullmatch(r'omarchy-default-agent [a-z0-9-]+',action):
+                        names[action.split()[1]]=str(item.get('label') or action.split()[1])[:80]
+    except (OSError,ValueError,TypeError,StopIteration):pass
+    # Fallback for hosts without the native menu catalog; no agent is assumed installed.
+    if not names:names={'pi':'Pi','claude':'Claude','codex':'Codex'}
+    paths=[str(Path.home()/'.local/bin'),*os.get_exec_path()]
+    mise=shutil.which('mise')
+    if mise:
+        try:
+            result=subprocess.run([mise,'bin-paths'],env=dict(os.environ,MISE_OFFLINE='1'),
+                                  cwd='/',stdout=subprocess.PIPE,stderr=subprocess.DEVNULL,
+                                  text=True,timeout=2)
+            if result.returncode==0 and len(result.stdout)<65536:
+                paths+=result.stdout.splitlines()[:128]
+        except (OSError,subprocess.SubprocessError):pass
+    agents=[]
+    for name,label in names.items():
+        for directory in dict.fromkeys(paths):
+            candidate=Path(directory)/name
+            if any(part in str(candidate) for part in ('/mise/shims/','/mise/command-wrappers/')) or not candidate.is_file() or not os.access(candidate,os.X_OK):continue
+            try:
+                with candidate.open('rb') as stream:header=stream.read(4096)
+            except OSError:continue
+            if re.search(rb'\bmise (?:use|x) ',header):continue
+            agents.append({'value':name,'label':label,'executable':str(candidate),
+                           'inline':name=='pi','prompt':name in ('pi','claude','codex')})
+            break
+    try:
+        with (Path.home()/'.config/omarchy/defaults/agent').open() as stream:default=stream.read(128).strip()
+    except OSError:default=''
+    agents.sort(key=lambda a:(a['value']!=default,a['label'].casefold()))
+    return {'agents':agents,'default':default}
 
 
 def configured_models():
@@ -286,12 +337,16 @@ def configured_models():
     if not path.is_file():return []
     with path.open('rb') as stream:raw=stream.read(2*1024*1024+1)
     if len(raw)>2*1024*1024:raise ValueError('Pi model configuration is too large')
-    providers=json.loads(raw).get('providers',{})
+    data=json.loads(raw)
+    if not isinstance(data,dict):raise ValueError('Invalid Pi model configuration')
+    providers=data.get('providers',{})
     if not isinstance(providers,dict):raise ValueError('Invalid Pi model configuration')
     result={}
     for provider,config in providers.items():
         if not isinstance(config,dict):continue
-        for model in config.get('models',[]):
+        models=config.get('models',[])
+        if not isinstance(models,list):continue
+        for model in models:
             if not isinstance(model,dict):continue
             identity=model.get('id')
             if not isinstance(identity,str) or not identity or len(provider+'/'+identity)>200:continue
@@ -417,31 +472,40 @@ def main():
     parser.add_argument('--model',default='')
     parser.add_argument('--language',choices=('ru','en','de','zh'),default='ru')
     parser.add_argument('--rollups',action='store_true',help='Read aggregate-only ten-second history instead of raw samples')
-    parser.add_argument('--launch',choices=('omarchy','pi'))
+    parser.add_argument('--launch')
+    parser.add_argument('--handoff',help='Export the selected period and open a discovered terminal agent')
     parser.add_argument('--report',type=Path)
     args=parser.parse_args()
     try:
         if args.agent_info:
-            info=agent_info();info.pop('executable');info['models']=configured_models()
+            info=discovered_agents()
+            for agent in info['agents']:agent.pop('executable')
+            info.update(available=False,provider='',model='',models=[])
+            if any(a['value']=='pi' for a in info['agents']):
+                try:
+                    pi=agent_info();pi.pop('executable');info.update(pi);info['models']=configured_models()
+                except (OSError,ValueError,TypeError,AttributeError) as error:info['model_error']=str(error)
             print(json.dumps(info));return
         if len(args.question)>2000 or len(args.model)>200:raise ValueError('Agent input is too long')
         if args.launch:
             if not args.report:raise ValueError('Report path required')
-            launch(args.launch,args.report);print('{"launched":true}');return
+            launch(args.launch,args.report,args.question);print('{"launched":true}');return
         end=args.end if args.end is not None else time.time();start=args.start if args.start is not None else end-(args.seconds or args.hours*3600)
         if not math.isfinite(start) or not math.isfinite(end) or not 0<end-start<=7*24*3600:raise ValueError('Invalid time range')
         directory=args.state_dir or state_path()/('diagnostics-rollup' if args.rollups else 'diagnostics')
         result=summarize(records(directory,start,end,args.session),start,end)
         if args.analyze:
             result=analyze(result,args.question,args.model,args.language)
-        elif args.export:
+        elif args.export or args.handoff:
             if not result['records']:raise ValueError('No diagnostic records in the selected period')
             result={'path':export(result,directory,start,end,args.session)}
+            if args.handoff:
+                launch(args.handoff,result['path'],args.question);result['launched']=True
         encoded=json.dumps(result,ensure_ascii=True,separators=(',',':'))
         if len(encoded)>2*1024*1024:raise ValueError('Report output budget exceeded; narrow selection')
         print(encoded)
     except (OSError,ValueError,TypeError,KeyError,AttributeError,OverflowError,RecursionError,subprocess.SubprocessError) as error:
-        if args.analyze or args.agent_info:
+        if args.analyze or args.agent_info or args.handoff:
             print(json.dumps({'error':str(error)},ensure_ascii=True));raise SystemExit(1)
         parser.exit(1,f'Diagnostic report failed: {error}\n')
 

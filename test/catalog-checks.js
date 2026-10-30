@@ -16,6 +16,12 @@ for (const [locale, catalog] of Object.entries(context.strings)) {
 }
 for (const locale of Object.keys(context.strings)) assert.equal(context.t('title', locale), 'Loadlet');
 assert.equal(context.t('cancel', 'ru'), 'Отмена');
+assert.equal(context.resolveLanguage('system', 'de'), 'de');
+assert.equal(context.resolveLanguage('system', 'uk'), 'en');
+assert.equal(context.resolveLanguage('system', 'zh-TW'), 'en');
+assert.equal(context.resolveLanguage('system', 'zh-CN'), 'zh');
+assert.equal(context.resolveLanguage('ru', 'de'), 'ru');
+assert.equal(context.resolveLanguage('', 'en'), 'en');
 assert.match(context.t('status_sending', 'de', 'fixture'), /fixture/);
 assert.match(context.t('status_sending', 'zh', 'fixture'), /fixture/);
 const legacy = vm.createContext({ Qt: { locale: () => ({ name: 'en_US' }) } });

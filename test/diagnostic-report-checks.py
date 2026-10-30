@@ -4,6 +4,8 @@ import importlib.machinery
 import importlib.util
 import json
 import os
+import shutil
+import subprocess
 import tempfile
 from unittest.mock import patch
 ROOT=Path(__file__).resolve().parents[1]
@@ -43,4 +45,17 @@ with tempfile.TemporaryDirectory() as tmp,patch.dict(os.environ,{'XDG_STATE_HOME
     link=directory/'samples-link.jsonl';link.symlink_to(f)
     try:list(report.records(directory,0,30));raise AssertionError('Symlink admitted')
     except OSError:pass
-print('PASS diagnostic report: stable sensors, gaps, PID reuse, missing baseline, PSI deltas, selection, export and inert agent argv')
+with tempfile.TemporaryDirectory(prefix='loadlet-cold-runtime-') as tmp:
+    runtime=Path(tmp)/'runtime';runtime.mkdir()
+    config=Path(tmp)/'agent';config.mkdir();(config/'settings.json').write_text('{}');(config/'models.json').write_text('{}')
+    for name in ('diagnostic-report','activity-report'):shutil.copy2(ROOT/name,runtime/name)
+    env=dict(os.environ,PI_CODING_AGENT_DIR=str(config),XDG_STATE_HOME=str(Path(tmp)/'state'))
+    env.pop('PYTHONDONTWRITEBYTECODE',None)
+    before={p.name:p.read_bytes() for p in runtime.iterdir()}
+    for args in (['--agent-info'],['--seconds','60'],['--seconds','60','--export']):
+        result=subprocess.run(['/usr/bin/python3','-I',str(runtime/'diagnostic-report'),*args],
+                              env=env,capture_output=True,text=True,timeout=5)
+        assert result.returncode==(1 if '--export' in args else 0),result.stderr
+        assert {p.name for p in runtime.iterdir()}==set(before),'Helper wrote into watched runtime'
+        assert all((runtime/name).read_bytes()==data for name,data in before.items())
+print('PASS diagnostic report: stable sensors, gaps, PID reuse, missing baseline, PSI deltas, selection, export, inert argv and cold-runtime immutability')

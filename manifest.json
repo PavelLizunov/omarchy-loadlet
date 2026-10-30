@@ -25,7 +25,7 @@
     "allowMultiple": false,
     "defaultSection": "right",
     "defaults": {
-      "locale": "ru",
+      "locale": "system",
       "powerProfiles": "[]",
       "activePowerProfile": "",
       "autoGameProfiles": false,
@@ -191,7 +191,7 @@
         "key": "locale",
         "type": "string",
         "label": "Interface language",
-        "defaultValue": "ru"
+        "defaultValue": "system"
       },
       {
         "key": "samplingSpeed",

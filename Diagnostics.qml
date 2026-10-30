@@ -20,12 +20,17 @@ Column {
   property var report: ({series:[],sessions:[],process_frames:[],top_processes:[]})
   property string reportPath: ""
   property string error: ""
+  property string notice: ""
   property string action: ""
   property string runner: "omarchy"
   property bool panelOpen: true
   property bool agentVisible: false
   property bool agentAvailable: false
   property var agentModels: []
+  property var agents: []
+  property string selectedAgent: ""
+  readonly property var agent: agents.find(function(a){return a.value===selectedAgent}) || null
+  readonly property bool inlineAgent: !!agent && agent.inline===true
   property bool detailsVisible: false
   property bool agentDetailsVisible: false
   property bool customModel: false
@@ -68,11 +73,11 @@ Column {
     else Qt.callLater(function(){customModelField.forceActiveFocus();customModelField.selectAll()})
   }
   function request(kind) {
-    if(busy || (kind==="analyze" && (!agentAvailable || (customModel && !agentModel.trim()))))return
+    if(busy || (kind==="analyze" && (!agentAvailable || !inlineAgent || (customModel && !agentModel.trim()))) || (kind==="handoff" && !agent))return
     if(kind==="agent-info")agentAvailable=false
     if(kind==="read" || kind==="export")reportPath=""
     if(kind==="analyze") {agentAnswer="";answerModel="";answerRange=[]}
-    action=kind;error="";timedOut=false
+    action=kind;error="";notice="";timedOut=false
     deadline.interval=30000
     if(activity && activity.captureEnabled && kind!=="launch" && kind!=="agent-info") {
       waitingFlush=true;deadline.restart();activity.requestCaptureAction("flush")
@@ -89,6 +94,7 @@ Column {
       if(session)argv=argv.concat(["--session",session])
       if(action==="export")argv.push("--export")
       if(action==="analyze")argv=argv.concat(["--analyze","--question",agentQuestion || t("capture_question_default"),"--model",agentModel,"--language",language])
+      if(action==="handoff")argv=argv.concat(["--handoff",selectedAgent,"--question",agentQuestion || t("capture_question_default")])
     }
     deadline.interval=action==="analyze" ? 150000 : 30000
     query.command=argv;deadline.restart();query.running=true
@@ -172,7 +178,16 @@ Column {
       color:Host.Color.popups.text;font.family:Style.font.family;font.pixelSize:Style.font.caption
     }
     ChoiceDropdown {
+      objectName:"captureAgentRunner"
+      width:parent.width;label:root.t("capture_agent")
+      value:root.selectedAgent;options:root.agents
+      foreground:Host.Color.popups.text;accent:Host.Color.accent
+      enabled:!root.busy && root.agents.length>0
+      onChanged:function(value){root.selectedAgent=value;root.agentAnswer="";root.answerModel=""}
+    }
+    ChoiceDropdown {
       objectName:"captureAgentModel"
+      visible:root.inlineAgent
       width:parent.width;label:root.t("capture_agent_model")
       value:root.customModel ? "__custom__" : root.agentModel
       options:root.modelOptions
@@ -182,7 +197,7 @@ Column {
     }
     TextField {
       id:customModelField;objectName:"captureAgentCustomModel"
-      visible:root.customModel
+      visible:root.inlineAgent && root.customModel
       width:parent.width;text:root.agentModel;maximumLength:200
       placeholderText:"provider/model";Accessible.name:root.t("capture_model_custom")
       foreground:Host.Color.popups.text;accent:Host.Color.accent
@@ -220,15 +235,15 @@ Column {
         }
         onTextChanged:{if(length>2000)remove(2000,length);root.agentQuestion=text}
         Keys.onPressed:function(event){
-          if((event.key===Qt.Key_Return || event.key===Qt.Key_Enter) && (event.modifiers & Qt.ControlModifier) && !root.busy && root.agentAvailable) {
-            root.request("analyze");event.accepted=true
+          if((event.key===Qt.Key_Return || event.key===Qt.Key_Enter) && (event.modifiers & Qt.ControlModifier) && !root.busy && root.agent) {
+            root.request(root.inlineAgent ? "analyze" : "handoff");event.accepted=true
           }
         }
       }
     }
     Text {
       width:parent.width;wrapMode:Text.WordWrap;textFormat:Text.PlainText
-      text:root.t("capture_agent_notice")
+      text:root.t(root.inlineAgent ? "capture_agent_notice" : "capture_terminal_hint")
       color:Host.Color.popups.text;font.family:Style.font.family;font.pixelSize:Style.font.caption
     }
     Row {
@@ -236,10 +251,10 @@ Column {
       Button {
         objectName:"captureAnalyzeInline"
         width:parent.width-(agentCancel.visible ? agentCancel.width+parent.spacing : 0)
-        text:root.t(root.analyzing ? "capture_agent_wait" : "capture_analyze_inline")
+        text:root.t(root.analyzing ? "capture_agent_wait" : root.inlineAgent ? "capture_analyze_inline" : "capture_analyze")
         foreground:Host.Color.popups.text;accent:Host.Color.accent;bordered:true;focusable:true
-        enabled:!root.busy && root.agentAvailable && (!root.customModel || root.agentModel.trim()!=="")
-        onClicked:root.request("analyze")
+        enabled:!root.busy && !!root.agent && (!root.inlineAgent || (root.agentAvailable && (!root.customModel || root.agentModel.trim()!=="")))
+        onClicked:root.request(root.inlineAgent ? "analyze" : "handoff")
       }
       Button {
         id:agentCancel;objectName:"captureCancel"
@@ -250,7 +265,7 @@ Column {
       }
     }
     Text {
-      visible:!root.agentAvailable && !root.busy
+      visible:root.agents.length===0 && !root.busy
       width:parent.width;wrapMode:Text.WordWrap;textFormat:Text.PlainText
       text:root.t("capture_pi_missing")
       color:Host.Color.urgent;font.family:Style.font.family;font.pixelSize:Style.font.caption
@@ -287,9 +302,14 @@ Column {
     Text {
       visible:root.agentDetailsVisible
       width:parent.width;wrapMode:Text.WordWrap;textFormat:Text.PlainText
-      text:root.t("capture_inline_hint")+"\n"+root.t("capture_models_hint")
+      text:root.inlineAgent ? root.t("capture_inline_hint")+"\n"+root.t("capture_models_hint") : root.t("capture_terminal_hint")
       color:Host.Color.popups.text;font.family:Style.font.family;font.pixelSize:Style.font.caption
     }
+  }
+  Text {
+    visible:root.notice!==""
+    width:parent.width;text:root.notice;wrapMode:Text.WordWrap;textFormat:Text.PlainText
+    color:Host.Color.popups.text;font.family:Style.font.family;font.pixelSize:Style.font.caption
   }
   Text {
     visible:root.error!==""
@@ -421,7 +441,7 @@ Column {
     ChoiceDropdown {
       visible:root.reportPath!==""
       width:parent.width;label:root.t("capture_agent");value:root.runner
-      options:[{value:"omarchy",label:"Omarchy"},{value:"pi",label:"Pi"}]
+      options:[{value:"omarchy",label:"Omarchy"}].concat(root.agents)
       foreground:Host.Color.popups.text;accent:Host.Color.accent
       onChanged:function(value){root.runner=value}
     }
@@ -469,17 +489,25 @@ Column {
         }
         if(root.action==="agent-info") {
           if(!Array.isArray(result.models) || result.models.length>256)throw new Error("models")
+          if(!Array.isArray(result.agents) || result.agents.length>64)throw new Error("agents")
+          root.agents=result.agents
+          if(!root.agents.some(function(a){return a.value===root.selectedAgent}))root.selectedAgent=root.agents.length ? root.agents[0].value : ""
           root.agentAvailable=result.available===true
           root.agentModels=result.models
           root.defaultAgentModel=[result.provider,result.model].filter(function(v){return !!v}).join("/")
           root.customModel=root.agentModel!=="" && !root.agentModels.some(function(m){return m.value===root.agentModel})
+          if(result.model_error)root.error=String(result.model_error).slice(0,500)
         } else if(root.action==="analyze") {
           if(typeof result.answer!=="string" || result.answer.length>65536)throw new Error("answer")
           root.agentAnswer=result.answer;root.answerModel=String(result.model || "Pi")
           root.answerRange=result.range || []
-        } else if(root.action==="export") {
+        } else if(root.action==="export" || root.action==="handoff") {
           if(typeof result.path!=="string" || result.path[0]!=="/")throw new Error("path")
           root.reportPath=result.path
+          if(root.action==="handoff") {
+            Quickshell.clipboardText=I18n.t("diagnostic_prompt",root.language,result.path)+"\n"+root.agentQuestion
+            root.notice=root.t("capture_handed_off")
+          }
         } else if(root.action==="read") {
           if(result.schema!==2 || !Array.isArray(result.series) || result.series.length>128)throw new Error("schema")
           root.report=result

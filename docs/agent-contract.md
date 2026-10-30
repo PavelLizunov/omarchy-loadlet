@@ -31,8 +31,15 @@ copy; source files do not establish the loaded revision.
   not run an AI or apply system changes. Preserve existing reports/settings.
 - Process actions retain sampled PID/start time, ownership/session guards and
   separate force confirmation. No automatic escalation or same-name fallback.
-- Interface locales en/ru/de/zh use the existing catalog; brand Loadlet is invariant.
-  Russian remains default. New documentation/comments/commits use English.
+- The requested localization target is all 50 Omarchy registry locales, not the
+  previous en/ru/de/zh subset. Follow the installed omarchy skill's plugins.md
+  translation contract: plugin-owned JSON catalogs, native Commons.Translations,
+  live shell-language changes, locale-aware formatting and RTL presentation.
+  Preserve explicit saved language choices, including the legacy zh setting as
+  Simplified Chinese; never substitute it for Traditional Chinese. English
+  fallback is availability behavior, not completed target translation. Brand
+  Loadlet is invariant. New documentation/comments/commits use English.
+  See the exact target list and current gaps in performance-validation-plan.md.
 
 ## Verification and delivery
 

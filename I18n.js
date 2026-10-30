@@ -1,9 +1,9 @@
 .pragma library
 
-// Standard Omarchy plugin localization catalog (slovn.mx-ergo & slovn.cetra reference).
+// Legacy four-locale catalog; the target is Omarchy's 50-locale registry.
 var strings = {
   "en": {
-    "capture_models_loading": "Loading model list…",
+    "capture_models_loading": "Finding installed agents…",
     "capture_selected_session": "Analysis is limited to the selected recording.",
     "capture_selected_range": "Selected window: %1 – %2",
     "capture_idle": "Diagnostic recording is off.",
@@ -11,18 +11,20 @@ var strings = {
     "capture_details": "Recording options and export",
     "capture_models_hint": "The list comes from local Pi models.json, not an availability check. Use Other model for a built-in model. Enter adds a line; Ctrl+Enter starts analysis.",
     "capture_agent_details": "How this works",
+    "capture_terminal_hint": "Opens the selected agent in a terminal with its normal permissions. The request is copied for pasting if needed. Provider usage may be charged; closing Loadlet does not stop that session.",
+    "capture_handed_off": "Agent opened. The request is on the clipboard.",
     "capture_agent_notice": "Sends this period’s summary to the selected provider; usage may be charged.",
     "capture_model_custom": "Other model…",
     "capture_model_default": "Pi default",
-    "capture_inline_agent": "Ask Pi",
+    "capture_inline_agent": "Ask an agent",
     "capture_inline_hint": "Analyze the selected period with your Pi model. Only a bounded summary is sent; the provider may charge usage. No tools or automatic actions. Recording continues; local models add load. Closing Loadlet cancels analysis.",
     "capture_agent_model": "Model",
     "capture_agent_question": "Question (optional)",
     "capture_question_default": "What could explain heat or slowdown in this recording?",
-    "capture_agent_wait": "Pi is analyzing…",
+    "capture_agent_wait": "The agent is analyzing…",
     "capture_analyze_inline": "Analyze",
-    "capture_pi_missing": "Pi is unavailable. Install and configure it outside Loadlet.",
-    "capture_agent_failed": "Pi could not complete the analysis.",
+    "capture_pi_missing": "No installed agent found. Export or copy the report instead.",
+    "capture_agent_failed": "The agent could not complete the analysis.",
     "capture_agent_cancelled": "Cancelled. Recording was not stopped.",
     "capture_copy_answer": "Copy answer",
     "capture_zoom": "Inspect 60 s around selection",
@@ -318,7 +320,7 @@ var strings = {
     "hints_expanded": "e collapse  ·  / search  ·  c/g/m/p/t/n sort  ·  ↑/↓ select  ·  x end task  ·  r refresh"
   },
   "ru": {
-    "capture_models_loading": "Загрузка списка моделей…",
+    "capture_models_loading": "Поиск установленных агентов…",
     "capture_selected_session": "Анализ ограничен выбранной сессией записи.",
     "capture_selected_range": "Выбранный отрезок: %1 – %2",
     "capture_idle": "Диагностическая запись выключена.",
@@ -326,18 +328,20 @@ var strings = {
     "capture_details": "Параметры записи и экспорт",
     "capture_models_hint": "Список взят из локального models.json Pi, доступность не проверяется. Встроенную модель можно указать через «Другая модель». Enter — новая строка, Ctrl+Enter — анализ.",
     "capture_agent_details": "Как это работает",
+    "capture_terminal_hint": "Откроется выбранный агент в терминале с обычными полномочиями. Запрос скопируется для вставки при необходимости. Возможен расход лимитов; закрытие Loadlet не завершает эту сессию.",
+    "capture_handed_off": "Агент открыт. Запрос скопирован в буфер обмена.",
     "capture_agent_notice": "Сводка за этот период отправится выбранному провайдеру и может расходовать лимиты.",
     "capture_model_custom": "Другая модель…",
     "capture_model_default": "Как в Pi",
-    "capture_inline_agent": "Спросить Pi",
+    "capture_inline_agent": "Спросить агента",
     "capture_inline_hint": "Анализ выбранного периода вашей моделью Pi. Отправляется только краткая сводка; провайдер может списать лимиты. Без инструментов и автоматических действий. Запись продолжается; локальная модель добавляет нагрузку. Закрытие Loadlet отменяет анализ.",
     "capture_agent_model": "Модель",
     "capture_agent_question": "Вопрос — необязательно",
     "capture_question_default": "Что могло вызвать нагрев или торможение в этой записи?",
-    "capture_agent_wait": "Pi анализирует…",
+    "capture_agent_wait": "Агент анализирует…",
     "capture_analyze_inline": "Проанализировать",
-    "capture_pi_missing": "Pi недоступен. Установите и настройте его отдельно от Loadlet.",
-    "capture_agent_failed": "Pi не смог завершить анализ.",
+    "capture_pi_missing": "Установленные агенты не найдены. Можно экспортировать отчёт или скопировать запрос.",
+    "capture_agent_failed": "Агент не смог завершить анализ.",
     "capture_agent_cancelled": "Отменено. Запись не остановлена.",
     "capture_copy_answer": "Скопировать ответ",
     "capture_zoom": "Разобрать 60 с вокруг выбранной точки",
@@ -633,7 +637,7 @@ var strings = {
     "hints_expanded": "e свернуть  ·  / поиск  ·  c/g/m/p/t/n сорт.  ·  ↑/↓ выбор  ·  x завершить  ·  r обновить"
   },
   "de": {
-    "capture_models_loading": "Modellliste wird geladen…",
+    "capture_models_loading": "Installierte Agenten suchen…",
     "capture_selected_session": "Die Analyse ist auf die gewählte Aufnahme begrenzt.",
     "capture_selected_range": "Gewählter Ausschnitt: %1 – %2",
     "capture_idle": "Diagnoseaufnahme ist aus.",
@@ -641,18 +645,20 @@ var strings = {
     "capture_details": "Aufnahmeoptionen und Export",
     "capture_models_hint": "Die Liste stammt aus der lokalen models.json von Pi, ohne Verfügbarkeitsprüfung. Integrierte Modelle über Anderes Modell angeben. Enter: neue Zeile, Ctrl+Enter: Analyse.",
     "capture_agent_details": "So funktioniert es",
+    "capture_terminal_hint": "Öffnet den Agenten im Terminal mit seinen normalen Berechtigungen. Die Anfrage wird zum Einfügen kopiert. Kosten sind möglich; Schließen von Loadlet beendet diese Sitzung nicht.",
+    "capture_handed_off": "Agent geöffnet. Die Anfrage liegt in der Zwischenablage.",
     "capture_agent_notice": "Die Zusammenfassung dieses Zeitraums wird an den Anbieter gesendet; Kosten sind möglich.",
     "capture_model_custom": "Anderes Modell…",
     "capture_model_default": "Pi-Standard",
-    "capture_inline_agent": "Pi fragen",
+    "capture_inline_agent": "Agent fragen",
     "capture_inline_hint": "Den gewählten Zeitraum mit Ihrem Pi-Modell analysieren. Nur eine kurze Zusammenfassung wird gesendet; der Anbieter kann Kosten berechnen. Keine Werkzeuge oder automatischen Aktionen. Die Aufnahme läuft weiter; lokale Modelle erzeugen Last. Schließen von Loadlet bricht die Analyse ab.",
     "capture_agent_model": "Modell",
     "capture_agent_question": "Frage (optional)",
     "capture_question_default": "Was könnte Hitze oder Verlangsamung in dieser Aufnahme erklären?",
-    "capture_agent_wait": "Pi analysiert…",
+    "capture_agent_wait": "Der Agent analysiert…",
     "capture_analyze_inline": "Analysieren",
-    "capture_pi_missing": "Pi ist nicht verfügbar. Außerhalb von Loadlet installieren und konfigurieren.",
-    "capture_agent_failed": "Pi konnte die Analyse nicht abschließen.",
+    "capture_pi_missing": "Kein installierter Agent gefunden. Bericht exportieren oder Anfrage kopieren.",
+    "capture_agent_failed": "Der Agent konnte die Analyse nicht abschließen.",
     "capture_agent_cancelled": "Abgebrochen. Die Aufnahme läuft weiter.",
     "capture_copy_answer": "Antwort kopieren",
     "capture_zoom": "60 s um Auswahl untersuchen",
@@ -948,7 +954,7 @@ var strings = {
     "hints_expanded": "e einklappen  ·  / Suche  ·  c/g/m/p/t/n Sort.  ·  ↑/↓ Auswahl  ·  x beenden  ·  r aktual."
   },
   "zh": {
-    "capture_models_loading": "正在加载模型列表…",
+    "capture_models_loading": "正在查找已安装的代理…",
     "capture_selected_session": "仅分析所选录制会话。",
     "capture_selected_range": "所选时间段：%1 – %2",
     "capture_idle": "诊断录制已关闭。",
@@ -956,18 +962,20 @@ var strings = {
     "capture_details": "录制选项与导出",
     "capture_models_hint": "列表来自 Pi 本地 models.json，未检查可用性。内置模型可通过“其他模型”输入。Enter 换行，Ctrl+Enter 开始分析。",
     "capture_agent_details": "工作方式",
+    "capture_terminal_hint": "在终端中以通常权限打开所选代理，并复制请求以便粘贴。可能产生费用；关闭 Loadlet 不会终止该会话。",
+    "capture_handed_off": "已打开代理，请求已复制到剪贴板。",
     "capture_agent_notice": "此时段的摘要将发送给所选服务商，可能产生费用。",
     "capture_model_custom": "其他模型…",
     "capture_model_default": "Pi 默认模型",
-    "capture_inline_agent": "询问 Pi",
+    "capture_inline_agent": "询问代理",
     "capture_inline_hint": "使用您的 Pi 模型分析所选时段。仅发送简短摘要，服务商可能收费。不使用工具或自动操作。录制继续，本地模型会增加负载。关闭 Loadlet 将取消分析。",
     "capture_agent_model": "模型",
     "capture_agent_question": "问题（可选）",
     "capture_question_default": "这段录制中的发热或卡顿可能是什么原因？",
-    "capture_agent_wait": "Pi 正在分析…",
+    "capture_agent_wait": "代理正在分析…",
     "capture_analyze_inline": "分析",
-    "capture_pi_missing": "Pi 不可用。请在 Loadlet 外安装并配置。",
-    "capture_agent_failed": "Pi 未能完成分析。",
+    "capture_pi_missing": "未找到已安装的代理。可以导出报告或复制请求。",
+    "capture_agent_failed": "代理未能完成分析。",
     "capture_agent_cancelled": "已取消，录制未停止。",
     "capture_copy_answer": "复制回答",
     "capture_zoom": "查看所选时间前后 60 秒",
@@ -1265,16 +1273,15 @@ var strings = {
 };
 
 function resolveLanguage(lang, sysLocale) {
-  var requested = String(lang || "ru").toLowerCase().replace(/_/g, "-").trim();
+  var requested = String(lang || "system").toLowerCase().replace(/_/g, "-").trim();
   var value = requested === "system" || !requested
-    ? String(sysLocale || "ru").toLowerCase().replace(/_/g, "-").trim()
+    ? String(sysLocale || "en").toLowerCase().replace(/_/g, "-").trim()
     : requested;
   if (/^zh-(?:hant|tw|hk|mo)(?:-|$)/.test(value)) return "en";
   if (strings[value]) return value;
   var prefix = value.split("-")[0];
   if (strings[prefix]) return prefix;
-  if (prefix === "ru" || prefix === "be" || prefix === "uk" || prefix === "kk") return "ru";
-  return "ru";
+  return "en";
 }
 
 function t(key, lang, p1, p2) {

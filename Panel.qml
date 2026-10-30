@@ -21,6 +21,22 @@ Panel {
 
   property alias activityController: activity
   property Item barIcon: null
+  property Item profileHost: null
+  PowerProfiles {
+    id: powerProfiles
+    objectName: "powerProfiles"
+    parent: root.profileHost || root
+    visible: root.profileHost !== null
+    width: parent.width
+    active: root.opened && !root.settingsOpen
+    settings: root.settings
+    channels: activity.sensorSnapshot.controls || []
+    gpus: root.gpus
+    language: root.effectiveLanguage
+    foreground: root.foreground; accent: root.accent
+    onSaveSettings: function(values) { root.persistSettings(values) }
+    onApplied: activity.refresh()
+  }
 
   // Read-only diagnostics for lifecycle checks.
   IpcHandler {
@@ -346,7 +362,7 @@ Panel {
   property Item searchField: null
   property var processViewport: null
 
-  readonly property string effectiveLanguage: I18n.resolveLanguage(root.setting("locale", "ru"), Qt.locale().name)
+  readonly property string effectiveLanguage: I18n.resolveLanguage(root.setting("locale", "system"), Host.I18n.language)
   readonly property color foreground: Host.Color.popups.text
   readonly property color accent: Host.Color.accent
   readonly property color urgent: Host.Color.urgent
@@ -663,7 +679,7 @@ Panel {
 
   function resetPreferences() {
     persistSettings({
-      locale: "ru",
+      locale: "system",
       samplingSpeed: "Efficient",
       historySamples: 60,
       temperatureUnit: "Celsius",
@@ -1134,7 +1150,7 @@ Panel {
               accent: root.accent
               bordered: true
               focusable: true
-              selected: root.setting("locale", "ru") === modelData.code
+              selected: root.setting("locale", "system") === modelData.code
               onClicked: {
                 var code = modelData.code
                 root.languageExpanded = false
@@ -1202,9 +1218,53 @@ Panel {
         anchors.right: parent.right
         anchors.bottom: parent.bottom
 
+        Flickable {
+          id: profileShortcuts
+          objectName: "overviewProfiles"
+          visible: !root.settingsOpen && !root.sensorsOpen
+          width: parent.width;height: visible ? Style.space(28) : 0
+          contentWidth: profileButtons.width;contentHeight:height
+          clip:true;boundsBehavior:Flickable.StopAtBounds
+          flickableDirection:Flickable.HorizontalFlick
+          Row {
+            id: profileButtons
+            spacing:Style.spacing.xs
+            Repeater {
+              model:powerProfiles.profiles
+              SvgButton {
+                required property var modelData
+                objectName:"quickProfile-"+modelData.id
+                text:modelData.name;iconName:modelData.icon || "fans"
+                height:profileShortcuts.height
+                width:Math.min(implicitWidth,Style.space(180))
+                selected:powerProfiles.activeId===modelData.id
+                enabled:powerProfiles.capabilitiesReady && !powerProfiles.running
+                foreground:root.foreground;accent:root.accent
+                fontFamily:Style.font.family;fontSize:Style.font.caption
+                focusable:true;tooltipText:powerProfiles.summary(modelData)
+                onClicked:powerProfiles.applyProfile(modelData)
+                onActiveFocusChanged:if(activeFocus)profileShortcuts.contentX=Math.max(0,Math.min(x,profileShortcuts.contentWidth-profileShortcuts.width))
+              }
+            }
+          }
+          ScrollBar.horizontal:ScrollBar {policy:ScrollBar.AsNeeded}
+        }
+        Text {
+          id: quickProfileStatus
+          objectName:"quickProfileStatus"
+          visible:profileShortcuts.visible && powerProfiles.statusKey!==""
+          anchors.top:profileShortcuts.bottom
+          width:parent.width;height:visible ? Style.font.caption+Style.spacing.sm : 0
+          text:I18n.t(powerProfiles.statusKey,root.effectiveLanguage)
+          textFormat:Text.PlainText;elide:Text.ElideRight
+          color:powerProfiles.statusKey==="profile_failed" ? root.urgent : root.dim
+          font.family:Style.font.family;font.pixelSize:Style.font.caption
+        }
         Loader {
           id: contentLoader
-          anchors.fill: parent
+          anchors.top:quickProfileStatus.bottom
+          anchors.topMargin:profileShortcuts.visible ? Style.spacing.xs : 0
+          anchors.left:parent.left;anchors.right:parent.right;anchors.bottom:parent.bottom
           sourceComponent: root.settingsOpen
             ? settingsContent
             : (root.sensorsOpen ? (root.fansOpen ? fansContent : sensorsContent) : (root.expanded ? expandedContent : compactContent))
@@ -1509,7 +1569,7 @@ Panel {
 
         Flickable {
           width: parent.width
-          height: Math.min(root.tileHeight, Math.max(Style.space(80), compactBody.height - Style.space(100)
+          height: Math.min(root.tileHeight, Math.max(Style.space(40), compactBody.height - Style.space(100)
             - (root.compactRamStrip ? root.ramStripHeight + compactBody.spacing : 0)))
           contentWidth: width
           contentHeight: compactGrid.implicitHeight
@@ -1885,17 +1945,11 @@ Panel {
         objectName: "fanBody"
         width: parent.width
         spacing: Style.spacing.sm
-        PowerProfiles {
-          id: powerProfiles
-          objectName: "powerProfiles"
-          width: parent.width
-          settings: root.settings
-          channels: activity.sensorSnapshot.controls || []
-          gpus: root.gpus
-          language: root.effectiveLanguage
-          foreground: root.foreground; accent: root.accent
-          onSaveSettings: function(values) { root.persistSettings(values) }
-          onApplied: activity.refresh()
+        Item {
+          id: profileSlot
+          width:parent.width;height:powerProfiles.implicitHeight
+          Component.onCompleted:root.profileHost=profileSlot
+          Component.onDestruction:if(root.profileHost===profileSlot)root.profileHost=null
         }
         ComputerNavigator { visible: !powerProfiles.editorOpen }
         Text {
@@ -2805,7 +2859,7 @@ Panel {
         Flickable {
           id: summaryViewport
           width: parent.width
-          height: Math.min(summaryGrid.implicitHeight, Math.max(Style.space(72),
+          height: Math.min(summaryGrid.implicitHeight, Math.max(Style.space(40),
             parent.parent.height - expandedActions.height
               - (expandedHintBar.visible ? expandedHintBar.height + Style.spacing.xs : 0)
               - Math.max(Style.space(130), root.processRowHeight * 4 + Style.space(74))))

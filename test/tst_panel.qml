@@ -2,6 +2,7 @@ import QtQuick
 import QtTest
 import Quickshell
 import qs.Commons
+import qs.Commons as Host
 import "imports/ActivityHost/Ui" as NativeHost
 import "plugin" as Plugin
 import "mock-data.js" as MockData
@@ -57,6 +58,7 @@ Item {
       fail("Missing property " + prop)
     }
     function init() {
+      Host.I18n.languageFile.fixtureText=""
       plugin.close(); host.width=1600; host.height=1200
       Style.fontBaseSize=12; Style.spacingScaleWithFont=true
       plugin.settings={locale:"ru",iconIndicator:false}; plugin.sortKey="cpu";plugin.sortAscending=false
@@ -81,6 +83,9 @@ Item {
         icon.heatLevel=Qt.binding(function(){return ctrl.heatLevel})
         icon.motionEnabled=Qt.binding(function(){return plugin.booleanSetting('iconMotion',true)})
       }
+      var profiles=named("powerProfiles")
+      profiles.statusKey="";profiles.editorOpen=false;profiles.automationOptionsOpen=false
+      profiles.cpuCapabilities={policies:[]};profiles.capabilitiesReady=false;profiles.selectProfile("idle")
       plugin.activityController.resetData();plugin.activityController.lastTick=Date.now()
       MockData.populate(plugin.activityController); plugin.hintsVisible=true
       wait(60)
@@ -90,6 +95,25 @@ Item {
       var item=nodes(plugin).filter(function(n){return n.objectName===name})[0]
       verify(!!item,'Missing '+name)
       return item
+    }
+    function test_live_shell_language_and_saved_override() {
+      var ctrl=plugin.activityController
+      plugin.settings={locale:"system",iconIndicator:false};wait(10)
+      compare(plugin.effectiveLanguage,"en");compare(ctrl.language,"en")
+      ctrl.state="ready";ctrl.due={resources:123};ctrl.captureSession="locale-fixture"
+      Host.I18n.languageFile.fixtureText="de";wait(10)
+      compare(plugin.effectiveLanguage,"de");compare(ctrl.language,"de")
+      compare(ctrl.state,"ready");compare(ctrl.due.resources,123)
+      compare(ctrl.captureSession,"locale-fixture")
+      plugin.persistSettings({locale:"ru"})
+      Host.I18n.languageFile.fixtureText="en";wait(10)
+      compare(plugin.effectiveLanguage,"ru");compare(ctrl.language,"ru")
+      plugin.persistSettings({locale:"system"})
+      Host.I18n.languageFile.fixtureText="uk";wait(10)
+      compare(plugin.effectiveLanguage,"en","Untranslated locale uses English, not Russian")
+      Host.I18n.languageFile.fixtureText="zh-TW";wait(10)
+      compare(plugin.effectiveLanguage,"en","Traditional Chinese must not use Simplified")
+      plugin.persistSettings({locale:"zh"});compare(plugin.effectiveLanguage,"zh")
     }
     function test_fast_diagnostic_controls_and_report() {
       plugin.setSettingsOpen(true);plugin.settingsSection="diagnostics";wait(40)
