@@ -76,6 +76,18 @@ claimed. Local installation uses a fresh task-owned runtime path only when
 applied, without deleting settings/history or restarting the shared shell.
 Source, built, installed, loaded and user acceptance remain separate.
 
+The task runtime was copied to
+`~/.config/omarchy/plugins/slovn.activity-lite/runtime-laptop-fixes-4f00ec84`.
+Only the installed manifest entry point was switched to its `Panel.qml`, and the
+existing shell received `rescanPlugins` successfully. Root files, user settings
+and history were retained. The status source now exposes
+`implementationRevision: "laptop-fixes-20261030"`, but no post-install probe or
+visual check was run, so loaded adoption and screenshot acceptance are unverified.
+The installed Git checkout is deliberately locally modified and the ordinary
+updater should not be used to overwrite that task manifest without reconciliation.
+The system-wide CPU/fan adapters remain absent/unchanged; copying their sources
+inside a plugin runtime does not install privileged functionality.
+
 ## Remaining limits
 
 All changed target behavior is untested in this batch. Physical CPU/fan/NVIDIA
