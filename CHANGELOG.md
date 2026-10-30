@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.18.3 (checkpoint)
+
+- Remove the unsupported tabChangesFocus assignment from the Qt Quick question
+  editor. It prevented the entire 2.18.2 plugin from loading, including recording.
+- Keep the named-model picker, multiline question and existing saved settings.
+
 ## 2.18.2 (checkpoint)
 
 - Replace the primary provider/model text field with named choices from local Pi

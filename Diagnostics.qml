@@ -208,7 +208,7 @@ Column {
         Accessible.name:root.t("capture_agent_question")
         color:Host.Color.popups.text;placeholderTextColor:Qt.darker(Host.Color.popups.text,1.6)
         selectionColor:Style.selectionFillFor(Host.Color.popups.text,Host.Color.accent)
-        selectedTextColor:Host.Color.popups.text;selectByMouse:true;tabChangesFocus:true
+        selectedTextColor:Host.Color.popups.text;selectByMouse:true
         font.family:Style.font.family;font.pixelSize:Style.font.body
         leftPadding:Style.spacing.controlPaddingX;rightPadding:leftPadding
         topPadding:Style.spacing.inputPaddingY;bottomPadding:topPadding

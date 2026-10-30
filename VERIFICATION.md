@@ -1,5 +1,24 @@
 # Loadlet verification
 
+## Startup recovery — 2.18.3 checkpoint
+
+The user reported that Loadlet was not running. The shared shell was alive, but
+Loadlet status returned `Target not found.` and its sampler was absent. The
+shell journal identified Diagnostics.qml:211: `Cannot assign to non-existent
+property "tabChangesFocus"`, making Diagnostics and then Panel unavailable.
+This was an introduced 2.18.2 source error, not a missing service or provider.
+
+Removed that unsupported assignment and installed a fresh 24-file runtime through
+the existing shared shell. Status then reported 2.18.3 at the exact new entry
+point, ready, sampling, capture enabled at 500 ms, a nonempty recording session
+and empty reader/capture errors while the panel was closed. After reload settled,
+the same session advanced from sequence 147 to 294; current-session tick records
+were present on disk at interval_ms 500. No shell.json write,
+second shell, model request, hardware control change or full test run was used.
+The QML scanner reports that the user plugin runtime is outside the shell config
+folder; this warning did not prevent the observed load. Agent interaction, popup
+geometry and real inference remain separate unverified behavior.
+
 ## Agent form usability — 2.18.2 checkpoint
 
 The user-supplied 2.18.1 screenshot showed a technical provider/model input, a
