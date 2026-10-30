@@ -280,6 +280,29 @@ def launch(runner, path):
     subprocess.run(argv,cwd=path,check=True,timeout=15)
 
 
+def configured_models():
+    directory=Path(os.environ.get('PI_CODING_AGENT_DIR') or Path.home()/'.pi/agent')
+    path=directory/'models.json'
+    if not path.is_file():return []
+    with path.open('rb') as stream:raw=stream.read(2*1024*1024+1)
+    if len(raw)>2*1024*1024:raise ValueError('Pi model configuration is too large')
+    providers=json.loads(raw).get('providers',{})
+    if not isinstance(providers,dict):raise ValueError('Invalid Pi model configuration')
+    result={}
+    for provider,config in providers.items():
+        if not isinstance(config,dict):continue
+        for model in config.get('models',[]):
+            if not isinstance(model,dict):continue
+            identity=model.get('id')
+            if not isinstance(identity,str) or not identity or len(provider+'/'+identity)>200:continue
+            value=provider+'/'+identity
+            name=model.get('name') or identity
+            if not isinstance(name,str):name=identity
+            result[value]={'value':value,'label':name.split(' — ',1)[0][:160]+' · '+provider[:80]}
+            if len(result)>256:raise ValueError('Too many configured Pi models')
+    return sorted(result.values(),key=lambda model:model['label'].casefold())
+
+
 def agent_info():
     directory=Path(os.environ.get('PI_CODING_AGENT_DIR') or Path.home()/'.pi/agent')
     settings={}
@@ -399,7 +422,8 @@ def main():
     args=parser.parse_args()
     try:
         if args.agent_info:
-            info=agent_info();info.pop('executable');print(json.dumps(info));return
+            info=agent_info();info.pop('executable');info['models']=configured_models()
+            print(json.dumps(info));return
         if len(args.question)>2000 or len(args.model)>200:raise ValueError('Agent input is too long')
         if args.launch:
             if not args.report:raise ValueError('Report path required')

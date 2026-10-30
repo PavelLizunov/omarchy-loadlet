@@ -1,9 +1,10 @@
-# High-resolution diagnostics — 2.18.1 checkpoint
+# High-resolution diagnostics — 2.18.2 checkpoint
 
 ## Use
 
 Settings → History → Start diagnostics begins a separate, explicit recording.
-Choose a CPU polling target of 1000, 500 (default), or 250 ms. Changing the target
+Recording options and export offers a CPU polling target of 1000, 500 (default),
+or 250 ms. Changing the target
 starts a new recording. Problem now saves a timestamped incident marker. Stop
 ends only the additional diagnostics; ordinary monitoring and legacy recording
 settings are unchanged. Closing the panel does not stop recording. Unloading the
@@ -20,14 +21,23 @@ selector to leave the narrowed range. Charts retain extrema, not every observati
 or exact simultaneity. Coverage, invalid records and capacity omissions remain
 visible. Queries are explicit, not another periodic polling loop.
 
-Pi inside Loadlet opens an optional question and provider/model field, initialized
-from the installed Pi configuration. Analyze here reads the selected period or
+Ask Pi switches from local charts to a compact analysis form. The Model dropdown
+lists up to 256 explicitly configured entries from local Pi models.json, using
+display names. Pi default follows the current Pi default; an explicit choice is
+saved only for Loadlet as diagnosticAgentModel. Other model retains manual
+provider/model input for built-in models not listed in that file. This is local
+configuration discovery, not authenticated model availability or a network query.
+The optional question accepts multiple lines (up to 2000 characters); Enter adds
+a line and Ctrl+Enter runs analysis. Analyze reads the selected period or
 60-second selection, flushes active recording, and shows the final plain-text
 answer in the panel. It is a one-shot answer, not a persistent chat; previous
 questions/answers are not sent again. Copy answer is available. Cancel, panel
 close or component teardown stops this owned job without stopping recording.
-Changing the selected range does not change an already-running request; each
-answer labels its original period and requested model selector.
+Period and session changes are disabled while a request runs; each answer labels
+its original period and requested model selector. The provider-usage notice stays
+visible before analysis; How this works holds the longer explanation. Recording
+options and export holds cadence/session/export controls. Legacy diagnostic
+history is a separate collapsed disclosure; hiding it does not disable it.
 
 This path uses Pi 1.4.0 print mode and existing credentials/model definitions.
 A bounded summary (up to 96 KiB) includes sensor extrema, CPU/process summaries,

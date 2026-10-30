@@ -73,7 +73,7 @@ Panel {
         captureInterval: activity.captureAppliedInterval,
         heatThreshold: activity.heatThreshold,
         productName: "Loadlet",
-        iconRevision: "2.18.1",
+        iconRevision: "2.18.2",
         rightClickAction: "none",
         iconTooltip: button.tooltipText,
         iconConsumer: String(Qt.resolvedUrl("Panel.qml")),
@@ -674,7 +674,7 @@ Panel {
       iconLoadThreshold: 50,
       iconHeatThreshold: 80,
       iconMotion: true,
-      diagnosticJournal: false, diagnosticCapture: false, diagnosticCaptureInterval: 500, sensorAssignments: "{}",
+      diagnosticJournal: false, diagnosticCapture: false, diagnosticCaptureInterval: 500, diagnosticAgentModel: "", sensorAssignments: "{}",
       fanPlace_pwm2: "unknown", fanPlace_pwm3: "unknown", fanPlace_pwm4: "unknown", fanPlace_pwm5: "unknown",
       compactTileCount: 2, compactTile0: "cpu", compactTile1: "ram", compactTile2: "gpu", compactRamStrip: true, sensorRecording: false
     })
@@ -2638,65 +2638,82 @@ Panel {
                 panelOpen: root.opened
                 activity: root.activityController
                 language: root.effectiveLanguage
+                savedAgentModel: String(root.setting("diagnosticAgentModel", ""))
+                onAgentModelSelected: function(model) { root.persistSettings({diagnosticAgentModel:model}) }
               }
-              Toggle {
-                objectName: "diagnosticJournalToggle"
+              Button {
+                objectName: "legacyDiagnosticsToggle"
                 width: parent.width
-                label: I18n.t("diagnostic_journal",root.effectiveLanguage)
-                description: I18n.t("diagnostic_journal_desc",root.effectiveLanguage)
-                checked: root.booleanSetting("diagnosticJournal",false)
-                foreground: root.foreground;accent: root.accent
-                fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
-                onClicked: root.persistSettings({diagnosticJournal: !root.booleanSetting("diagnosticJournal",false)})
+                text: I18n.t("capture_legacy",root.effectiveLanguage)
+                selected: legacyDiagnostics.visible
+                iconText: legacyDiagnostics.visible ? "▾" : "▸"
+                foreground: activity.journalError ? root.urgent : root.foreground
+                accent: root.accent;focusable:true
+                onClicked: legacyDiagnostics.visible=!legacyDiagnostics.visible
               }
-              Text {
-                width: parent.width
-                text: activity.journalError ? I18n.t("diagnostic_write_failed",root.effectiveLanguage)
-                  : I18n.t("diagnostic_retention",root.effectiveLanguage)
-                color: activity.journalError ? root.urgent : root.dim
-                font.family: root.bar ? root.bar.fontFamily : Style.font.family
-                font.pixelSize: Style.font.caption;wrapMode: Text.WordWrap
-              }
-              ChoiceDropdown {
-                objectName: "diagnosticPeriodDropdown"
-                width: parent.width
-                label: I18n.t("diagnostic_period",root.effectiveLanguage)
-                value: String(diagnosticExport.hours)
-                options: [1,2,6,24,168].map(function(n){return {value:String(n),label:I18n.t("diagnostic_hours",root.effectiveLanguage,n)}})
-                foreground: root.foreground;accent: root.accent
-                fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
-                onChanged: function(n){diagnosticExport.hours=Number(n)}
-              }
-              SvgButton {
-                objectName: "diagnosticExportButton"
-                iconName: "export"
-                width: parent.width
-                text: I18n.t(diagnosticExport.running ? "diagnostic_exporting" : "diagnostic_export",root.effectiveLanguage)
-                enabled: !diagnosticExport.running
-                foreground: root.foreground;accent: root.accent
-                fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
-                focusable: true;bordered: true
-                onClicked: diagnosticExport.request()
-              }
-              Text {
-                width: parent.width
-                visible: diagnosticExport.resultPath!=="" || diagnosticExport.error!==""
-                text: diagnosticExport.error || diagnosticExport.resultPath
-                textFormat: Text.PlainText
-                color: diagnosticExport.error!=="" ? root.urgent : root.dim
-                font.family: root.bar ? root.bar.fontFamily : Style.font.family
-                font.pixelSize: Style.font.caption;wrapMode: Text.WrapAnywhere
-              }
-              SvgButton {
-                objectName: "diagnosticCopyPromptButton"
-                iconName: "copy"
-                width: parent.width
-                visible: diagnosticExport.resultPath!==""
-                text: I18n.t("diagnostic_copy_prompt",root.effectiveLanguage)
-                foreground: root.foreground;accent: root.accent
-                fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
-                focusable: true;bordered: true
-                onClicked: diagnosticExport.copyPrompt()
+              Column {
+                id: legacyDiagnostics
+                visible:false
+                width:parent.width;spacing:Style.spacing.md
+                Toggle {
+                  objectName: "diagnosticJournalToggle"
+                  width: parent.width
+                  label: I18n.t("diagnostic_journal",root.effectiveLanguage)
+                  description: I18n.t("diagnostic_journal_desc",root.effectiveLanguage)
+                  checked: root.booleanSetting("diagnosticJournal",false)
+                  foreground: root.foreground;accent: root.accent
+                  fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
+                  onClicked: root.persistSettings({diagnosticJournal: !root.booleanSetting("diagnosticJournal",false)})
+                }
+                Text {
+                  width: parent.width
+                  text: activity.journalError ? I18n.t("diagnostic_write_failed",root.effectiveLanguage)
+                    : I18n.t("diagnostic_retention",root.effectiveLanguage)
+                  color: activity.journalError ? root.urgent : root.dim
+                  font.family: root.bar ? root.bar.fontFamily : Style.font.family
+                  font.pixelSize: Style.font.caption;wrapMode: Text.WordWrap
+                }
+                ChoiceDropdown {
+                  objectName: "diagnosticPeriodDropdown"
+                  width: parent.width
+                  label: I18n.t("diagnostic_period",root.effectiveLanguage)
+                  value: String(diagnosticExport.hours)
+                  options: [1,2,6,24,168].map(function(n){return {value:String(n),label:I18n.t("diagnostic_hours",root.effectiveLanguage,n)}})
+                  foreground: root.foreground;accent: root.accent
+                  fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
+                  onChanged: function(n){diagnosticExport.hours=Number(n)}
+                }
+                SvgButton {
+                  objectName: "diagnosticExportButton"
+                  iconName: "export"
+                  width: parent.width
+                  text: I18n.t(diagnosticExport.running ? "diagnostic_exporting" : "diagnostic_export",root.effectiveLanguage)
+                  enabled: !diagnosticExport.running
+                  foreground: root.foreground;accent: root.accent
+                  fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
+                  focusable: true;bordered: true
+                  onClicked: diagnosticExport.request()
+                }
+                Text {
+                  width: parent.width
+                  visible: diagnosticExport.resultPath!=="" || diagnosticExport.error!==""
+                  text: diagnosticExport.error || diagnosticExport.resultPath
+                  textFormat: Text.PlainText
+                  color: diagnosticExport.error!=="" ? root.urgent : root.dim
+                  font.family: root.bar ? root.bar.fontFamily : Style.font.family
+                  font.pixelSize: Style.font.caption;wrapMode: Text.WrapAnywhere
+                }
+                SvgButton {
+                  objectName: "diagnosticCopyPromptButton"
+                  iconName: "copy"
+                  width: parent.width
+                  visible: diagnosticExport.resultPath!==""
+                  text: I18n.t("diagnostic_copy_prompt",root.effectiveLanguage)
+                  foreground: root.foreground;accent: root.accent
+                  fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
+                  focusable: true;bordered: true
+                  onClicked: diagnosticExport.copyPrompt()
+                }
               }
             }
           }

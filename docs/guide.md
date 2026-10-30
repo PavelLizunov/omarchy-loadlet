@@ -90,8 +90,10 @@ Settings → History also provides explicit native diagnostic sessions with
 window analysis, on-demand Pi answers inside Loadlet, and optional Omarchy/Pi
 terminal handoff. Start/Stop and interval are saved across shell reloads; new
 installations still default to off. It does not replace the legacy recording
-below. See [usage, storage bounds,
-measured cost and evidence limitations](fast-diagnostics.md).
+below. Ask Pi offers a named-model dropdown and optional multiline question;
+model choice is saved only for Loadlet. Recording options/export and the separate
+legacy history are collapsed until needed. See [usage, storage bounds, measured
+cost and evidence limitations](fast-diagnostics.md).
 
 ## Diagnostic history and agent recommendations
 

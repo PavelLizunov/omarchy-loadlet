@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "slovn.activity-lite",
   "name": "Loadlet",
-  "version": "2.18.1",
+  "version": "2.18.2",
   "author": "slovn; based on Kristoffer Haugland's Activity Monitor",
   "license": "MIT",
   "description": "A calm, low-overhead glance at CPU, memory, GPU, storage, and processes — with a die that matches your chip",
@@ -49,6 +49,7 @@
       "diagnosticJournal": false,
       "diagnosticCapture": false,
       "diagnosticCaptureInterval": 500,
+      "diagnosticAgentModel": "",
       "sensorAssignments": "{}",
       "fanPlace_pwm2": "unknown",
       "fanPlace_pwm3": "unknown",
@@ -60,6 +61,7 @@
       "fanOutput_pwm5": -1
     },
     "schema": [
+      {"key":"diagnosticAgentModel","type":"string","label":"Diagnostic Pi model (empty: Pi default)","defaultValue":""},
       {"key":"diagnosticCapture","type":"boolean","label":"High-resolution diagnostic recording","defaultValue":false},
       {"key":"diagnosticCaptureInterval","type":"integer","label":"Diagnostic CPU interval (250, 500 or 1000 ms)","defaultValue":500,"min":250,"max":1000},
       {"key":"autoGameProfiles","type":"boolean","label":"Automatic game profiles","defaultValue":false},

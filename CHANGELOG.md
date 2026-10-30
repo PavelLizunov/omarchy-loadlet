@@ -1,5 +1,15 @@
 # Changelog
 
+## 2.18.2 (checkpoint)
+
+- Replace the primary provider/model text field with named choices from local Pi
+  configuration, a Pi-default option and a secondary manual-model fallback.
+  Remember explicit model selection for Loadlet without changing Pi defaults.
+- Add a multiline optional question, Ctrl+Enter, adjacent Analyze/Cancel actions
+  and a visible provider-usage notice. Separate local charts from the agent form.
+- Collapse recording options, exports, long explanations and legacy diagnostics
+  instead of stacking them all into the primary interaction.
+
 ## 2.18.1 (checkpoint)
 
 - Save diagnostic recording preference and CPU interval; resume in a new session

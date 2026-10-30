@@ -1,5 +1,20 @@
 # Loadlet verification
 
+## Agent form usability — 2.18.2 checkpoint
+
+The user-supplied 2.18.1 screenshot showed a technical provider/model input, a
+single-line question and the legacy history directly beneath the agent form.
+That screenshot and owning source establish the reported design problem; prior
+installation did not establish usability. The correction uses the existing local
+ChoiceDropdown, Qt Quick multiline input and Omarchy palette/border tokens.
+
+The model list reads only bounded local Pi models.json metadata. It does not
+probe credentials, run Pi, fetch catalogs or establish model availability.
+Current native interaction, popup geometry, new rendering, screen-reader use and
+real model output remain unverified. No local tests, renders or inference calls
+were requested or run for this implementation follow-up. Independent review was
+not performed. The sampler and binary provenance are unchanged.
+
 ## Inline Pi and saved recording — 2.18.1 checkpoint
 
 Implementation uses the installed Pi 1.4.0 print-mode contract. Source review
