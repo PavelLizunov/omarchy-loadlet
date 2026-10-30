@@ -1,5 +1,16 @@
 # Changelog
 
+## 2.18.11
+
+- Add a Memory tab and a RAM-tile shortcut for explicit cache cleanup. Keep the
+  operation alive across page changes and preserve the existing panel dimensions.
+- Confirm and authenticate each request through Polkit, then sync and drop clean
+  caches. Add no automatic cleanup, persistent grant or application termination.
+- Show actual before/after cache and available-memory snapshots, denial, failure
+  and unknown outcomes. Cache size is not guaranteed reclaimable memory.
+- Preserve the sampler binary and saved profiles/settings. Cleanup, tests and
+  visual acceptance were not executed during implementation.
+
 ## 2.18.10
 
 - Move the four existing catalogs into plugin-owned JSON, using native

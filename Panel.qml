@@ -31,6 +31,18 @@ Panel {
   property alias activityController: activity
   property Item barIcon: null
   property Item profileHost: null
+  property Item memoryHost: null
+  MemoryCleanup {
+    id: memoryCleanup
+    parent: root.memoryHost || root
+    visible: root.memoryHost !== null
+    width: parent.width; height: parent.height
+    active: root.opened && root.memoryOpen && !root.settingsOpen && !root.languageExpanded
+    locale: strings
+    memory: activity.glancePrevious.memory
+    memoryReady: activity.glanceFresh && activity.glanceMemoryTotal > 0
+    onCompleted: if (root.opened) activity.refresh()
+  }
   PowerProfiles {
     id: powerProfiles
     objectName: "powerProfiles"
@@ -100,8 +112,11 @@ Panel {
         captureInterval: activity.captureAppliedInterval,
         heatThreshold: activity.heatThreshold,
         productName: "Loadlet",
-        iconRevision: "2.18.10",
-        implementationRevision: "native-locale-20261030",
+        iconRevision: "2.18.11",
+        implementationRevision: "memory-clean-20261031",
+        memoryTab: root.memoryOpen,
+        memoryCleanupRunning: memoryCleanup.running,
+        memoryCleanupStatus: memoryCleanup.statusKey,
         language: strings.language,
         rightToLeft: strings.rightToLeft,
         translatedCatalog: strings.hasCatalog,
@@ -132,7 +147,8 @@ Panel {
   property bool sensorsOpen: false
   property bool fansOpen: false
   property bool profilesOpen: false
-  readonly property bool overviewOpen: !sensorsOpen && !profilesOpen
+  property bool memoryOpen: false
+  readonly property bool overviewOpen: !sensorsOpen && !profilesOpen && !memoryOpen
   property string fanStatusKey: ""
   property int fanDuration: 10
   property var fanProfileOutputs: ({})
@@ -362,6 +378,7 @@ Panel {
     fansOpen = key === "fans"
     sensorsOpen = key === "fans" || key === "sensors"
     profilesOpen = key === "profiles"
+    memoryOpen = key === "memory"
     if (key === "sensors") loadSensorHistory()
   }
   Component.onDestruction: {
@@ -599,6 +616,7 @@ Panel {
   }
 
   function openDetails() {
+    memoryOpen = false
     powerProfiles.cancelEdit()
     profilesOpen = false
     root.open()
@@ -927,6 +945,7 @@ Panel {
   onTopProcessesChanged: restoreProcessCursor()
 
   onOpenedChanged: {
+    memoryOpen = false
     powerProfiles.cancelEdit()
     profilesOpen = false
     if (opened) {
@@ -1075,6 +1094,7 @@ Panel {
       }
       Keys.onEscapePressed: {
         if (processActions.confirmationOpen) processActions.cancel()
+        else if (memoryCleanup.confirming) memoryCleanup.confirming = false
         else if (root.languageExpanded) root.languageExpanded = false
         else if (root.settingsOpen) root.setSettingsOpen(false)
         else if (powerProfiles.editorOpen) powerProfiles.cancelEdit()
@@ -1109,6 +1129,7 @@ Panel {
           processActions.cancel()
           return
         }
+        if (memoryCleanup.confirming) { memoryCleanup.confirming = false; return }
         if (root.languageExpanded) { root.languageExpanded = false; return }
         if (root.settingsOpen) root.setSettingsOpen(false)
         else if (powerProfiles.editorOpen) powerProfiles.cancelEdit()
@@ -1252,8 +1273,8 @@ Panel {
         clip: true; boundsBehavior: Flickable.StopAtBounds
         flickableDirection: Flickable.HorizontalFlick
         readonly property real naturalWidth: overviewTab.implicitWidth + sensorsTab.implicitWidth
-          + fansTab.implicitWidth + profilesTab.implicitWidth + tabRow.spacing * 3
-        readonly property real extraTabWidth: Math.max(0,(width-naturalWidth)/4)
+          + fansTab.implicitWidth + profilesTab.implicitWidth + memoryTab.implicitWidth + tabRow.spacing * 4
+        readonly property real extraTabWidth: Math.max(0,(width-naturalWidth)/5)
         function reveal(tab) {
           if (!tab) return
           if (tab.x < contentX) contentX=tab.x
@@ -1262,7 +1283,7 @@ Panel {
         }
         onContentWidthChanged: contentX=Math.max(0,Math.min(contentX,contentWidth-width))
         onWidthChanged: Qt.callLater(function() {
-          pageTabs.reveal(root.profilesOpen ? profilesTab : root.sensorsOpen ? (root.fansOpen ? fansTab : sensorsTab) : overviewTab)
+          pageTabs.reveal(root.memoryOpen ? memoryTab : root.profilesOpen ? profilesTab : root.sensorsOpen ? (root.fansOpen ? fansTab : sensorsTab) : overviewTab)
         })
         ScrollBar.horizontal: ScrollBar { policy: ScrollBar.AsNeeded }
         Row {
@@ -1280,7 +1301,7 @@ Panel {
             fontSize: Style.font.bodySmall
             foreground: root.foreground; accent: root.accent
             bordered: false; focusable: true
-            selected: pageKey === (root.profilesOpen ? "profiles" : root.sensorsOpen ? (root.fansOpen ? "fans" : "sensors") : "overview")
+            selected: pageKey === (root.memoryOpen ? "memory" : root.profilesOpen ? "profiles" : root.sensorsOpen ? (root.fansOpen ? "fans" : "sensors") : "overview")
             Rectangle {
               anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom
               height: Math.max(1,Style.space(2)); color: root.accent
@@ -1294,6 +1315,7 @@ Panel {
           PageTab { id:sensorsTab; pageKey:"sensors"; iconName:"temperature" }
           PageTab { id:fansTab; pageKey:"fans"; iconName:"fans" }
           PageTab { id:profilesTab; pageKey:"profiles"; iconName:"category" }
+          PageTab { id:memoryTab; pageKey:"memory"; iconName:"ram" }
         }
       }
 
@@ -1369,6 +1391,7 @@ Panel {
           anchors.left:parent.left;anchors.right:parent.right;anchors.bottom:parent.bottom
           sourceComponent: root.settingsOpen
             ? settingsContent
+            : root.memoryOpen ? memoryContent
             : root.profilesOpen ? profilesContent
             : (root.sensorsOpen ? (root.fansOpen ? fansContent : sensorsContent) : (root.expanded ? expandedContent : compactContent))
         }
@@ -1488,6 +1511,7 @@ Panel {
           text: root.settingsOpen
             ? root.t("title") + " · " + root.t("settings")
             : powerProfiles.editorOpen ? root.t("title") + " · " + root.t(powerProfiles.profiles.some(function(p){return p.id===powerProfiles.draft.id}) ? "profile_edit_short" : "profile_new")
+            : root.memoryOpen ? root.t("title") + " · " + root.t("memory")
             : root.profilesOpen ? root.t("title") + " · " + root.t("profiles")
             : root.sensorsOpen ? root.t("title") + " · " + root.t(root.fansOpen ? "fans" : "sensors")
             : (root.expanded
@@ -2046,6 +2070,16 @@ Panel {
           font.pixelSize: Style.font.caption
         }
       }
+    }
+  }
+
+  Component {
+    id: memoryContent
+    Item {
+      id: memorySlot
+      anchors.fill: parent
+      Component.onCompleted: root.memoryHost = memorySlot
+      Component.onDestruction: if (root.memoryHost === memorySlot) root.memoryHost = null
     }
   }
 
@@ -3181,8 +3215,16 @@ Panel {
     bar: kind === "storage" && root.storageSnapshot.sample > 0 ? root.storageUsedFraction : -1
     tone: kind === "cpu" ? root.pressureColor(root.metrics.cpu) : kind === "ram" ? root.pressureColor(root.metrics.memory) : root.accent
     detailTone: kind === "cpu" && activity.heatAlert ? root.urgent : root.dim
-    interactive: kind === "disk" ? root.canCycleDisks : kind === "storage" ? root.canCycleStorage : false
-    onActivated: function(delta) { if (kind === "disk") root.cycleDisk(delta); else if (kind === "storage") root.cycleStorage(delta) }
+    interactive: kind === "ram" || (kind === "disk" ? root.canCycleDisks : kind === "storage" ? root.canCycleStorage : false)
+    tooltipText: kind === "ram" ? root.t("memory_clean_open") : ""
+    activeFocusOnTab: kind === "ram"
+    borderSpec: Border.controlSpec(activeFocus && kind === "ram" ? "focus" : "normal", root.foreground, root.accent)
+    Accessible.role: kind === "ram" ? Accessible.Button : Accessible.StaticText
+    Accessible.name: label + (kind === "ram" ? ": " + root.t("memory_clean_open") : "")
+    Keys.onReturnPressed: if (kind === "ram") root.showPage("memory")
+    Keys.onEnterPressed: if (kind === "ram") root.showPage("memory")
+    Keys.onSpacePressed: if (kind === "ram") root.showPage("memory")
+    onActivated: function(delta) { if (kind === "ram") root.showPage("memory"); else if (kind === "disk") root.cycleDisk(delta); else if (kind === "storage") root.cycleStorage(delta) }
   }
 
   // --- Sub-components (Cards, Rows, Cells) ---
@@ -3352,6 +3394,20 @@ Panel {
       }
     }
 
+    ToolTip {
+      visible: metricCard.tooltipText !== "" && cardClick.containsMouse
+      text: metricCard.tooltipText
+      delay: 400
+      background: BorderSurface {
+        color: Host.Color.tooltip.background
+        borderSpec: Border.surfaceSpec("tooltip", "border", Host.Color.tooltip.border, Math.max(1, Style.normalBorderWidth))
+      }
+      contentItem: Text {
+        text: metricCard.tooltipText; textFormat: Text.PlainText
+        color: Host.Color.tooltip.text
+        font.family: Style.font.family; font.pixelSize: Style.font.caption
+      }
+    }
     MouseArea {
       id: cardClick
       anchors.fill: parent

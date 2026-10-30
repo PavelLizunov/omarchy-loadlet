@@ -1,5 +1,18 @@
 # Loadlet verification
 
+## Manual cache cleanup — 2.18.11
+
+Implemented a panel-owned Memory module, five-tab navigation, a RAM-tile shortcut,
+explicit confirmation, one-shot Polkit execution and measured-result presentation.
+The helper passes only fixed code/arguments to system tools and does not install
+a privileged helper or persistence. Existing telemetry supplies live figures.
+
+No cache drop, authentication dialog, tests, preview, physical memory comparison
+or independent review was executed for this batch. The checkpoint skips CI.
+Installation/rescan do not establish loaded identity or interactive acceptance.
+The sampler remains the 2.18.9 binary; the Makefile changed only for packaging.
+See [operation and limits](docs/guide.md#memory-cleanup).
+
 ## Native locale migration — 2.18.10
 
 Source changes replace the active JavaScript catalogs with four native JSON

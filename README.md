@@ -54,6 +54,11 @@ inline analysis sends a small summary to your configured Pi provider.
 
 ![Profile selection and fan controls, inert demonstration data](docs/video/2.17.2/assets/profiles.png)
 
+The Memory tab offers manual cache cleanup with confirmation and system
+authentication. It drops clean file cache, not application memory, and does not
+fix leaks. Linux normally reclaims cache automatically; cleanup can slow later
+file reads. [Operation and limits](docs/guide.md#memory-cleanup).
+
 ## Optional system controls
 
 Monitoring and process actions work without these helpers. CPU/fan control needs

@@ -1,0 +1,60 @@
+#!/usr/bin/python3
+"""Explicit, authenticated, one-shot cache reclaim. No persistent root grant."""
+import os
+import sys
+
+# Only this fixed operation crosses Polkit. No paths, code or values from the UI.
+ROOT_CODE = r'''
+import fcntl
+import json
+import os
+import sys
+
+
+def snapshot():
+    with open('/proc/meminfo', encoding='ascii') as stream:
+        rows = stream.read(65536).splitlines()
+    values = {}
+    for row in rows:
+        fields = row.split()
+        if len(fields) == 3 and fields[2] == 'kB':
+            values[fields[0].rstrip(':')] = int(fields[1]) * 1024
+    return {'total': values['MemTotal'], 'free': values['MemFree'],
+            'available': values.get('MemAvailable'),
+            'cache': values['Cached'] + values['SReclaimable']}
+
+
+dropped = False
+before = None
+try:
+    lock = os.open('/run/loadlet-memory-clean.lock',
+                   os.O_CREAT | os.O_RDWR | os.O_CLOEXEC | os.O_NOFOLLOW, 0o600)
+    fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    # Flush dirty files before asking the kernel to drop only clean cache.
+    os.sync()
+    before = snapshot()
+    with open('/proc/sys/vm/drop_caches', 'w', encoding='ascii') as stream:
+        stream.write('3\n')
+    dropped = True
+    after = snapshot()
+    print(json.dumps({'schema': 1, 'ok': True, 'before': before, 'after': after}))
+except BlockingIOError:
+    print(json.dumps({'schema': 1, 'ok': False, 'error': 'busy'}))
+    sys.exit(2)
+except (OSError, ValueError, KeyError):
+    print(json.dumps({'schema': 1, 'ok': dropped, 'before': before,
+                      'after': None, 'error': 'measurement' if dropped else 'failed'}))
+    sys.exit(0 if dropped else 1)
+'''
+
+
+def main():
+    if sys.argv[1:] != ['--clear']:
+        sys.exit('Usage: memory-clean --clear (requires system authentication)')
+    # The root-side timeout remains effective after pkexec changes credentials.
+    os.execv('/usr/bin/pkexec', ['pkexec', '/usr/bin/timeout', '--kill-after=2s', '30s',
+                              '/usr/bin/python3', '-I', '-c', ROOT_CODE])
+
+
+if __name__ == '__main__':
+    main()

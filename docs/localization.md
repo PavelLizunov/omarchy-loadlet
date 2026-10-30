@@ -32,7 +32,9 @@ translation service is added.
 
 The old active `I18n.js` is replaced with `i18n/en.json`, `ru.json`, `de.json` and
 `zh-CN.json`. Each contains the 323 inherited messages plus six strings for
-language search, fallback disclosure and abbreviated durations. The unrelated
+language search, fallback disclosure and abbreviated durations. Version 2.18.11
+adds 18 Memory-cleanup messages to each catalog using direct local translation;
+fluent review and runtime acceptance are still unverified. The unrelated
 legacy `Messages.js` was already removed in2.18.9. It never counts toward coverage.
 
 System tracks live host language changes. Saved `zh` maps to `zh-CN`; `zh-TW`,

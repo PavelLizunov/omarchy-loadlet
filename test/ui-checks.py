@@ -155,7 +155,7 @@ Item {
 ''' + bubble.replace('id: tooltipBubble', 'id: tooltipBubble\n        objectName: "activityTooltipBubble"') + '\n}\n')
     plugin = base / 'plugin'
     plugin.mkdir()
-    for name in ['Panel.qml', 'PowerProfiles.qml', 'ChoiceDropdown.qml', 'ComputerMap.qml', 'SvgIcon.qml', 'ActivityIcon.qml', 'ActivityIconSvg.js', 'HeatPolicy.js', 'DiagnosticExport.qml', 'Diagnostics.qml', 'ActivityController.qml', 'ProcessActionController.qml', 'Sparkline.qml', 'SensorHistoryChart.qml', 'Model.js', 'LoadletLocale.qml', 'ProfileCodec.js']:
+    for name in ['Panel.qml', 'MemoryCleanup.qml', 'PowerProfiles.qml', 'ChoiceDropdown.qml', 'ComputerMap.qml', 'SvgIcon.qml', 'ActivityIcon.qml', 'ActivityIconSvg.js', 'HeatPolicy.js', 'DiagnosticExport.qml', 'Diagnostics.qml', 'ActivityController.qml', 'ProcessActionController.qml', 'Sparkline.qml', 'SensorHistoryChart.qml', 'Model.js', 'LoadletLocale.qml', 'ProfileCodec.js']:
         shutil.copyfile(ROOT / name, plugin / name)
     shutil.copytree(ROOT / 'i18n', plugin / 'i18n')
     shutil.copyfile(ROOT / 'test/mock-data.js', base / 'mock-data.js')

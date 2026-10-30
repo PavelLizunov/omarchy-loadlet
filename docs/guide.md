@@ -98,6 +98,39 @@ tooltip. These tiny gauges show approximate levels; background polling is not
 zero-overhead, timer cadence can slip during shell stalls, and battery impact
 has not been measured.
 
+## Memory cleanup
+
+Open the Memory tab, or click the RAM metric tile. Opening the page is inert.
+Available memory and cache reuse the existing sampler; the cache figure is
+`Cached + SReclaimable`, not an amount guaranteed to be freed. Linux normally
+reclaims cache automatically as applications need memory. High cache usage alone
+is not a leak or a reason to clear it.
+
+Clear cache opens an explicit confirmation. Authenticate and clear invokes
+Polkit for that one request, flushes pending file writes with `sync()`, then
+writes `3` to `/proc/sys/vm/drop_caches`. This asks the kernel to reclaim clean
+file pages, dentries and inodes system-wide. It does not terminate processes,
+clear application heaps, repair leaks, disable swap or delete files. Re-reading
+files can be slower afterward; no speedup or fixed reclaimed size is promised.
+
+Before/after cache and available-memory snapshots are taken around the drop,
+after the flush. Concurrent applications affect both values. A completed request
+with missing measurements is reported separately, never as an invented saving.
+Cancel or Escape dismisses confirmation without a request. Navigation and close
+dismiss unsubmitted confirmation but do not promise to cancel authorized kernel
+work. The long-lived module retains the operation and its result across pages.
+
+No root helper installation, sudoers grant, periodic cleanup, service or setting
+is added. The shipped `memory-clean --clear` uses a fixed isolated Python operation
+through `/usr/bin/pkexec`, with a root-side 30-second timeout and 2-second kill grace.
+A root-owned `/run/loadlet-memory-clean.lock` serializes requests. The UI waits
+up to 130 seconds including authentication. A timeout or lost output means the
+result is unknown; uninterruptible kernel I/O may still complete. Standard
+Polkit authentication policy applies; permission denial is displayed in the UI.
+
+The module was implemented without executing cache cleanup or authentication,
+and without tests or visual acceptance in this delivery.
+
 ## High-resolution diagnostics
 
 Settings → History also provides explicit native diagnostic sessions with

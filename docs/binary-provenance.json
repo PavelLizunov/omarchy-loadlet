@@ -7,7 +7,7 @@
     "activity-sampler.cpp": "0be492f9397bac698fd2ff4cf9e55260252f6f923cdbe833e93791e26ca5d0e2",
     "DiagnosticJournal.h": "4f335f7005396bb1f487779ea2e27e71082edcf52fe658c1bf242f61042ee076",
     "FastDiagnostics.h": "cc31f214b6a596fc365902929b10c7195b67106811bc1bb6f34a7e5fbe944d02",
-    "Makefile": "d29c83bee6eaf7291d5459dea39d632063294ef35db2492cb1aa82ff7d3273cd"
+    "Makefile": "73b4db0652f1bc975fa20236501f4a62cfc0a86df664d083150a3470e3aa7d6f"
   },
   "size": 313464,
   "compiler": "GCC 16.2.1 20260810",
@@ -22,7 +22,7 @@
     ],
     "optional": "libnvidia-ml.so.1; not required without NVIDIA telemetry"
   },
-  "packagingChange": "2.18.10 adds the native locale adapter and JSON catalogs to install-local. Compiler recipe and shipped sampler are unchanged; no new rebuild or reproduction was run.",
+  "packagingChange": "2.18.11 adds MemoryCleanup.qml and memory-clean to install-local after the 2.18.10 locale migration. Compiler recipe and shipped sampler are unchanged; no new rebuild or reproduction was run.",
   "runtimeBuild": false,
   "runtimeDownload": false,
   "limits": [
