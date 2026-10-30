@@ -1,5 +1,26 @@
 # Loadlet verification
 
+## Geometry and module audit — 2.18.8
+
+The explicitly requested audit reproduced a 13 px compact right gutter and a
+7 px CPU/GPU value offset. Full-width grids, shared card/header heights and
+top-aligned values repair the actual consumer. The profile form also shares its
+footer width. Panel dimensions, single-row tabs, saved data and explicit Apply
+remain unchanged.
+
+Local Qt 6.12: 109 panel results and four raster results at each DPR1/2 pass.
+Fifteen final inert images were inspected after the expanded-grid correction;
+six declared grid/card/value comparisons have zero deviation. AT-SPI/atk-bridge
+environment warnings remain; render policy is report, not strict warning-free
+acceptance. No independent reviewer or physical hardware/provider test was used.
+
+Baseline CI 41097361733 at bbad24f passed core/reproduction but failed 15 obsolete
+UI fixture cases. Current fixtures use the Profiles page, dedicated editor and
+single-row tab handles; they assert inert Save and explicit Apply, draft routes
+and icon persistence. Candidate hosted CI and installed/loaded identity are
+recorded separately, not inferred from the old successful integration run.
+See the [module audit and remaining gaps](docs/ui-audit-20261030.md).
+
 ## Single-row navigation — 2.18.7
 
 The user screenshot of 2.18.6 showed two navigation rows consuming space above

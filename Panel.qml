@@ -91,8 +91,8 @@ Panel {
         captureInterval: activity.captureAppliedInterval,
         heatThreshold: activity.heatThreshold,
         productName: "Loadlet",
-        iconRevision: "2.18.7",
-        implementationRevision: "single-row-tabs-20261030",
+        iconRevision: "2.18.8",
+        implementationRevision: "aligned-geometry-20261030",
         rightClickAction: "none",
         iconTooltip: button.tooltipText,
         iconConsumer: String(Qt.resolvedUrl("Panel.qml")),
@@ -1560,6 +1560,7 @@ Panel {
       // Pinned Action Buttons at bottom
       Row {
         id: compactActions
+        objectName: "compactActions"
         anchors.bottom: parent.bottom
         anchors.left: parent.left
         anchors.right: parent.right
@@ -1642,10 +1643,16 @@ Panel {
           contentHeight: compactGrid.implicitHeight
           clip: true
           boundsBehavior: Flickable.StopAtBounds
-          ScrollBar.vertical: ScrollBar { id: compactTileScrollBar; policy: ScrollBar.AsNeeded }
+          ScrollBar.vertical: PageScrollBar {
+            viewport: compactTileViewport
+            frame: compactBody
+          }
         Grid {
           id: compactGrid
-          width: parent.width - (compactTileScrollBar.visible ? compactTileScrollBar.width + Style.spacing.xs : 0)
+          objectName: "compactGrid"
+          width: compactTileViewport.width
+          readonly property real headerHeight: Math.max(0, ...Array.from(children).map(function(item) { return item.naturalHeaderHeight || 0 }))
+          readonly property real rowHeight: Math.max(root.tileHeight, ...Array.from(children).map(function(item) { return item.implicitHeight || 0 }))
           columns: Math.max(1, root.compactTiles.length)
           spacing: Style.spacing.sm
           Repeater {
@@ -1654,7 +1661,8 @@ Panel {
               required property string modelData
               tile: modelData
               width: (compactGrid.width - compactGrid.spacing * (compactGrid.columns - 1)) / compactGrid.columns
-              height: Math.max(root.tileHeight, implicitHeight)
+              headerHeight: compactGrid.headerHeight
+              height: compactGrid.rowHeight
             }
           }
         }
@@ -1802,11 +1810,11 @@ Panel {
 
   component PageScrollBar: ScrollBar {
     required property Flickable viewport
-    parent: viewport.parent
-    anchors.top: viewport.top
-    anchors.bottom: viewport.bottom
-    anchors.left: viewport.right
-    anchors.leftMargin: Style.spacing.xs
+    property Item frame: viewport
+    parent: frame.parent
+    x: frame.x + frame.width + Style.spacing.xs
+    y: frame.y
+    height: viewport.height
     width: Style.space(4)
     padding: 0
     policy: ScrollBar.AlwaysOn
@@ -2004,7 +2012,7 @@ Panel {
       contentWidth: width
       contentHeight: powerProfiles.implicitHeight
       clip: true; boundsBehavior: Flickable.StopAtBounds
-      ScrollBar.vertical: PageScrollBar { viewport: profilesViewport }
+      ScrollBar.vertical: PageScrollBar { objectName: "profilesScrollBar"; viewport: profilesViewport }
       onContentHeightChanged: contentY = Math.max(0,Math.min(contentY,contentHeight-height))
       Item {
         id: profileSlot
@@ -2866,6 +2874,7 @@ Panel {
       // Pinned Action Buttons at bottom: NEVER pushed off screen!
       Row {
         id: expandedActions
+        objectName: "expandedActions"
         anchors.bottom: parent.bottom
         anchors.left: parent.left
         anchors.right: parent.right
@@ -2947,10 +2956,13 @@ Panel {
           contentHeight: summaryGrid.implicitHeight
           clip: true
           boundsBehavior: Flickable.StopAtBounds
-          ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+          ScrollBar.vertical: PageScrollBar { viewport: summaryViewport; frame: expandedTop }
         Grid {
           id: summaryGrid
-          width: summaryViewport.width - Style.spacing.sm
+          objectName: "summaryGrid"
+          width: summaryViewport.width
+          readonly property real headerHeight: Math.max(0, ...Array.from(children).map(function(item) { return item.naturalHeaderHeight || 0 }))
+          readonly property real rowHeight: Math.max(root.tileHeight, ...Array.from(children).map(function(item) { return item.implicitHeight || 0 }))
           columns: width >= Style.space(800) ? 4 : (width >= Style.space(600) ? 3 : (width >= Style.space(380) ? 2 : 1))
           spacing: Style.spacing.sm
           Repeater {
@@ -2961,7 +2973,8 @@ Panel {
               required property string modelData
               tile: modelData
               width: (summaryGrid.width - summaryGrid.spacing * (summaryGrid.columns - 1)) / summaryGrid.columns
-              height: root.tileHeight
+              headerHeight: summaryGrid.headerHeight
+              height: summaryGrid.rowHeight
             }
           }
         }
@@ -3145,10 +3158,12 @@ Panel {
     property color tone: root.accent
     property color badgeTone: root.dim
     readonly property bool showCores: !!(paint && Array.isArray(paint.cells) && paint.cells.length > 0)
+    readonly property real naturalHeaderHeight: Math.max(cardLabel.implicitHeight, cardBadge.visible ? cardBadge.implicitHeight : 0)
+    property real headerHeight: naturalHeaderHeight
     signal activated(int delta)
 
     implicitHeight: Math.max(Style.space(tall ? 104 : 72),
-      Style.spacing.md * 2 + cardHeader.height + 2 + metricValues.implicitHeight + cardFooter.height)
+      Style.spacing.md * 2 + cardHeader.height + 2 + Style.spacing.sm + metricValues.implicitHeight + cardFooter.height)
     color: Style.normalFillFor(root.foreground, root.accent)
     borderSpec: Border.controlSpec("normal", root.foreground, root.accent)
     radius: Style.cornerRadius
@@ -3162,7 +3177,7 @@ Panel {
         anchors.top: parent.top
         anchors.left: parent.left
         anchors.right: parent.right
-        height: Math.max(cardLabel.implicitHeight, cardBadge.visible ? cardBadge.implicitHeight : 0)
+        height: metricCard.headerHeight
 
         SvgIcon {
           id: metricIcon
@@ -3216,7 +3231,8 @@ Panel {
           anchors.left: parent.left
           anchors.right: parent.right
           anchors.rightMargin: coreDie.visible ? parent.width * 0.48 + Style.spacing.sm : 0
-          anchors.verticalCenter: parent.verticalCenter
+          anchors.top: parent.top
+          anchors.topMargin: Style.spacing.sm
           spacing: 0
 
           Text {

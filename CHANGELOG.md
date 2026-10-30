@@ -1,5 +1,16 @@
 # Changelog
 
+## 2.18.8
+
+- Align compact and expanded cards with the memory strip and pinned actions.
+  Share card/header heights and top-align values despite different detail lines.
+- Put scroll thumbs in the existing outside padding rather than reserving a
+  right-only content gutter, including the profile editor.
+- Migrate UI checks to single-row tabs and the dedicated Profiles editor. Cover
+  inert Save, explicit Apply, icon persistence, draft routes and narrow layouts.
+- Record the requested module audit, evidence and remaining gaps in
+  [the UI audit](docs/ui-audit-20261030.md).
+
 ## 2.18.7
 
 - Keep the four navigation tabs in one row. Use label-sized widths with shared

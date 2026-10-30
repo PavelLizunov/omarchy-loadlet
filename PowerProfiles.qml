@@ -373,7 +373,6 @@ Column {
     parent:root.editorHost || root
     visible:root.editorOpen && root.editorHost!==null
     width:parent.width;height:parent.height
-    clip:true
     enabled:!root.running
     Keys.onEscapePressed:root.cancelEdit()
     onVisibleChanged:if(visible) {
@@ -388,7 +387,15 @@ Column {
       contentWidth:width;contentHeight:editorBody.implicitHeight
       clip:true;boundsBehavior:Flickable.StopAtBounds
       onContentHeightChanged:contentY=Math.max(0,Math.min(contentY,contentHeight-height))
-      ScrollBar.vertical:ScrollBar { policy:ScrollBar.AsNeeded }
+      ScrollBar.vertical:ScrollBar {
+        objectName:"profileEditorScrollBar"
+        parent:editorPage
+        anchors.top:editorViewport.top;anchors.bottom:editorViewport.bottom
+        anchors.left:editorViewport.right;anchors.leftMargin:Style.spacing.xs
+        width:Style.space(4);padding:0;policy:ScrollBar.AlwaysOn;visible:size<1
+        contentItem:Rectangle { implicitWidth:Style.space(4);implicitHeight:Style.space(40);color:root.accent;opacity:0.65 }
+        background:null
+      }
       Connections {
         target:editorViewport.Window.window
         function onActiveFocusItemChanged() {
@@ -405,7 +412,8 @@ Column {
       }
       Column {
         id:editorBody
-        width:editorViewport.width-Style.spacing.md
+        objectName:"profileEditorBody"
+        width:editorViewport.width
         spacing:Style.spacing.sm
         Text {
           width:parent.width;text:I18n.t("profile_editor_hint",root.language)

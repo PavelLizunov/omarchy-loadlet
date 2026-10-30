@@ -136,12 +136,12 @@ Item {
       view.report={series:[],sessions:[],process_frames:[],top_processes:[]}
     }
     function test_all_pages_expand_data() {
-      return ['overview','cooling','fans','settings'].map(function(page){return {tag:page,page:page}})
+      return ['overview','cooling','fans','profiles','settings'].map(function(page){return {tag:page,page:page}})
     }
     function test_all_pages_expand(data) {
       plugin.hintsVisible=false
       plugin.sensorsOpen=data.page==='cooling'||data.page==='fans'
-      plugin.fansOpen=data.page==='fans'
+      plugin.fansOpen=data.page==='fans';plugin.profilesOpen=data.page==='profiles'
       plugin.setSettingsOpen(data.page==='settings');wait(20)
       var button=named('expandButton'), panel=pick('fittedContentWidth')
       verify(button.visible);var small=panel.width;var before=plugin.expanded
@@ -154,7 +154,7 @@ Item {
     }
     function test_page_geometry_data() {
       var result=[]
-      ;['cooling','fans','settings'].forEach(function(page){
+      ;['cooling','fans','profiles','settings'].forEach(function(page){
         ;[{font:12,width:340,height:360},{font:16,width:760,height:680},{font:24,width:960,height:660}].forEach(function(size){
           result.push({tag:page+'-'+size.font,page:page,font:size.font,width:size.width,height:size.height})
         })
@@ -163,11 +163,11 @@ Item {
     }
     function test_page_geometry(data) {
       host.width=data.width;host.height=data.height;Style.fontBaseSize=data.font
-      plugin.hintsVisible=false;plugin.sensorsOpen=data.page!=='settings';plugin.fansOpen=data.page==='fans'
+      plugin.hintsVisible=false;plugin.showPage(data.page==='cooling'?'sensors':data.page)
       plugin.setSettingsOpen(data.page==='settings');wait(30)
       var panel=pick('fittedContentWidth'),button=named('expandButton')
       verify(button.mapToItem(panel,button.width,button.height).x<=panel.width+1)
-      var viewport=named(data.page==='settings'?'settingsViewport':data.page==='fans'?'fansViewport':'coolingViewport')
+      var viewport=named(data.page==='settings'?'settingsViewport':data.page==='profiles'?'profilesViewport':data.page==='fans'?'fansViewport':'coolingViewport')
       verify(viewport.height>0);verify(viewport.contentHeight>0)
       viewport.contentY=Math.max(0,viewport.contentHeight-viewport.height);wait(10)
       if(data.page==='cooling') {
@@ -189,7 +189,7 @@ Item {
       verify(plugin.selectedSensorId!=='')
       plugin.fansOpen=true;pick('moveRequested').forceActiveFocus();keyClick(Qt.Key_Escape);wait(10)
       compare(plugin.sensorsOpen,false);compare(plugin.fansOpen,false)
-      var overview=nodes(plugin).filter(function(n){return n.modelData&&n.modelData.key==='overview'})[0]
+      var overview=tab('overview')
       compare(overview.selected,true)
       plugin.sensorsOpen=true;plugin.fansOpen=true;plugin.openDetails();wait(20)
       compare(plugin.sensorsOpen,false);compare(plugin.expanded,true)
@@ -207,7 +207,7 @@ Item {
       mouseClick(item,item.width/2,item.height/2);wait(30)
     }
     function tab(key) {
-      return nodes(plugin).filter(function(n){return n.modelData&&n.modelData.key===key&&n.text!==undefined})[0]
+      return named('pageTab-'+key)
     }
     function test_navigation_frame_and_recovery_data() {
       return [false,true].map(function(expanded){return {tag:expanded?'large':'compact',expanded:expanded}})
@@ -283,7 +283,7 @@ Item {
       profiles.operationExpired=false
     }
     function test_power_profiles_create_save_apply_inert() {
-      plugin.setExpanded(true);plugin.sensorsOpen=true;plugin.fansOpen=true
+      plugin.setExpanded(true);plugin.showPage('profiles')
       plugin.activityController.stop();MockData.populate(plugin.activityController);wait(20)
       var profiles=named('powerProfiles')
       compare(profiles.profiles.length,3)
@@ -301,16 +301,16 @@ Item {
       compare(plugin.settings.activePowerProfile,'idle')
       profiles.selectProfile('games');profiles.saveDraft();wait(10)
       verify(JSON.parse(plugin.settings.powerProfiles).some(function(p){return p.id==='games'}))
-      profiles.editorOpen=true;wait(10)
-      clickVisible(named('newPowerProfileButton'),named('fansViewport'))
+      profiles.editorOpen=false;wait(10)
+      clickVisible(named('newPowerProfileButton'),named('profilesViewport'))
       var created=profiles.draft.id
       verify(created.indexOf('custom-')===0)
       compare(named('powerProfileName').text,profiles.draft.name,'New profile replaces the visible name binding')
       profiles.saveDraft();wait(10)
       verify(JSON.parse(plugin.settings.powerProfiles).some(function(p){return p.id===created}))
-      clickVisible(named('deletePowerProfileButton'),named('fansViewport'));wait(10)
+      clickVisible(named('deletePowerProfileButton'),named('profileEditorViewport'));wait(10)
       verify(JSON.parse(plugin.settings.powerProfiles).some(function(p){return p.id===created}),'Deletion needs confirmation')
-      clickVisible(named('deletePowerProfileButton'),named('fansViewport'));wait(10)
+      clickVisible(named('deletePowerProfileButton'),named('profileEditorViewport'));wait(10)
       verify(!JSON.parse(plugin.settings.powerProfiles).some(function(p){return p.id===created}))
     }
     function test_profile_status_callback_order_data() {
@@ -352,30 +352,33 @@ Item {
       compare(Object.keys(plugin.fanOutputDrafts).length,0)
     }
     function test_profile_browse_edit_cancel_and_apply() {
-      plugin.hintsVisible=false;plugin.setExpanded(true);clickVisible(tab('fans'))
-      var profiles=named('powerProfiles'),viewport=named('fansViewport')
+      plugin.hintsVisible=false;plugin.setExpanded(true);clickVisible(tab('profiles'))
+      var profiles=named('powerProfiles'),viewport=named('profilesViewport')
       profiles.capabilitiesReady=true
       var before=JSON.stringify(plugin.settings),panel=pick('fittedContentWidth'),height=panel.height,width=panel.width
       named('powerProfileDropdown').changed('games');wait(10)
       compare(profiles.selectedId,'games');compare(profiles.running,false)
       compare(JSON.stringify(plugin.settings),before,'Browsing is inert')
       clickVisible(named('profileEditorToggle'),viewport)
-      compare(profiles.draft.id,'games');verify(!named('computerMapToggle').visible)
+      compare(profiles.draft.id,'games');verify(named('powerProfileEditorPage').visible)
+      verify(named('pageTabs').visible,'Navigation remains visible during editing')
       profiles.changeCpu('boost',false)
-      clickVisible(named('cancelPowerProfileButton'),viewport)
+      clickVisible(named('cancelPowerProfileButton'))
       compare(JSON.stringify(plugin.settings),before);compare(profiles.draft.config.cpu.boost,true)
       compare(panel.height,height);compare(panel.width,width)
       clickVisible(named('profileEditorToggle'),viewport)
       named('powerProfileName').forceActiveFocus();keyClick(Qt.Key_Escape);wait(10)
-      compare(profiles.editorOpen,false);compare(plugin.fansOpen,true)
+      compare(profiles.editorOpen,false);compare(plugin.profilesOpen,true)
       clickVisible(named('profileEditorToggle'),viewport)
       pick('moveRequested').forceActiveFocus();keyClick(Qt.Key_Escape);wait(10)
-      compare(profiles.editorOpen,false);compare(plugin.fansOpen,true)
+      compare(profiles.editorOpen,false);compare(plugin.profilesOpen,true)
       clickVisible(named('profileEditorToggle'),viewport)
       profiles.changeCpu('maxMHz',2000)
-      clickVisible(named('saveApplyPowerProfileButton'),viewport)
-      compare(profiles.running,true);compare(profiles.editorOpen,false)
+      clickVisible(named('savePowerProfileButton'))
+      compare(profiles.running,false,'Save must not apply hardware');compare(profiles.editorOpen,false)
       compare(JSON.parse(plugin.settings.powerProfiles).filter(function(p){return p.id==='games'})[0].config.cpu.maxMHz,2000)
+      clickVisible(named('applyPowerProfileButton'),viewport)
+      compare(profiles.running,true,'Apply is explicit')
       var proc=nodes(profiles).filter(function(n){return n.command&&n.command.indexOf('apply')>=0})[0]
       compare(proc.command[3],ProfileCodec.encode(profiles.selectedProfile.config))
       proc.running=false;proc.exited(0)
@@ -383,8 +386,8 @@ Item {
       compare(panel.height,height);compare(panel.width,width)
     }
     function test_profile_auto_base_and_invalid_draft() {
-      plugin.hintsVisible=false;clickVisible(tab('fans'))
-      var profiles=named('powerProfiles'),viewport=named('fansViewport')
+      plugin.hintsVisible=false;clickVisible(tab('profiles'))
+      var profiles=named('powerProfiles'),viewport=named('profilesViewport')
       profiles.capabilitiesReady=true
       clickVisible(named('automationOptionsToggle'),viewport)
       named('automaticBaseProfile').changed('current')
@@ -482,14 +485,14 @@ Item {
       chart.points=[{time:110,value:50},{time:200,value:60}];keyClick(Qt.Key_Left);compare(chart.selectedIndex,1,'Left enters from newest sample')
     }
     function test_symmetric_page_margins_data() {
-      return ['fans','cooling','settings'].map(function(page){return {tag:page,page:page}})
+      return ['fans','cooling','profiles','settings'].map(function(page){return {tag:page,page:page}})
     }
     function test_symmetric_page_margins(data) {
       plugin.hintsVisible=false
       if(data.page==='settings')plugin.setSettingsOpen(true)
-      else { clickVisible(tab(data.page==='fans'?'fans':'sensors')) }
-      var viewport=named(data.page==='fans'?'fansViewport':data.page==='cooling'?'coolingViewport':'settingsViewport')
-      var body=named(data.page==='fans'?'fanBody':data.page==='cooling'?'coolingBody':'settingsBody')
+      else { clickVisible(tab(data.page==='cooling'?'sensors':data.page)) }
+      var viewport=named(data.page==='profiles'?'profilesViewport':data.page==='fans'?'fansViewport':data.page==='cooling'?'coolingViewport':'settingsViewport')
+      var body=named(data.page==='profiles'?'powerProfiles':data.page==='fans'?'fanBody':data.page==='cooling'?'coolingBody':'settingsBody')
       compare(body.width,viewport.width,'Content does not reserve an asymmetric scrollbar gutter')
       var tabs=named(data.page==='settings'?'settingsTabs':'pageTabs')
       compare(viewport.mapToItem(plugin,0,0).x,tabs.mapToItem(plugin,0,0).x)
@@ -499,7 +502,7 @@ Item {
         compare(history.height,duration.rowHeight,'Adjacent action matches the input height')
         compare(history.mapToItem(viewport,0,history.height).y,duration.mapToItem(viewport,0,duration.height).y)
       }
-      var scroll=named(data.page==='fans'?'fansScrollBar':data.page==='cooling'?'coolingScrollBar':'settingsScrollBar')
+      var scroll=named(data.page==='profiles'?'profilesScrollBar':data.page==='fans'?'fansScrollBar':data.page==='cooling'?'coolingScrollBar':'settingsScrollBar')
       verify(scroll.mapToItem(viewport,0,0).x>=viewport.width,'Scroll thumb stays outside content')
       host.width=350;wait(20);compare(body.width,viewport.width)
       viewport.contentY=Math.max(0,viewport.contentHeight-viewport.height);wait(10)
@@ -652,6 +655,86 @@ Item {
       compare(plugin.compactRamStrip,true)
       plugin.persistSettings({compactTile1:'ram'});compare(plugin.compactRamStrip,false)
     }
+    function test_compact_shared_geometry_data() {
+      return [
+        {tag:'normal',width:480,height:416,font:12,language:'ru'},
+        {tag:'narrow',width:350,height:360,font:12,language:'de'},
+        {tag:'large-font',width:960,height:700,font:24,language:'en'},
+        {tag:'cjk',width:480,height:416,font:12,language:'zh'}
+      ]
+    }
+    function test_compact_shared_geometry(data) {
+      host.width=data.width;host.height=data.height;Style.fontBaseSize=data.font
+      plugin.hintsVisible=false
+      plugin.persistSettings({locale:data.language,compactTile0:'cpu',compactTile1:'gpu',compactRamStrip:true})
+      wait(30)
+      var grid=named('compactGrid'),ram=named('compactRamStrip'),actions=named('compactActions')
+      compare(grid.width,ram.width,'Cards and memory share both edges')
+      compare(grid.width,actions.width,'Cards and footer share both edges')
+      compare(grid.mapToItem(plugin,0,0).x,ram.mapToItem(plugin,0,0).x)
+      var tiles=nodes(grid).filter(function(n){return n.tile!==undefined})
+      compare(tiles.length,2);compare(tiles[0].width,tiles[1].width);compare(tiles[0].height,tiles[1].height)
+      var values=tiles.map(function(t){return nodes(t).find(function(n){return n.text===t.value})})
+      compare(values[0].mapToItem(plugin,0,0).y,values[1].mapToItem(plugin,0,0).y,'Metric values share a baseline')
+    }
+    function test_profile_editor_geometry_and_inert_save() {
+      host.width=350;host.height=400;plugin.hintsVisible=false;plugin.showPage('profiles');wait(20)
+      var profiles=named('powerProfiles');profiles.capabilitiesReady=true
+      plugin.persistSettings({activePowerProfile:'idle'});profiles.selectProfile('idle')
+      clickVisible(named('profileEditorToggle'),named('profilesViewport'))
+      var viewport=named('profileEditorViewport'),body=named('profileEditorBody')
+      compare(body.width,viewport.width,'Editor has no unilateral gutter')
+      compare(body.width,named('savePowerProfileButton').parent.width,'Form and footer share both edges')
+      var cancel=named('cancelPowerProfileButton'),save=named('savePowerProfileButton')
+      compare(cancel.width,save.width);compare(cancel.height,save.height)
+      clickVisible(named('profileIcon-gpu'),viewport)
+      compare(profiles.draft.icon,'gpu')
+      var name=named('powerProfileName');name.text='Quiet renamed';name.textEdited()
+      clickVisible(save)
+      compare(profiles.running,false);compare(profiles.editorOpen,false)
+      compare(plugin.settings.activePowerProfile,'idle','Metadata-only save keeps active attribution')
+      compare(profiles.selectedProfile.icon,'gpu');compare(profiles.selectedProfile.name,'Quiet renamed')
+      clickVisible(tab('overview'));compare(named('quickProfile-idle').iconName,'gpu')
+    }
+    function test_profile_draft_routes_data() {
+      return ['back','cancel','tab','settings','close','expand','language'].map(function(route){return {tag:route,route:route}})
+    }
+    function test_profile_draft_routes(data) {
+      plugin.showPage('profiles');wait(20)
+      var profiles=named('powerProfiles'),before=JSON.stringify(plugin.settings)
+      profiles.beginEdit();profiles.changeIcon('cpu');wait(20)
+      if(data.route==='back')clickVisible(named('profileEditorBack'))
+      else if(data.route==='cancel')clickVisible(named('cancelPowerProfileButton'))
+      else if(data.route==='tab')clickVisible(tab('sensors'))
+      else if(data.route==='settings')plugin.setSettingsOpen(true)
+      else if(data.route==='close')plugin.close()
+      else if(data.route==='expand')plugin.setExpanded(true)
+      else {
+        plugin.languageExpanded=true;wait(10)
+        plugin.persistSettings({locale:'de'});plugin.languageExpanded=false
+        before=JSON.stringify(plugin.settings)
+      }
+      wait(20)
+      var retained=data.route==='expand'||data.route==='language'
+      compare(profiles.editorOpen,retained);compare(JSON.stringify(plugin.settings),before)
+      if(retained)compare(profiles.draft.icon,'cpu')
+      compare(profiles.running,false)
+    }
+    function test_tabs_single_row_and_focus_reveal() {
+      host.width=320;host.height=390;plugin.hintsVisible=false;plugin.persistSettings({locale:'de'});wait(30)
+      var tabs=named('pageTabs'),items=['overview','sensors','fans','profiles'].map(tab)
+      verify(tabs.contentWidth>tabs.width,'Fixture exercises horizontal overflow')
+      items.forEach(function(item){compare(item.y,items[0].y);compare(item.height,tabs.height)})
+      var panel=pick('fittedContentWidth'),height=panel.height
+      items.forEach(function(item){
+        item.forceActiveFocus();wait(20)
+        verify(item.mapToItem(tabs,0,0).x>=-1)
+        verify(item.mapToItem(tabs,item.width,0).x<=tabs.width+1)
+        mouseClick(item,item.width/2,item.height/2);wait(20)
+        verify(item.selected);compare(panel.height,height)
+      })
+    }
+
     function test_geometry_data() {
       return [
         {tag:"normal",font:12,width:1600,height:1200,fontOnly:false},
@@ -680,6 +763,9 @@ Item {
     function test_expanded_process_budget() {
       plugin.hintsVisible=false;plugin.setExpanded(true);wait(30)
       verify(pick("ensureSelected").height>=plugin.processRowHeight*4,"Expanded summaries reserve four process rows")
+      compare(named('summaryGrid').width,named('expandedActions').width,'Expanded summaries and footer share both edges')
+      var tiles=nodes(named('summaryGrid')).filter(function(n){return n.tile!==undefined})
+      tiles.forEach(function(t){compare(t.height,tiles[0].height);compare(t.headerHeight,tiles[0].headerHeight)})
     }
     function test_expanded_clamped() {
       Style.fontBaseSize=24;host.width=960;host.height=660
@@ -952,7 +1038,7 @@ Item {
         compare(icons[i].cpu,49.99);compare(icons[i].ram,55)
       }
       var rawMetrics=JSON.stringify(ctrl.metrics),rawSnapshot=JSON.stringify(ctrl.snapshot)
-      var tooltip=pick('tooltipText')
+      var tooltip=plugin.barIcon.parent
       verify(tooltip.tooltipText.indexOf('CPU 50%')>=0,'tooltip retains the real sample, not gauge zero')
       ctrl.glanceCpu=50;wait(10)
       for(var j=0;j<icons.length;j++) compare(icons[j].gaugeCpu,50)

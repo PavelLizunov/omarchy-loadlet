@@ -1,0 +1,168 @@
+{
+  "version": "2.18.8",
+  "baseline": "bbad24fa620442b0ff711a97fae352187e1805a1",
+  "kind": "synthetic actual-consumer offscreen fixtures",
+  "sourceHashes": {
+    "ActivityController.qml": "41d40026a6eb4da6e7c12c171943844d25add1ce3d3390610141c70c7d6bf28f",
+    "ActivityIcon.qml": "9e799b388b1ee577d0738da6640a6890169a1ca3e0db70f2958a05f055a6bc3a",
+    "ChoiceDropdown.qml": "69c87335340a9c3514c07fd8083b25905f0b915f5a941b45263519c8b8c909a0",
+    "ComputerMap.qml": "c8fac6b4248b4643e119c286f80128af5bc0aa52431e7ae2cda97047650c9133",
+    "DiagnosticExport.qml": "f9d87bcfd76d30dda87462c24084694f8988869ef0519de64e466c29df443295",
+    "Diagnostics.qml": "bed5fdfff56d78bacc9ffce02bddfb492124f10d4fca84f7e6264d0a82a67fb4",
+    "Panel.qml": "9217e496247e87523f9f753254a22cee69cae0dbc6beeb5215ca7d381be42b59",
+    "PowerProfiles.qml": "e86ccd9e1194e8cdc12f7f71db72a3825ab97e66edfc44204dd2f8341841d2b0",
+    "ProcessActionController.qml": "bdf4f5e85185ba82fa7d9481588a8a5dbf0c0e65264bbe12bfb5f2120d0eedcf",
+    "SensorHistoryChart.qml": "4739a82222cfc5954a231f9fe2bb5d4f28c40c2687d2e0207e496e7d604bd99e",
+    "Sparkline.qml": "af92bb46af457e7fa42f6379aeb04d0404036547c174d59ec5af042efa48b6fb",
+    "SvgIcon.qml": "3b6d77721a1d7843a34ec88fc3053b9ea965b100d2216bc6da95208ed09a9c45",
+    "ActivityIconSvg.js": "e183d251ef9eda24a6e0284db1d84f9812b13b3c1443b3a7fe57343473ad2eae",
+    "HeatPolicy.js": "5e2a3fb26eaa51a202127fb3439d231f1c5353979575b859fde147ae8bdb28b3",
+    "I18n.js": "fb1e278826f116bc67eb92c9cec5aa21cda4b7e79535b4418d8f20c1249e13f8",
+    "Messages.js": "924a8bdff7a38ef9347d730ea37cf9faff55ef9b65e2a4cc31923e75029757b5",
+    "Model.js": "877a619316484ff9e04086535e77139ded8bd30027da9ccdc83663fd0ec40786",
+    "ProfileCodec.js": "7a1097153245826d575cd38506bc6383d3484a116d37e68400cde91cec1677f5",
+    "test/render-audit.qml": "90c3b57325bedbd7647879d0ea26664681194a41e0221aa449dea73e459f2f66",
+    "test/mock-data.js": "c2087d43c107d6b31413c2cf583844687c16ea0dbb486eb7593171639655a126",
+    "test/ui-checks.py": "4a10b18652c4911157ddf5177fa12b8b617c9ac4fe8cdb617ff25c5d96742c5f"
+  },
+  "adapter": "test/ui-checks.py prepare; inert ActivityFixture IO and native ActivityHost display components",
+  "qt": "6.12.0",
+  "renderer": "0.3.0",
+  "backend": "software",
+  "warningsPolicy": "report",
+  "limits": [
+    "AT-SPI/atk-bridge warnings retained; not strict warning-free acceptance",
+    "No compositor placement or physical telemetry",
+    "No real agent provider or hardware apply"
+  ],
+  "images": {
+    "overview": {
+      "inspected": true,
+      "sha256": "c3e6b6fe773d7bef8fdf9d83389f45981036883e707f83a7041bc81d0b9a6d39",
+      "properties": {},
+      "width": 480,
+      "height": 416,
+      "dpr": 1,
+      "geometry": [
+        {
+          "id": "0",
+          "kind": "align",
+          "tolerance": 0,
+          "status": "PASS",
+          "expected": 464,
+          "measured": 464,
+          "deviation": 0,
+          "coordinateSpace": "logical-scene-axis-aligned"
+        },
+        {
+          "id": "1",
+          "kind": "equal",
+          "tolerance": 0,
+          "status": "PASS",
+          "expected": 100,
+          "measured": 100,
+          "deviation": 0,
+          "coordinateSpace": "logical-scene-axis-aligned"
+        },
+        {
+          "id": "2",
+          "kind": "align",
+          "tolerance": 0,
+          "status": "PASS",
+          "expected": 149,
+          "measured": 149,
+          "deviation": 0,
+          "coordinateSpace": "logical-scene-axis-aligned"
+        }
+      ],
+      "notes": "Reviewed inline: native controls, content edges, text fit, internal scrolling and pinned actions. No desktop/compositor capture. Environmental AT-SPI warnings retained."
+    },
+    "expanded": {
+      "inspected": true,
+      "sha256": "02b716b96c2f28a4459692a614f9e59c5f6105a278a91cb3d5e52f46a44f2a24",
+      "properties": {
+        "expanded": true,
+        "light": false,
+        "language": "en"
+      },
+      "width": 932,
+      "height": 682,
+      "dpr": 1,
+      "geometry": [
+        {
+          "id": "0",
+          "kind": "align",
+          "tolerance": 0,
+          "status": "PASS",
+          "expected": 884,
+          "measured": 884,
+          "deviation": 0,
+          "coordinateSpace": "logical-scene-axis-aligned"
+        },
+        {
+          "id": "1",
+          "kind": "equal",
+          "tolerance": 0,
+          "status": "PASS",
+          "expected": 100,
+          "measured": 100,
+          "deviation": 0,
+          "coordinateSpace": "logical-scene-axis-aligned"
+        },
+        {
+          "id": "2",
+          "kind": "align",
+          "tolerance": 0,
+          "status": "PASS",
+          "expected": 149,
+          "measured": 149,
+          "deviation": 0,
+          "coordinateSpace": "logical-scene-axis-aligned"
+        }
+      ],
+      "notes": "Reviewed inline: native controls, content edges, text fit, internal scrolling and pinned actions. No desktop/compositor capture. Environmental AT-SPI warnings retained."
+    },
+    "profiles": {
+      "inspected": true,
+      "sha256": "3c20a17ac2f3e4d03b3646f40a5ec7fad89d7699b40625922d227c37a567fc29",
+      "properties": {
+        "page": "profiles"
+      },
+      "width": 480,
+      "height": 416,
+      "dpr": 1,
+      "geometry": [],
+      "notes": "Reviewed inline: native controls, content edges, text fit, internal scrolling and pinned actions. No desktop/compositor capture. Environmental AT-SPI warnings retained."
+    },
+    "editor": {
+      "inspected": true,
+      "sha256": "38fb71860f5761754ed1909c7c9f622897eeaaa5082f5be5c0c334640649b436",
+      "properties": {
+        "page": "profiles",
+        "editor": true
+      },
+      "width": 480,
+      "height": 416,
+      "dpr": 1,
+      "geometry": [],
+      "notes": "Reviewed inline: native controls, content edges, text fit, internal scrolling and pinned actions. No desktop/compositor capture. Environmental AT-SPI warnings retained."
+    }
+  },
+  "allInspectedStates": [
+    "agent",
+    "editor",
+    "expanded",
+    "fans",
+    "history",
+    "icon",
+    "large-editor",
+    "map",
+    "narrow",
+    "overview-dpr2",
+    "overview",
+    "profiles",
+    "sampling",
+    "sensors",
+    "tiles"
+  ]
+}

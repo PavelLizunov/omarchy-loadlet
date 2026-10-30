@@ -209,7 +209,9 @@ toolbar; recording sits at the right, with an empty or filled circle and explici
 off/on text. Category is beside the selected sensor, not another navigation tab.
 It is hidden while the diagram is open and disabled when no sensor is selected.
 Scrolling pages keep both content edges aligned with their tabs; the scroll thumb
-uses the outer padding, not an asymmetric content gutter. Keyboard focus scrolls
+uses the outer padding, not an asymmetric content gutter. Compact and expanded
+metric grids share the footer edges, card/header heights and value alignment.
+The profile form and its pinned Save/Cancel row also use the same width. Keyboard focus scrolls
 controls into view. RPM history has an explicit return to the originating channel.
 The host adds popup padding and borders to the height; with
 default tokens the outer cards are 480×422 and 900×682. Actual theme overrides and

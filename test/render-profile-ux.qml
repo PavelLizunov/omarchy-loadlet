@@ -29,6 +29,7 @@ Rectangle {
       MockData.populate(plugin.activityController)
       plugin.sensorsOpen=canvas.page==="fans" || canvas.page==="cooling"
       plugin.fansOpen=canvas.page==="fans"
+      plugin.profilesOpen=canvas.page==="profiles" || canvas.editor || canvas.autoOptions
       plugin.settingsOpen=canvas.page==="settings"
       Qt.callLater(function() {
         plugin.activityController.stop(); MockData.populate(plugin.activityController)
@@ -42,7 +43,7 @@ Rectangle {
         if(profiles) {
           profiles.cpuCapabilities={boost:"1",noTurbo:null,policies:[{scaling_governor:"powersave",energy_performance_preference:"power",scaling_max_freq:"5400000"}],automatic:{enabled:false,gaming:canvas.gaming,error:""}}
           profiles.capabilitiesReady=true;profiles.automationOptionsOpen=canvas.autoOptions
-          if(canvas.editor){profiles.editorOpen=true;profiles.selectProfile("idle")}
+          if(canvas.editor){profiles.selectProfile("idle");profiles.beginEdit()}
         }
         if(canvas.page==="cooling"){plugin.selectPart("motherboard");plugin.sensorOptionsOpen=true}
         plugin.computerMapVisible=canvas.showMap;settle.restart()
