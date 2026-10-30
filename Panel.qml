@@ -91,8 +91,8 @@ Panel {
         captureInterval: activity.captureAppliedInterval,
         heatThreshold: activity.heatThreshold,
         productName: "Loadlet",
-        iconRevision: "2.18.6",
-        implementationRevision: "profiles-tab-icons-20261030",
+        iconRevision: "2.18.7",
+        implementationRevision: "single-row-tabs-20261030",
         rightClickAction: "none",
         iconTooltip: button.tooltipText,
         iconConsumer: String(Qt.resolvedUrl("Panel.qml")),
@@ -1195,38 +1195,60 @@ Panel {
         }
       }
 
-      Grid {
+      Flickable {
         id: pageTabs
         objectName: "pageTabs"
         visible: !root.settingsOpen && !root.languageExpanded
-        columns: width >= minimumTabWidth * 4 + spacing * 3 ? 4 : 2
-        readonly property real minimumTabWidth: Math.max(overviewTab.implicitWidth,sensorsTab.implicitWidth,fansTab.implicitWidth,profilesTab.implicitWidth)
         anchors.top: persistentHeader.bottom
         anchors.topMargin: Style.spacing.sm
-        width: parent.width
-        spacing: Style.spacing.sm
-        component PageTab: SvgButton {
-          required property string pageKey
-          objectName: "pageTab-" + pageKey
-          width: (pageTabs.width - pageTabs.spacing * (pageTabs.columns - 1)) / pageTabs.columns
-          height: Style.space(30)
-          text: I18n.t(pageKey, root.effectiveLanguage)
-          fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
-          fontSize: Style.font.bodySmall
-          foreground: root.foreground; accent: root.accent
-          bordered: false; focusable: true
-          selected: pageKey === (root.profilesOpen ? "profiles" : root.sensorsOpen ? (root.fansOpen ? "fans" : "sensors") : "overview")
-          Rectangle {
-            anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom
-            height: Math.max(1,Style.space(2)); color: root.accent
-            visible: parent.selected
-          }
-          onClicked: root.showPage(pageKey)
+        width: parent.width; height: Style.space(30)
+        contentWidth: tabRow.width; contentHeight: height
+        clip: true; boundsBehavior: Flickable.StopAtBounds
+        flickableDirection: Flickable.HorizontalFlick
+        readonly property real naturalWidth: overviewTab.implicitWidth + sensorsTab.implicitWidth
+          + fansTab.implicitWidth + profilesTab.implicitWidth + tabRow.spacing * 3
+        readonly property real extraTabWidth: Math.max(0,(width-naturalWidth)/4)
+        function reveal(tab) {
+          if (!tab) return
+          if (tab.x < contentX) contentX=tab.x
+          else if (tab.x+tab.width > contentX+width) contentX=tab.x+tab.width-width
+          contentX=Math.max(0,Math.min(contentX,contentWidth-width))
         }
-        PageTab { id:overviewTab; pageKey:"overview"; iconName:"overview" }
-        PageTab { id:sensorsTab; pageKey:"sensors"; iconName:"temperature" }
-        PageTab { id:fansTab; pageKey:"fans"; iconName:"fans" }
-        PageTab { id:profilesTab; pageKey:"profiles"; iconName:"category" }
+        onContentWidthChanged: contentX=Math.max(0,Math.min(contentX,contentWidth-width))
+        onWidthChanged: Qt.callLater(function() {
+          pageTabs.reveal(root.profilesOpen ? profilesTab : root.sensorsOpen ? (root.fansOpen ? fansTab : sensorsTab) : overviewTab)
+        })
+        ScrollBar.horizontal: ScrollBar { policy: ScrollBar.AsNeeded }
+        Row {
+          id: tabRow
+          spacing: Style.spacing.xs
+          component PageTab: SvgButton {
+            id: tab
+            required property string pageKey
+            objectName: "pageTab-" + pageKey
+            width: implicitWidth + pageTabs.extraTabWidth
+            height: pageTabs.height
+            horizontalPadding: Style.spacing.xs
+            text: I18n.t(pageKey, root.effectiveLanguage)
+            fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
+            fontSize: Style.font.bodySmall
+            foreground: root.foreground; accent: root.accent
+            bordered: false; focusable: true
+            selected: pageKey === (root.profilesOpen ? "profiles" : root.sensorsOpen ? (root.fansOpen ? "fans" : "sensors") : "overview")
+            Rectangle {
+              anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom
+              height: Math.max(1,Style.space(2)); color: root.accent
+              visible: parent.selected
+            }
+            onClicked: root.showPage(pageKey)
+            onActiveFocusChanged: if(activeFocus)pageTabs.reveal(tab)
+            onSelectedChanged: if(selected)Qt.callLater(function(){pageTabs.reveal(tab)})
+          }
+          PageTab { id:overviewTab; pageKey:"overview"; iconName:"overview" }
+          PageTab { id:sensorsTab; pageKey:"sensors"; iconName:"temperature" }
+          PageTab { id:fansTab; pageKey:"fans"; iconName:"fans" }
+          PageTab { id:profilesTab; pageKey:"profiles"; iconName:"category" }
+        }
       }
 
       SvgButton {

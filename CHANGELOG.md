@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.18.7
+
+- Keep the four navigation tabs in one row. Use label-sized widths with shared
+  spare space rather than sizing every tab for the longest label.
+- Scroll horizontally on constrained widths and reveal focused/selected tabs.
+  Preserve profile icons, editing and explicit Apply behavior.
+
 ## 2.18.6
 
 - Add the missing top-level Profiles tab for selection, creation, editing, Apply,

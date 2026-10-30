@@ -461,7 +461,8 @@ Escape, switching to another tab, opening Settings or closing Loadlet discard un
 language selection preserve the draft. Duplicate creates another draft (up to12
 saved presets). Original control and automatic game switching are on Profiles,
 outside the editor. Fans contains only individual channel controls. Tabs stay
-visible during editing and wrap into two rows when their labels need more room.
+visible during editing in one row. Tab widths follow their labels; constrained
+widths scroll horizontally instead of wrapping. Keyboard focus reveals its tab.
 Deletion needs a second click and remains unavailable for active presets or those
 used by running automation. Existing names, values and assignments are preserved.
 Changing a single fan output clears the active profile indication, since it no

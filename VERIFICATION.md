@@ -1,5 +1,17 @@
 # Loadlet verification
 
+## Single-row navigation — 2.18.7
+
+The user screenshot of 2.18.6 showed two navigation rows consuming space above
+the metrics. The equal-width grid used four times the longest label as its fit
+criterion. Replace it with one row of natural-width tabs, shared spare width and
+horizontal overflow. Keep labels, icons and the existing panel dimensions.
+
+The task-owned diff was reviewed directly. No tests, renders or interaction checks
+were requested or run. Installation/rescan is recorded separately; loaded identity
+and the resulting layout are unverified. No saved preferences or hardware profiles
+were changed by deployment. Earlier verification does not cover this adjustment.
+
 ## Profiles navigation and icon correction — 2.18.6
 
 The user screenshot showed only Overview, Cooling and Fans. The 2.18.5 source
