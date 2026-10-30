@@ -1,5 +1,14 @@
 # Changelog
 
+## 2.18.6
+
+- Add the missing top-level Profiles tab for selection, creation, editing, Apply,
+  automatic switching and Original control. Keep individual fan controls on Fans.
+- Add a labeled six-icon picker to the profile editor using existing glyphs and
+  the existing saved icon field. Overview shortcuts use the selected icon.
+- Keep tabs visible during editing and wrap them when labels do not fit one row.
+  Preserve active attribution for name/icon-only edits; Save never applies hardware.
+
 ## 2.18.5
 
 - Move profile creation and editing to a dedicated page with CPU and cooling

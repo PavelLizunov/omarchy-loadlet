@@ -1,5 +1,20 @@
 # Loadlet verification
 
+## Profiles navigation and icon correction — 2.18.6
+
+The user screenshot showed only Overview, Cooling and Fans. The 2.18.5 source
+indeed kept profile management under Fans and had no icon picker. This corrects
+that incomplete delivery with a separate Profiles tab and a labeled picker for
+the existing icon field. One shared PowerProfiles owner still handles all applies.
+The source diff was reviewed directly; existing saved data is not migrated.
+
+No tests, new test cases, renders, input automation or resource measurements were
+requested or run for this correction. Previous acceptance does not cover this UI.
+The old inline-editor test fixtures still need migration. New strings use the four
+existing catalogs with local translation/editorial fallback, not a completed
+50-locale migration or fluent review. Installation and shared-shell rescan are
+recorded separately; loaded identity and user interaction remain unverified.
+
 ## Dedicated profile page — 2.18.5
 
 Implementation moves the existing editor into a separate page in the same panel.

@@ -447,16 +447,21 @@ This observation is not generic board compatibility or a driver safety audit.
 
 ## Named CPU and cooling profiles
 
-Fans separates browsing, applying and editing. Select Current settings, Quiet idle,
+The dedicated Profiles tab separates browsing, applying and editing. Select Current settings, Quiet idle,
 Games or a custom preset to see its CPU/fan summary without changing hardware.
 Apply activates it. Edit and New profile open a dedicated page with separate CPU
 and cooling sections, an internally scrolling form and pinned Save/Cancel actions.
+The icon picker offers Moon, Gamepad, Fans, CPU, GPU and Tag; the saved icon is also
+used in Overview shortcuts. An icon-only or name-only edit retains active-profile
+attribution because it does not change the hardware configuration.
 New profile starts from the selected preset without replacing it. Save updates
-only the preset and returns to Fans with that preset selected; Apply is a separate
+only the preset and returns to Profiles with that preset selected; Apply is a separate
 action there. The active preset remains distinct from the selection. Back, Cancel,
-Escape, opening Settings or closing Loadlet discard unsaved edits. Expansion and
+Escape, switching to another tab, opening Settings or closing Loadlet discard unsaved edits. Expansion and
 language selection preserve the draft. Duplicate creates another draft (up to12
-saved presets). Original control is available on Fans, outside the editor.
+saved presets). Original control and automatic game switching are on Profiles,
+outside the editor. Fans contains only individual channel controls. Tabs stay
+visible during editing and wrap into two rows when their labels need more room.
 Deletion needs a second click and remains unavailable for active presets or those
 used by running automation. Existing names, values and assignments are preserved.
 Changing a single fan output clears the active profile indication, since it no
@@ -543,7 +548,7 @@ services continue when that grant expires. Revoke a grant by removing only the
 matching `/etc/sudoers.d/60-loadlet-fans-UID` file as root.
 
 To remove optional controls, first disable automatic profiles and use Original
-control on Fans. Restore each separately saved motherboard channel
+control on Profiles. Restore each separately saved motherboard channel
 as well. The equivalent commands for channels you actually configured are:
 
 ```sh

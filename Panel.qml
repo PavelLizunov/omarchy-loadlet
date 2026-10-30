@@ -53,6 +53,7 @@ Panel {
         fanControlChannels: activity.sensorSnapshot.controls ? activity.sensorSnapshot.controls.length : 0,
         ramStrip: root.compactRamStrip,
         fanTab: root.fansOpen,
+        profilesTab: root.profilesOpen,
         sensorsFresh: activity.sensorsFresh,
         state: activity.state,
         sampling: activity.sampling,
@@ -90,8 +91,8 @@ Panel {
         captureInterval: activity.captureAppliedInterval,
         heatThreshold: activity.heatThreshold,
         productName: "Loadlet",
-        iconRevision: "2.18.5",
-        implementationRevision: "profile-page-20261030",
+        iconRevision: "2.18.6",
+        implementationRevision: "profiles-tab-icons-20261030",
         rightClickAction: "none",
         iconTooltip: button.tooltipText,
         iconConsumer: String(Qt.resolvedUrl("Panel.qml")),
@@ -118,6 +119,8 @@ Panel {
   property bool settingsOpen: false
   property bool sensorsOpen: false
   property bool fansOpen: false
+  property bool profilesOpen: false
+  readonly property bool overviewOpen: !sensorsOpen && !profilesOpen
   property string fanStatusKey: ""
   property int fanDuration: 10
   property var fanProfileOutputs: ({})
@@ -328,10 +331,26 @@ Panel {
     historyReadError = false
     sensorHistoryReader.running = true
   }
-  onFansOpenChanged: if(!fansOpen && powerProfiles.editorOpen)powerProfiles.cancelEdit()
+  onProfilesOpenChanged: if(!profilesOpen && powerProfiles.editorOpen)powerProfiles.cancelEdit()
   onSensorsOpenChanged: {
     if (!sensorsOpen) { fansOpen = false; sensorPart = ""; focusedFanChannel = ""; historyFanChannel = "" }
-    else if (!fansOpen) loadSensorHistory()
+    else {
+      profilesOpen = false
+      if (!fansOpen) loadSensorHistory()
+    }
+  }
+  function showPage(key) {
+    if (key === "profiles" && profilesOpen) return
+    powerProfiles.cancelEdit()
+    processActions.cancel()
+    computerMapVisible = false
+    historyFanChannel = ""
+    sensorPart = ""
+    focusedFanChannel = ""
+    fansOpen = key === "fans"
+    sensorsOpen = key === "fans" || key === "sensors"
+    profilesOpen = key === "profiles"
+    if (key === "sensors") loadSensorHistory()
   }
   Component.onDestruction: {
     historyDeadline.stop(); fanDeadline.stop()
@@ -561,6 +580,7 @@ Panel {
 
   function openDetails() {
     powerProfiles.cancelEdit()
+    profilesOpen = false
     root.open()
     root.setSettingsOpen(false)
     root.sensorsOpen = false
@@ -888,6 +908,7 @@ Panel {
 
   onOpenedChanged: {
     powerProfiles.cancelEdit()
+    profilesOpen = false
     if (opened) {
       expanded = openExpandedByDefault
       sensorPart = ""
@@ -931,10 +952,10 @@ Panel {
     active: root.opened
     backgroundEnabled: root.booleanSetting("iconIndicator", true)
     expanded: root.expanded
-    sensorsActive: root.sensorsOpen && !root.settingsOpen
+    sensorsActive: (root.sensorsOpen || root.profilesOpen) && !root.settingsOpen
     gpuEnabled: !root.sensorsOpen || root.fansOpen || root.settingsOpen
     storageEnabled: root.expanded || root.compactTiles.indexOf("storage") >= 0
-    sensorSummaryEnabled: !root.sensorsOpen && (root.expanded || root.compactTiles.some(function(key) {
+    sensorSummaryEnabled: root.overviewOpen && (root.expanded || root.compactTiles.some(function(key) {
       return key === "temperature" || key === "fans" || key === "gpu" || key.indexOf("gpu:") === 0
     }))
   }
@@ -943,7 +964,7 @@ Panel {
   ProcessActionController {
     id: processActions
     active: root.opened
-    enabled: !root.settingsOpen && !root.languageExpanded && !root.sensorsOpen
+    enabled: !root.settingsOpen && !root.languageExpanded && root.overviewOpen
     language: root.effectiveLanguage
     onConfirmationRequested: processConfirm.selectedIndex = 0
     onFocusRequested: if (root.opened) keyCatcher.forceActiveFocus()
@@ -1015,7 +1036,7 @@ Panel {
       anchors.fill: parent
       // The real KeyboardPanel lives in a separate window. Handle fallback keys
       // here, inside that window, rather than on the bar widget's root item.
-      Keys.priority: root.settingsOpen || root.languageExpanded || root.sensorsOpen ? Keys.AfterItem : Keys.BeforeItem
+      Keys.priority: root.settingsOpen || root.languageExpanded || !root.overviewOpen ? Keys.AfterItem : Keys.BeforeItem
       Keys.forwardTo: [pageShortcuts]
       Item {
         id: pageShortcuts
@@ -1024,7 +1045,7 @@ Panel {
           var key = String(event.text || "").toLowerCase()
           if (key === "e") { root.setExpanded(!root.expanded); event.accepted = true }
           else if (key === "h" && !root.settingsOpen && !root.languageExpanded && !powerProfiles.editorOpen) {
-            processActions.cancel(); root.fansOpen = false; root.sensorsOpen = !root.sensorsOpen
+            root.showPage(root.sensorsOpen ? "overview" : "sensors")
             event.accepted = true
           }
         }
@@ -1036,19 +1057,19 @@ Panel {
         else if (powerProfiles.editorOpen) powerProfiles.cancelEdit()
         else if (root.computerMapVisible) root.computerMapVisible = false
         else if (root.historyFanChannel) root.returnToFanControls()
-        else if (root.sensorsOpen) root.sensorsOpen = false
+        else if (!root.overviewOpen) root.showPage("overview")
         else keyCatcher.closeRequested()
       }
       blocked: !processActions.confirmationOpen
         && (!!(root.searchField && root.searchField.activeFocus)
-          || root.settingsControlActive || root.languageExpanded || root.sensorsOpen)
+          || root.settingsControlActive || root.languageExpanded || !root.overviewOpen)
 
       onMoveRequested: function(dx, dy) {
         if (processActions.confirmationOpen) {
           if (dx !== 0) processConfirm.selectedIndex = processConfirm.selectedIndex === 0 ? 1 : 0
           return
         }
-        if (root.settingsOpen || root.languageExpanded || root.sensorsOpen) return
+        if (root.settingsOpen || root.languageExpanded || !root.overviewOpen) return
         if (dy !== 0) root.moveProcess(dy)
         else if (dx !== 0) root.cycleSort(dx)
       }
@@ -1058,7 +1079,7 @@ Panel {
           else processActions.confirm()
           return
         }
-        if (!root.expanded && !root.settingsOpen && !root.languageExpanded && !root.sensorsOpen) root.setExpanded(true)
+        if (!root.expanded && !root.settingsOpen && !root.languageExpanded && root.overviewOpen) root.setExpanded(true)
       }
       onCloseRequested: {
         if (processActions.confirmationOpen) {
@@ -1070,12 +1091,12 @@ Panel {
         else if (powerProfiles.editorOpen) powerProfiles.cancelEdit()
         else if (root.computerMapVisible) root.computerMapVisible = false
         else if (root.historyFanChannel) root.returnToFanControls()
-        else if (root.sensorsOpen) root.sensorsOpen = false
+        else if (!root.overviewOpen) root.showPage("overview")
         else if (root.expanded) root.setExpanded(false)
         else root.close()
       }
       onDeleteRequested: {
-        if (!root.settingsOpen && !root.languageExpanded && !root.sensorsOpen && !processActions.confirmationOpen && root.selectedProcess)
+        if (!root.settingsOpen && !root.languageExpanded && root.overviewOpen && !processActions.confirmationOpen && root.selectedProcess)
           processActions.request(root.selectedProcess, false)
       }
       onTabRequested: function(direction) {
@@ -1083,7 +1104,7 @@ Panel {
           processConfirm.selectedIndex = processConfirm.selectedIndex === 0 ? 1 : 0
           return
         }
-        if (root.settingsOpen || root.languageExpanded) return
+        if (root.settingsOpen || root.languageExpanded || !root.overviewOpen) return
         root.switchPanel(direction)
       }
       onTextKey: function(text) {
@@ -1094,8 +1115,8 @@ Panel {
         else if (key === "s") root.setSettingsOpen(!root.settingsOpen)
         else if (key === "?") root.hintsVisible = !root.hintsVisible
         else if (root.settingsOpen || root.languageExpanded) return
-        else if (key === "h" && !powerProfiles.editorOpen) { processActions.cancel(); root.fansOpen = false; root.sensorsOpen = !root.sensorsOpen }
-        else if (root.sensorsOpen) return
+        else if (key === "h" && !powerProfiles.editorOpen) root.showPage(root.sensorsOpen ? "overview" : "sensors")
+        else if (!root.overviewOpen) return
         else if (key === "r") root.refresh()
         else if (key === "x" && root.selectedProcess) processActions.request(root.selectedProcess, false)
         else if (key === "/" && root.expanded) root.focusSearch()
@@ -1174,58 +1195,45 @@ Panel {
         }
       }
 
-      Row {
+      Grid {
         id: pageTabs
         objectName: "pageTabs"
-        visible: !root.settingsOpen && !root.languageExpanded && !powerProfiles.editorOpen
+        visible: !root.settingsOpen && !root.languageExpanded
+        columns: width >= minimumTabWidth * 4 + spacing * 3 ? 4 : 2
+        readonly property real minimumTabWidth: Math.max(overviewTab.implicitWidth,sensorsTab.implicitWidth,fansTab.implicitWidth,profilesTab.implicitWidth)
         anchors.top: persistentHeader.bottom
         anchors.topMargin: Style.spacing.sm
         width: parent.width
         spacing: Style.spacing.sm
-        Repeater {
-          model: [
-            { key: "overview", icon: "overview", sensors: false, fans:false },
-            { key: "sensors", icon: "temperature", sensors: true, fans:false },
-            { key: "fans", icon: "fans", sensors: true, fans:true }
-          ]
-          SvgButton {
-            required property var modelData
-            objectName: "pageTab-" + modelData.key
-            width: (pageTabs.width - pageTabs.spacing * 2) / 3
-            height: Style.space(30)
-            text: I18n.t(modelData.key, root.effectiveLanguage)
-            iconName: modelData.icon
-            fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
-            fontSize: Style.font.bodySmall
-            foreground: root.foreground
-            accent: root.accent
-            bordered: false
-            focusable: true
-            selected: root.sensorsOpen === modelData.sensors && root.fansOpen === modelData.fans
-            Rectangle {
-              anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom
-              height: Math.max(1,Style.space(2)); color: root.accent
-              visible: parent.selected
-            }
-            onClicked: {
-              processActions.cancel()
-              root.computerMapVisible = false
-              root.historyFanChannel = ""
-              root.sensorPart = ""
-              root.focusedFanChannel = ""
-              root.fansOpen = modelData.fans
-              root.sensorsOpen = modelData.sensors
-              if (root.sensorsOpen && !root.fansOpen) root.loadSensorHistory()
-            }
+        component PageTab: SvgButton {
+          required property string pageKey
+          objectName: "pageTab-" + pageKey
+          width: (pageTabs.width - pageTabs.spacing * (pageTabs.columns - 1)) / pageTabs.columns
+          height: Style.space(30)
+          text: I18n.t(pageKey, root.effectiveLanguage)
+          fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
+          fontSize: Style.font.bodySmall
+          foreground: root.foreground; accent: root.accent
+          bordered: false; focusable: true
+          selected: pageKey === (root.profilesOpen ? "profiles" : root.sensorsOpen ? (root.fansOpen ? "fans" : "sensors") : "overview")
+          Rectangle {
+            anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom
+            height: Math.max(1,Style.space(2)); color: root.accent
+            visible: parent.selected
           }
+          onClicked: root.showPage(pageKey)
         }
+        PageTab { id:overviewTab; pageKey:"overview"; iconName:"overview" }
+        PageTab { id:sensorsTab; pageKey:"sensors"; iconName:"temperature" }
+        PageTab { id:fansTab; pageKey:"fans"; iconName:"fans" }
+        PageTab { id:profilesTab; pageKey:"profiles"; iconName:"category" }
       }
 
       SvgButton {
         id: profileBack
         objectName: "profileEditorBack"
         visible: powerProfiles.editorOpen && !root.settingsOpen && !root.languageExpanded
-        anchors.top: persistentHeader.bottom; anchors.topMargin: Style.spacing.sm
+        anchors.top: pageTabs.bottom; anchors.topMargin: Style.spacing.sm
         width: Math.min(implicitWidth,parent.width);height:Style.space(30)
         text:I18n.t("profile_back",root.effectiveLanguage);iconName:"back"
         foreground:root.foreground;accent:root.accent;fontFamily:Style.font.family
@@ -1246,7 +1254,7 @@ Panel {
         Flickable {
           id: profileShortcuts
           objectName: "overviewProfiles"
-          visible: !root.settingsOpen && !root.sensorsOpen
+          visible: !root.settingsOpen && root.overviewOpen
           width: parent.width;height: visible ? Style.space(28) : 0
           contentWidth: profileButtons.width;contentHeight:height
           clip:true;boundsBehavior:Flickable.StopAtBounds
@@ -1293,6 +1301,7 @@ Panel {
           anchors.left:parent.left;anchors.right:parent.right;anchors.bottom:parent.bottom
           sourceComponent: root.settingsOpen
             ? settingsContent
+            : root.profilesOpen ? profilesContent
             : (root.sensorsOpen ? (root.fansOpen ? fansContent : sensorsContent) : (root.expanded ? expandedContent : compactContent))
         }
         Item {
@@ -1411,6 +1420,7 @@ Panel {
           text: root.settingsOpen
             ? I18n.t("title", root.effectiveLanguage) + " · " + I18n.t("settings", root.effectiveLanguage)
             : powerProfiles.editorOpen ? I18n.t("title",root.effectiveLanguage) + " · " + I18n.t(powerProfiles.profiles.some(function(p){return p.id===powerProfiles.draft.id}) ? "profile_edit_short" : "profile_new",root.effectiveLanguage)
+            : root.profilesOpen ? I18n.t("title",root.effectiveLanguage) + " · " + I18n.t("profiles",root.effectiveLanguage)
             : root.sensorsOpen ? I18n.t("title", root.effectiveLanguage) + " · " + I18n.t(root.fansOpen ? "fans" : "sensors", root.effectiveLanguage)
             : (root.expanded
               ? I18n.t("title", root.effectiveLanguage) + " · " + I18n.t("all_processes", root.effectiveLanguage)
@@ -1964,6 +1974,26 @@ Panel {
   }
 
   Component {
+    id: profilesContent
+    Flickable {
+      id: profilesViewport
+      objectName: "profilesViewport"
+      anchors.fill: parent
+      contentWidth: width
+      contentHeight: powerProfiles.implicitHeight
+      clip: true; boundsBehavior: Flickable.StopAtBounds
+      ScrollBar.vertical: PageScrollBar { viewport: profilesViewport }
+      onContentHeightChanged: contentY = Math.max(0,Math.min(contentY,contentHeight-height))
+      Item {
+        id: profileSlot
+        width: profilesViewport.width; height: powerProfiles.implicitHeight
+        Component.onCompleted: root.profileHost=profileSlot
+        Component.onDestruction: if(root.profileHost===profileSlot)root.profileHost=null
+      }
+    }
+  }
+
+  Component {
     id: fansContent
     Flickable {
       id: fansViewport
@@ -1979,16 +2009,10 @@ Panel {
         objectName: "fanBody"
         width: parent.width
         spacing: Style.spacing.sm
-        Item {
-          id: profileSlot
-          width:parent.width;height:powerProfiles.implicitHeight
-          Component.onCompleted:root.profileHost=profileSlot
-          Component.onDestruction:if(root.profileHost===profileSlot)root.profileHost=null
-        }
-        ComputerNavigator { visible: !powerProfiles.editorOpen }
+        ComputerNavigator {}
         Text {
           width:parent.width
-          visible:!powerProfiles.editorOpen && !root.computerMapVisible && root.fanStatusKey!==""
+          visible:!root.computerMapVisible && root.fanStatusKey!==""
           text:I18n.t(root.fanStatusKey,root.effectiveLanguage)
           textFormat:Text.PlainText;wrapMode:Text.Wrap
           color:root.fanStatusKey==="fan_action_failed" ? root.urgent : root.dim
@@ -1996,7 +2020,7 @@ Panel {
         }
         Column {
           width: parent.width
-          visible: !powerProfiles.editorOpen && !root.computerMapVisible
+          visible: !root.computerMapVisible
           spacing: Style.spacing.sm
           ChoiceDropdown {
             id: fanChannelDropdown
@@ -2016,14 +2040,14 @@ Panel {
           }
         }
         Text {
-          visible: !powerProfiles.editorOpen && !root.computerMapVisible && root.sensorPart.indexOf("fan_") === 0
+          visible: !root.computerMapVisible && root.sensorPart.indexOf("fan_") === 0
           width: parent.width
           text: I18n.t("map_assignment_hint", root.effectiveLanguage)
           textFormat: Text.PlainText; wrapMode: Text.Wrap
           color: root.dim; font.family: Style.font.family; font.pixelSize: Style.font.caption
         }
         Repeater {
-          model: powerProfiles.editorOpen || root.computerMapVisible || !root.activeFanChannel ? [] : [root.activeFanChannel]
+          model: root.computerMapVisible || !root.activeFanChannel ? [] : [root.activeFanChannel]
           DetailSurface {
             id: fanChannelCard
             required property string modelData
@@ -2233,7 +2257,7 @@ Panel {
         }
         Text {
           width: parent.width
-          visible: !powerProfiles.editorOpen && !root.computerMapVisible && (!activity.sensorSnapshot.controls || activity.sensorSnapshot.controls.length === 0)
+          visible: !root.computerMapVisible && (!activity.sensorSnapshot.controls || activity.sensorSnapshot.controls.length === 0)
           text: I18n.t("fan_control_unavailable",root.effectiveLanguage)
           textFormat: Text.PlainText; wrapMode: Text.Wrap
           color: root.dim

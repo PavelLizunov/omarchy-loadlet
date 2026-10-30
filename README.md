@@ -31,13 +31,15 @@ Expand the panel for per-GPU processes and detailed resources. Cooling groups
 sensors by component and offers bounded, opt-in history. Unknown readings stay
 unavailable; manual sensor locations do not claim physical connector identity.
 
-Fans offers named profiles combining fan output with CPU boost, governor, energy
+The Profiles tab offers named presets combining fan output with CPU boost, governor, energy
 preference and a frequency cap. Optional automatic switching detects Steam/Proton
 game processes, selects Games, and returns to your non-game preset after exit.
 It works with the panel closed. Non-Steam games without Steam metadata are not
 currently detected. Select a preset to inspect it, then Apply or Edit. New profile
-and Edit open a dedicated page with CPU and cooling sections. Save only updates
-the preset; Apply on Fans activates it. Manual control cancels automation.
+and Edit open a dedicated page with an icon picker and CPU/cooling sections. Save
+only updates the preset; Apply on Profiles activates it. The selected icon also
+appears in Overview shortcuts. Fans holds individual channel controls. Manual
+control cancels automation.
 The computer map shows fresh temperatures and RPM beside its component points.
 No guaranteed noise, temperature, power or performance improvement.
 

@@ -22,6 +22,14 @@ Column {
   property Item editorHost: null
   property string selectedId: "idle"
   property var draft: ({})
+  readonly property var iconOptions: [
+    {value:"quiet",label:"profile_icon_moon"},
+    {value:"games",label:"profile_icon_gamepad"},
+    {value:"fans",label:"fans"},
+    {value:"cpu",label:"cpu"},
+    {value:"gpu",label:"gpu"},
+    {value:"category",label:"profile_icon_tag"}
+  ]
   property bool deletePending: false
   property bool invalidCpuLimit: false
   property bool automationOptionsOpen: false
@@ -144,6 +152,10 @@ Column {
     editorOpen=false
     if (statusKey==="profile_invalid") statusKey=""
   }
+  function changeIcon(value) {
+    if (!iconOptions.some(function(option){return option.value===value})) return
+    draft=Object.assign({},draft,{icon:value})
+  }
   function changeCpu(key,value) {
     var next=JSON.parse(JSON.stringify(draft))
     next.config.cpu[key]=value
@@ -166,7 +178,8 @@ Column {
     if (index<0) list.push(JSON.parse(JSON.stringify(draft)))
     else list[index]=JSON.parse(JSON.stringify(draft))
     var change={powerProfiles:JSON.stringify(list)}
-    if(settings.activePowerProfile===draft.id)change.activePowerProfile=""
+    if(settings.activePowerProfile===draft.id
+        && (index<0 || JSON.stringify(profiles[index].config)!==JSON.stringify(draft.config)))change.activePowerProfile=""
     saveSettings(change)
     selectedId=draft.id
     statusKey="profile_saved"
@@ -411,6 +424,32 @@ Column {
           text:root.draft.name || "";maximumLength:40
           Accessible.name:I18n.t("profile_name",root.language)
           onTextEdited:{var next=Object.assign({},root.draft);next.name=text;root.draft=next}
+        }
+        Text {
+          width:parent.width;text:I18n.t("profile_icon",root.language)
+          textFormat:Text.PlainText;color:root.foreground
+          font.family:Style.font.family;font.pixelSize:Style.font.caption
+        }
+        Grid {
+          id:iconPicker
+          objectName:"profileIconPicker"
+          width:parent.width;columns:width>=Style.space(550) ? 3 : 2
+          spacing:Style.spacing.xs
+          Repeater {
+            model:root.iconOptions
+            SvgButton {
+              required property var modelData
+              objectName:"profileIcon-"+modelData.value
+              width:(iconPicker.width-iconPicker.spacing*(iconPicker.columns-1))/iconPicker.columns
+              iconName:modelData.value;text:I18n.t(modelData.label,root.language)
+              selected:(root.draft.icon || "fans")===modelData.value
+              foreground:root.foreground;accent:root.accent;fontFamily:Style.font.family
+              fontSize:Style.font.caption;focusable:true;bordered:true
+              Accessible.role:Accessible.RadioButton
+              Accessible.checkable:true;Accessible.checked:selected
+              onClicked:root.changeIcon(modelData.value)
+            }
+          }
         }
         SectionHeading { label:I18n.t("cpu",root.language);iconName:"cpu" }
         Toggle {
