@@ -1,0 +1,429 @@
+{
+  "schema": 1,
+  "date": "2026-10-30",
+  "repository": "https://github.com/PavelLizunov/omarchy-loadlet.git",
+  "reviewed_commit": "be82a42af002144366fc20d0c2ffccf0a3429ccb",
+  "version": "2.17.2",
+  "formal_latest_release": "v2.16.0",
+  "formal_release_commit": "9d2bce6aa645715d3b4762da1e2d0658cffec2a8",
+  "installed": true,
+  "loaded": true,
+  "implementation_modified": false,
+  "privileged_controls_installed_or_activated": false,
+  "local_evidence_root": "/home/slovn/.cache/loadlet-review-1uDBv2a0",
+  "findings": {
+    "F01": {
+      "severity": "high",
+      "status": "open",
+      "evidence": "reproduced"
+    },
+    "F02": {
+      "severity": "high",
+      "status": "open",
+      "evidence": "reproduced"
+    },
+    "F03": {
+      "severity": "high",
+      "status": "open",
+      "evidence": "reproduced"
+    },
+    "F04": {
+      "severity": "medium",
+      "status": "open",
+      "evidence": "reproduced"
+    },
+    "F05": {
+      "severity": "medium",
+      "status": "open",
+      "evidence": "reproduced"
+    },
+    "F06": {
+      "severity": "medium",
+      "status": "open",
+      "evidence": "reproduced"
+    },
+    "F07": {
+      "severity": "medium",
+      "status": "open",
+      "evidence": "reproduced"
+    },
+    "F08": {
+      "severity": "medium",
+      "status": "open",
+      "evidence": "reproduced"
+    },
+    "F09": {
+      "severity": "medium",
+      "status": "open",
+      "evidence": "reproduced"
+    },
+    "F10": {
+      "severity": "medium",
+      "status": "open",
+      "evidence": "reproduced"
+    },
+    "F11": {
+      "severity": "medium",
+      "status": "open",
+      "evidence": "reproduced"
+    },
+    "F12": {
+      "severity": "medium",
+      "status": "open",
+      "evidence": "synthetic-read-observed-physical-effect-unmeasured"
+    },
+    "F13": {
+      "severity": "medium",
+      "status": "open",
+      "evidence": "conditional-producer-model-reproduction"
+    },
+    "F14": {
+      "severity": "low/medium",
+      "status": "open",
+      "evidence": "reproduced"
+    },
+    "F15": {
+      "severity": "low",
+      "status": "open",
+      "evidence": "reproduced"
+    },
+    "F16": {
+      "severity": "low",
+      "status": "open",
+      "evidence": "source-confirmed"
+    }
+  },
+  "machine": {
+    "cpu": "AMD Ryzen 5 7520U",
+    "logical_cpus": 8,
+    "kernel": "7.2.8-9-omarchy",
+    "qt": "6.12.0",
+    "quickshell": "0.3.2",
+    "omarchy": "4.5.0rc1"
+  },
+  "checks": {
+    "native_manifest_exit": 0,
+    "full_make_check_exit": 2,
+    "full_make_check_failure": "main UI runner exceeded 30-second wrapper timeout",
+    "extended_ui_exit": 0,
+    "extended_ui_cases": 86,
+    "extended_ui_failed": 0,
+    "native_raster_cases_per_scale": 4,
+    "native_raster_scales": [
+      1,
+      2
+    ],
+    "install_check_exit": 0,
+    "additional_ui_probe_exit": 0
+  },
+  "gpu_qml_stress": {
+    "iterations_per_size": 10,
+    "rows": [
+      {
+        "identities": 100,
+        "frame_bytes": 6632,
+        "parse_mean_ms": 1.3,
+        "delta_mean_ms": 1.7
+      },
+      {
+        "identities": 500,
+        "frame_bytes": 33832,
+        "parse_mean_ms": 15.4,
+        "delta_mean_ms": 35.1
+      },
+      {
+        "identities": 1000,
+        "frame_bytes": 67842,
+        "parse_mean_ms": 400.3,
+        "delta_mean_ms": 796.5
+      }
+    ],
+    "synthetic": true
+  },
+  "unverified": [
+    "long-session resource growth",
+    "energy",
+    "physical NVIDIA/IT8613 controls",
+    "real Steam transitions",
+    "actual systemd rollback/cancellation",
+    "sleep/wake and monitor hotplug",
+    "Wayland focus and screen reader",
+    "user acceptance",
+    "Marketplace state"
+  ],
+  "review_limits": [
+    "Raw leaves contained inaccurate counts/anchors; coordinator re-read accepted mechanisms and rejected documented false positives.",
+    "One Sol leaf is same-family separate context, not cross-family independence.",
+    "The other computer was not accessed and its findings were not available."
+  ],
+  "raw_artifact_sha256": {
+    "source-identity.json": "8b2bfbb50450b1a7128985181b1c9413400b119572027275fd24a42420133870",
+    "parallel-reviews.md": "cfafff11a3e370bb9b1a523b761e085be95c5865b35449c3970933394934e571",
+    "make-check-full.log": "637e0097bc8377880845e572b230a68e5ffeb05d50ba256b9134d52c3590a914",
+    "check-install.log": "0fc1168eecb56a08b874a91197590bef8128547bdc8b435e35fa94b214595308",
+    "ui-extended.log": "33c6824d85762d3c123967b23af1a8590e6c1c46a6bdda27cf2bde3d0d4a49a9",
+    "ui-review-probes.log": "d5b30d83d7be72e28f0be0ecb7682a504bd880a4ca03c45596180fe90516895c",
+    "runtime-benchmarks.json": "850370caf1b0e04d66699ea6741b8fd85f720b112eb3a4cb3f7c63e318632441",
+    "fd-scaling.json": "320691b29b0873e17107626ec5a2c59bd2c76d0c05d2c1761428657d43474378",
+    "native-reproductions.log": "a734d5bcb3bd179454ed79c6efc0926d9f4894a64722409f613c600e37a6827b",
+    "thermal-reproduction.json": "ec0a62dfd934df5b13458bf363ba5ab282ae75a3fa788471d3deb2da19f8e79c",
+    "model-reproductions.json": "b7c36598c8345d71f56b67ffc18fe907ae4922e994e38c2e9f3af84bd9cc4cfc",
+    "control-reproductions.json": "24c271911bb5c5c1a634b85e3297cf8190060177431fae6772250ee284a2c5f6"
+  },
+  "runtime_benchmarks": {
+    "old-2.8.0": {
+      "glance": {
+        "samples": 25,
+        "first_ms": 2.720060001593083,
+        "median_ms": 0.1435049925930798,
+        "p95_ms": 0.26123301358893514,
+        "max_ms": 2.720060001593083,
+        "max_bytes": 123,
+        "child_cpu_ms": 0.0,
+        "read_calls": 280,
+        "bytes_read": 119983,
+        "rssKiB": 4400
+      },
+      "thermals": {
+        "samples": 25,
+        "first_ms": 21.350750990677625,
+        "median_ms": 0.06307597504928708,
+        "p95_ms": 0.1414320431649685,
+        "max_ms": 21.350750990677625,
+        "max_bytes": 88,
+        "child_cpu_ms": 0.0,
+        "read_calls": 293,
+        "bytes_read": 1015,
+        "rssKiB": 4404
+      },
+      "resources": {
+        "samples": 25,
+        "first_ms": 2.286848030053079,
+        "median_ms": 0.48426497960463166,
+        "p95_ms": 0.5759139894507825,
+        "max_ms": 2.286848030053079,
+        "max_bytes": 925,
+        "child_cpu_ms": 10.0,
+        "read_calls": 905,
+        "bytes_read": 156438,
+        "rssKiB": 4512
+      },
+      "processes": {
+        "samples": 25,
+        "first_ms": 9.795502992346883,
+        "median_ms": 5.633888009469956,
+        "p95_ms": 7.422695984132588,
+        "max_ms": 9.795502992346883,
+        "max_bytes": 7561,
+        "child_cpu_ms": 150.0,
+        "read_calls": 18485,
+        "bytes_read": 2288865,
+        "rssKiB": 4516
+      },
+      "gpus": {
+        "samples": 25,
+        "first_ms": 23.818333982490003,
+        "median_ms": 1.9862129702232778,
+        "p95_ms": 2.301687025465071,
+        "max_ms": 23.818333982490003,
+        "max_bytes": 1033,
+        "child_cpu_ms": 70.0,
+        "read_calls": 2434,
+        "bytes_read": 1117910,
+        "rssKiB": 4588
+      },
+      "storage": {
+        "samples": 25,
+        "first_ms": 0.22457499289885163,
+        "median_ms": 0.10323099559172988,
+        "p95_ms": 0.1505690161138773,
+        "max_ms": 0.22457499289885163,
+        "max_bytes": 157,
+        "child_cpu_ms": 0.0,
+        "read_calls": 325,
+        "bytes_read": 70825,
+        "rssKiB": 4716
+      }
+    },
+    "latest-2.17.2": {
+      "glance": {
+        "samples": 25,
+        "first_ms": 1.1536439997144043,
+        "median_ms": 0.08604902541264892,
+        "p95_ms": 0.11716695735231042,
+        "max_ms": 1.1536439997144043,
+        "max_bytes": 123,
+        "child_cpu_ms": 0.0,
+        "read_calls": 278,
+        "bytes_read": 116948,
+        "rssKiB": 4404
+      },
+      "thermals": {
+        "samples": 25,
+        "first_ms": 21.223654970526695,
+        "median_ms": 0.03928295336663723,
+        "p95_ms": 0.06478000432252884,
+        "max_ms": 21.223654970526695,
+        "max_bytes": 88,
+        "child_cpu_ms": 0.0,
+        "read_calls": 293,
+        "bytes_read": 1015,
+        "rssKiB": 4408
+      },
+      "resources": {
+        "samples": 25,
+        "first_ms": 1.8716109916567802,
+        "median_ms": 0.3321439726278186,
+        "p95_ms": 0.44053501915186644,
+        "max_ms": 1.8716109916567802,
+        "max_bytes": 925,
+        "child_cpu_ms": 10.0,
+        "read_calls": 905,
+        "bytes_read": 156438,
+        "rssKiB": 4524
+      },
+      "processes": {
+        "samples": 25,
+        "first_ms": 8.136265038046986,
+        "median_ms": 5.580899014603347,
+        "p95_ms": 6.5410249517299235,
+        "max_ms": 8.136265038046986,
+        "max_bytes": 7362,
+        "child_cpu_ms": 140.0,
+        "read_calls": 18449,
+        "bytes_read": 2277937,
+        "rssKiB": 4528
+      },
+      "gpus": {
+        "samples": 25,
+        "first_ms": 17.36437896033749,
+        "median_ms": 2.5243469863198698,
+        "p95_ms": 3.5769440000876784,
+        "max_ms": 17.36437896033749,
+        "max_bytes": 2159,
+        "child_cpu_ms": 70.0,
+        "read_calls": 4584,
+        "bytes_read": 1484177,
+        "rssKiB": 4600
+      },
+      "sensors": {
+        "samples": 25,
+        "first_ms": 23.80476798862219,
+        "median_ms": 21.30391402170062,
+        "p95_ms": 24.421277979854494,
+        "max_ms": 24.706705997232348,
+        "max_bytes": 592,
+        "child_cpu_ms": 30.0,
+        "read_calls": 580,
+        "bytes_read": 64124,
+        "rssKiB": 4728
+      },
+      "storage": {
+        "samples": 25,
+        "first_ms": 0.3220260259695351,
+        "median_ms": 0.10692700743675232,
+        "p95_ms": 0.12454000534489751,
+        "max_ms": 0.3220260259695351,
+        "max_bytes": 157,
+        "child_cpu_ms": 10.0,
+        "read_calls": 325,
+        "bytes_read": 70825,
+        "rssKiB": 4792
+      }
+    },
+    "game_detection": {
+      "samples": 10,
+      "median_ms": 32.91034101857804,
+      "p95_ms": 33.86570198927075,
+      "current_game_count": 0,
+      "same_user_pid_count": 116
+    }
+  },
+  "duplicate_fd_stress": [
+    {
+      "duplicate_drm_fds": 64,
+      "first_ms": 4.6941720065660775,
+      "warm_median_ms": 1.1679129675030708,
+      "output_bytes": 231,
+      "process_engine_rows": 1
+    },
+    {
+      "duplicate_drm_fds": 512,
+      "first_ms": 21.347688976675272,
+      "warm_median_ms": 5.86348696378991,
+      "output_bytes": 231,
+      "process_engine_rows": 1
+    },
+    {
+      "duplicate_drm_fds": 4096,
+      "first_ms": 99.60643900558352,
+      "warm_median_ms": 47.79630299890414,
+      "output_bytes": 231,
+      "process_engine_rows": 1
+    }
+  ],
+  "control_reproductions": {
+    "gpu_stop_ignored": {
+      "apply_returned_success": true,
+      "old_gpu_removed_from_active": true,
+      "stop_attempted": true
+    },
+    "rollback_short_circuit": {
+      "error": "Injected rollback write failure",
+      "systemd_calls": 1,
+      "remaining_recovery_attempted": false
+    },
+    "failed_fan_save_persists": {
+      "previous_percent": 80,
+      "percent_after_failed_request": 20
+    },
+    "restore_save_interleaving": {
+      "saved_profile_left_after_restore": 70
+    },
+    "manual_without_runtime_status": {
+      "auto_off_invoked": false,
+      "manual_command_invoked": true
+    }
+  },
+  "model_reproductions": {
+    "sensor_history_dropout": {
+      "points_before": 1,
+      "gpu_key_retained": false
+    },
+    "mixed_gpu_records": {
+      "entries_for_one_identity": 2,
+      "computed_usage": {}
+    },
+    "model_hot_loop": {
+      "sort_1000_processes_mean_ms": 7.59958534
+    }
+  },
+  "thermal_reproduction": {
+    "suspended_gpu_temp_read": true,
+    "thermal_frames": 2,
+    "note": "Synthetic sysfs access observed; physical GPU wake/power not measured"
+  },
+  "loaded_status": {
+    "iconRevision": "2.17.2",
+    "iconConsumer": "file:///home/slovn/.config/omarchy/plugins/slovn.activity-lite/Panel.qml",
+    "state": "ready",
+    "sampling": true,
+    "error": "",
+    "iconFresh": true,
+    "temperatureFresh": true,
+    "iconRaster": {
+      "width": 16,
+      "height": 16,
+      "sceneWidth": 16,
+      "sceneHeight": 16,
+      "slotWidth": 27,
+      "slotHeight": 26,
+      "dpr": 2,
+      "sourceWidth": 32,
+      "sourceHeight": 32,
+      "decodedWidth": 32,
+      "decodedHeight": 32,
+      "ready": true
+    }
+  }
+}
