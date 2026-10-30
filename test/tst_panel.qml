@@ -86,6 +86,7 @@ Item {
       var profiles=named("powerProfiles")
       profiles.statusKey="";profiles.editorOpen=false;profiles.automationOptionsOpen=false
       profiles.cpuCapabilities={policies:[]};profiles.capabilitiesReady=false;profiles.selectProfile("idle")
+      profiles.statusExpired=false;profiles.statusExitCode=-1;profiles.pendingCapabilities=null
       plugin.activityController.resetData();plugin.activityController.lastTick=Date.now()
       MockData.populate(plugin.activityController); plugin.hintsVisible=true
       wait(60)
@@ -311,6 +312,44 @@ Item {
       verify(JSON.parse(plugin.settings.powerProfiles).some(function(p){return p.id===created}),'Deletion needs confirmation')
       clickVisible(named('deletePowerProfileButton'),named('fansViewport'));wait(10)
       verify(!JSON.parse(plugin.settings.powerProfiles).some(function(p){return p.id===created}))
+    }
+    function test_profile_status_callback_order_data() {
+      return [{tag:'stdout-first',exitFirst:false},{tag:'exit-first',exitFirst:true}]
+    }
+    function test_profile_status_callback_order(data) {
+      var profiles=named('powerProfiles')
+      var proc=nodes(profiles).filter(function(n){return n.command&&n.command[1]==='status'})[0]
+      verify(!!proc)
+      proc.started();proc.stdout.text=JSON.stringify({policies:[],automatic:{enabled:false,error:''}})
+      if(data.exitFirst)proc.exited(0)
+      proc.stdout.streamFinished()
+      if(!data.exitFirst){compare(profiles.capabilitiesReady,false);proc.exited(0)}
+      compare(profiles.capabilitiesReady,true)
+      plugin.persistSettings({activePowerProfile:'idle'})
+      proc.started();proc.exited(1);proc.stdout.streamFinished()
+      compare(profiles.capabilitiesReady,false);compare(profiles.activeId,'')
+      proc.started();proc.stdout.text='invalid';proc.stdout.streamFinished();proc.exited(0)
+      compare(profiles.capabilitiesReady,false)
+      proc.started();profiles.statusExpired=true;profiles.clearCapabilities()
+      proc.stdout.text='{"policies":[]}';proc.stdout.streamFinished();proc.exited(0)
+      compare(profiles.capabilitiesReady,false,'Late output cannot revive expired status')
+      proc.running=false
+    }
+    function test_overview_profiles_share_apply_and_clear_drafts() {
+      var profiles=named('powerProfiles')
+      profiles.capabilitiesReady=true;plugin.fanOutputDrafts={pwm2:80}
+      var button=named('quickProfile-idle')
+      verify(button.enabled);button.clicked();compare(profiles.running,true)
+      var payload=profiles.pendingPayload
+      profiles.applyProfile(profiles.profiles[2]);compare(profiles.pendingPayload,payload,'Busy apply is not replaced')
+      var proc=nodes(profiles).filter(function(n){return n.command&&n.command.indexOf('apply')>=0})[0]
+      proc.running=false;proc.exited(1)
+      compare(profiles.statusKey,'profile_failed');verify(!plugin.settings.activePowerProfile)
+      compare(plugin.fanOutputDrafts.pwm2,80,'Failure retains the draft')
+      profiles.applyProfile(profiles.profiles[1]);proc.running=false;proc.exited(0)
+      compare(plugin.settings.activePowerProfile,'idle');compare(Object.keys(plugin.fanOutputDrafts).length,0)
+      plugin.fanOutputDrafts={pwm2:60};plugin.close();plugin.open()
+      compare(Object.keys(plugin.fanOutputDrafts).length,0)
     }
     function test_profile_browse_edit_cancel_and_apply() {
       plugin.hintsVisible=false;plugin.setExpanded(true);clickVisible(tab('fans'))

@@ -111,6 +111,43 @@ with tempfile.TemporaryDirectory() as temp:
             apply.assert_not_called()
         assert not (power.STORE/'auto.json').exists()
 with tempfile.TemporaryDirectory() as temp:
+    base=Path(temp)
+    prior=power.validate({'fans':{'pwm2':40},'gpuFans':{'0000:01:00.0':30}})
+    with patch.object(power,'STORE',base),patch.object(power,'cpu_snapshot',return_value={}), \
+         patch.object(power,'fan_adapter',return_value=Mock(read_profile=Mock(return_value=40))), \
+         patch.object(power,'restore_cpu',side_effect=OSError('CPU rollback failure')) as cpu_restore, \
+         patch.object(power,'stop_gpu',side_effect=OSError('GPU stop failure')) as gpu_stop, \
+         patch.object(power.subprocess,'run') as services:
+        power.atomic(base/'active.json',prior)
+        try:
+            power.apply({})
+        except ValueError as error:
+            assert 'recovery incomplete' in str(error)
+        else:
+            raise AssertionError('Failed recovery accepted')
+        cpu_restore.assert_called_once()
+        assert gpu_stop.call_count==2
+        assert any(c.args[0]==[power.FANS,'save','pwm2','40'] for c in services.call_args_list)
+        assert not any('enable' in c.args[0] for c in services.call_args_list),'Failed GPU stop must not start a replacement'
+        recovery=json.loads((base/'recovery.json').read_text())
+        assert recovery['previous']==prior and recovery['target']==power.validate({})
+        assert len(recovery['errors'])==2
+        try:
+            power.apply({})
+        except ValueError as error:
+            assert 'Previous profile recovery' in str(error)
+        else:
+            raise AssertionError('Unresolved recovery overwritten')
+with patch.object(power.subprocess,'run',return_value=subprocess.CompletedProcess([],0,stdout='not-found\n')) as services:
+    power.stop_gpu('0000:01:00.0');assert services.call_count==1
+with patch.object(power.subprocess,'run',side_effect=[subprocess.CompletedProcess([],0,stdout='loaded\n'),subprocess.CalledProcessError(1,[]) ]):
+    try:
+        power.stop_gpu('0000:01:00.0')
+    except subprocess.CalledProcessError:
+        pass
+    else:
+        raise AssertionError('Failed GPU stop ignored')
+with tempfile.TemporaryDirectory() as temp:
     base = Path(temp)
     clock = [100]
     game = power.validate({'cpu': {'boost': True}})

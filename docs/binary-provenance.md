@@ -7,14 +7,18 @@ with the QML and Python helpers from this public repository.
 
 The distributed executable was rebuilt from `activity-sampler.cpp`,
 `DiagnosticJournal.h`, `FastDiagnostics.h` and Makefile using GCC 16.2.1 20260810
-on Linux x86_64. It adds explicit high-resolution recording in the existing reader.
+on Linux x86_64. It retains high-resolution recording in the existing reader and
+integrates the laptop branch
+`d52254712da51579e6bb6628a24603fa9d337885`: journal pressure handling, monotonic
+sensor admission, policy-context budgeting, thermal discovery and GPU metadata
+read reuse. The older laptop binary was not copied over the current recorder.
 The exact executable size/hash and every build-input hash are recorded in the
 [machine-readable provenance](binary-provenance.json). `LC_ALL=C make
-activity-sampler` completed. The unreadable-sensor and overlong-line guards remain
-covered by the local regressions. This checkpoint does not replace the v2.16.0
-tag. Historical reviews do not cover the new scheduler. Local full checks,
-remote reproduction and installed runtime identity are separate evidence in
-[verification](../VERIFICATION.md).
+activity-sampler` completed. Focused journal, fast-capture and report regressions
+passed for this build. Current package/full CI, remote reproduction and installed
+runtime acceptance are separate evidence; earlier passes do not certify this
+combined build. See [integration evidence](laptop-integration.md). This checkpoint
+does not replace the v2.16.0 tag.
 
 [Machine-readable provenance](binary-provenance.json) binds source, header,
 Makefile and executable SHA256 values. Build hardening and source-path mapping

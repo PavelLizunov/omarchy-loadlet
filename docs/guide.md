@@ -366,9 +366,11 @@ sudo install -Dm755 fan-control /usr/local/lib/loadlet/fan-control
 The UI invokes this fixed root-owned helper as an ordinary user. It first uses
 noninteractive sudo, honoring Omarchy's existing day grant. If authentication is
 needed, one Polkit pkexec unlock grants the authenticated caller 24 hours of
-passwordless fan requests only. The helper validates and atomically installs
-/etc/sudoers.d/60-loadlet-fans-UID with an absolute NOTAFTER deadline and exact
-save/boost/restore/identification argument patterns; no general sudo or pkexec permission is added.
+passwordless CPU, fan and profile requests. The helper validates and atomically
+installs /etc/sudoers.d/60-loadlet-fans-UID with an absolute NOTAFTER deadline,
+fixed helper paths, and constrained fan save/boost/restore/identification and
+profile apply/restore/auto-config/auto-off arguments. CPU settings remain validated
+by the profile helper; no general sudo or pkexec permission is added.
 Remove that file as root to revoke early. Expired files grant nothing; a new
 unlock replaces the deadline. Passwords never enter plugin code. Requests allow
 only the four exposed channels. Saved profiles accept any integer from0to100%;
@@ -587,9 +589,10 @@ or physical-driver compatibility claim follows from this implementation.
 ## Sampling and limits
 
 The default Efficient profile samples resources every 3 seconds, processes every
-6 seconds and temperature every 15 seconds. GPU and volume details are only
-requested in expanded view (4 and 60 seconds respectively; scheduling rounds to
-the resource timer). One request is in flight at a time. History is bounded to
+6 seconds and temperature every 15 seconds. GPU attribution is requested while the process table is visible, including
+compact view (4 seconds in Efficient mode). Volume details are requested in
+expanded view or for a selected storage tile (60 seconds in Efficient mode).
+Scheduling rounds to the resource timer. One request is in flight at a time. History is bounded to
 20–240 points. A failed request times out after 5 seconds; restarts back off from
 2 to 30 seconds. Shutdown allows 1 second before killing the owned reader.
 

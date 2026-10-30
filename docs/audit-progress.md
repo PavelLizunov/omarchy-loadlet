@@ -2,7 +2,9 @@
 
 Date: 2026-10-30. Baseline: `6718bc098fee1879373d7255349438bc8e441d0f`
 (2.18.3). This is a source checkpoint, not a release or deployment candidate.
-The distributed sampler and optional privileged helpers are unchanged.
+The original audit checkpoint left the distributed sampler and optional helpers
+unchanged. The subsequent [laptop integration](laptop-integration.md) updates their
+sources and rebuilds the sampler; installed copies remain unchanged.
 
 ## Observed and changed
 
@@ -34,7 +36,12 @@ The distributed sampler and optional privileged helpers are unchanged.
   See [localization scope](localization.md); four catalogs are not 50-language
   support, and English fallback is not translated coverage.
 
-## Executed checks on this source checkpoint
+## Executed checks on audit checkpoint c3ee256
+
+The later laptop integration has separate evidence: 91 panel results plus four
+raster results at each DPR 1/2, focused native/model/control regressions, and a
+rebuilt sampler. See [integration evidence](laptop-integration.md) for exact
+scope, initial geometry failures and unresolved acceptance.
 
 | Scope | Observed result | Limit |
 |---|---|---|
@@ -44,8 +51,8 @@ The distributed sampler and optional privileged helpers are unchanged.
 | Report checks | Existing evidence/export cases and cold-runtime import immutability pass | No complete new agent adapter regression suite |
 | Controller checks | Existing startup/retry/sampling/history admission cases pass | Not a long-running leak or performance test |
 
-No current full `make check`, current CI, independent review or current-render
-inspection is claimed by this checkpoint. The previous baseline timeout and
+No full `make check`, CI, independent review or current-render
+inspection was claimed by the original audit checkpoint. The previous baseline timeout and
 intermediate UI failures are retained in private campaign evidence.
 
 ## Delivery and continuing scope

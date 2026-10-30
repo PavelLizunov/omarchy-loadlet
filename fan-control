@@ -87,6 +87,16 @@ def resume_profile(channel):
                        check=True, timeout=15)
 
 
+def stop_unit(unit, disable=False):
+    state = subprocess.run(['/usr/bin/systemctl', 'show', '--property=LoadState', '--value', unit],
+                           check=False, timeout=15, capture_output=True, text=True)
+    if state.stdout.strip() == 'not-found':
+        return
+    operation = ['disable', '--now'] if disable else ['stop']
+    subprocess.run(['/usr/bin/systemctl', *operation, unit], check=True, timeout=15,
+                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
 def install_profile_unit():
     Path('/etc/systemd/system/loadlet-fan-profile@.service').write_text(
         '[Unit]\nDescription=Loadlet saved fan output for %i\n'
@@ -237,8 +247,7 @@ def request(args):
             or len(args) == 4 and args[0] == 'identify' and re.fullmatch(r'pwm[2-5]', args[1])
             and args[2] in ('0','5','10','20','30','40','50','60','80','100') and args[3] == '5'):
         raise ValueError('Invalid fan request')
-    status = Path('/run/loadlet-auto-game/status.json')
-    if status.exists():
+    if Path('/usr/local/lib/loadlet/power-profile').is_file():
         subprocess.run(['/usr/local/lib/loadlet/power-profile', 'request', 'auto-off'],
                        check=True, timeout=360)
     command = [SELF, *args]
@@ -286,7 +295,7 @@ def unlock(uid):
     finally:
         if os.path.exists(temporary):
             os.unlink(temporary)
-    print('Fan controls unlocked for 24 hours')
+    print('CPU, fan and profile controls unlocked for 24 hours')
 
 
 def main():
@@ -310,13 +319,38 @@ def main():
         percent = int(sys.argv[3])
         install_profile_unit()
         with switching(channel):
-            subprocess.run(['/usr/bin/systemctl', 'stop', unit], check=False, timeout=15,
-                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            subprocess.run(['/usr/bin/systemctl', 'stop', profile_unit], check=False, timeout=15,
-                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            previous = read_profile(channel)
+            was_enabled = subprocess.run(['/usr/bin/systemctl', 'is-enabled', '--quiet', profile_unit],
+                                         check=False, timeout=15).returncode == 0
+            was_active = subprocess.run(['/usr/bin/systemctl', 'is-active', '--quiet', profile_unit],
+                                        check=False, timeout=15).returncode == 0
+            stop_unit(unit)
+            stop_unit(profile_unit)
             restore(channel)
-            save_profile(channel, percent)
-            subprocess.run(['/usr/bin/systemctl', 'enable', '--now', profile_unit], check=True, timeout=15)
+            try:
+                save_profile(channel, percent)
+                subprocess.run(['/usr/bin/systemctl', 'enable', '--now', profile_unit], check=True, timeout=15)
+            except BaseException as failure:
+                errors = []
+                try:
+                    stop_unit(profile_unit, disable=True)
+                except (OSError, subprocess.SubprocessError) as error:
+                    errors.append(str(error))
+                try:
+                    if previous is None:
+                        profile_path(channel).unlink(missing_ok=True)
+                    else:
+                        save_profile(channel, previous)
+                    restore(channel)
+                    if previous is not None and was_enabled:
+                        subprocess.run(['/usr/bin/systemctl', 'enable', profile_unit], check=True, timeout=15)
+                    if previous is not None and was_active:
+                        subprocess.run(['/usr/bin/systemctl', 'start', profile_unit], check=True, timeout=15)
+                except (OSError, ValueError, subprocess.SubprocessError) as error:
+                    errors.append(str(error))
+                if errors:
+                    raise ValueError('Fan save failed; restoration incomplete: ' + '; '.join(errors)) from failure
+                raise
         print('saved')
     elif action == 'profile-worker' and len(sys.argv) == 3:
         percent = read_profile(channel)
@@ -324,12 +358,11 @@ def main():
             raise ValueError('Invalid saved fan output')
         worker(channel, percent, 0, persistent=True)
     elif action == 'restore' and len(sys.argv) == 3:
-        profile_path(channel).unlink(missing_ok=True)
-        subprocess.run(['/usr/bin/systemctl', 'disable', '--now', profile_unit], check=False, timeout=15,
-                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        subprocess.run(['/usr/bin/systemctl', 'stop', unit], check=False, timeout=15,
-                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        restore(channel)
+        with switching(channel):
+            stop_unit(profile_unit, disable=True)
+            stop_unit(unit)
+            restore(channel)
+            profile_path(channel).unlink(missing_ok=True)
         print('restored')
     elif action in ('boost', 'worker', 'identify', 'identify-worker') and len(sys.argv) == 5:
         percent, minutes = int(sys.argv[3]), int(sys.argv[4])
@@ -341,10 +374,8 @@ def main():
             worker(channel, percent, minutes, identify=identifying)
             return
         with switching(channel):
-            subprocess.run(['/usr/bin/systemctl', 'stop', unit], check=False, timeout=15,
-                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            subprocess.run(['/usr/bin/systemctl', 'stop', profile_unit], check=False, timeout=15,
-                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            stop_unit(unit)
+            stop_unit(profile_unit)
             restore(channel)
             subprocess.run(['/usr/bin/systemd-run', '--quiet', '--collect', '--unit='+unit,
                             '--property=Type=exec', '--property=TimeoutStopSec=5',

@@ -121,7 +121,7 @@ public:
     }
     if (Due(next_context_, 10000)) {
       const auto at=Clock::now();
-      auto context=DiagnosticContext(paths_);
+      auto context=DiagnosticContext(paths_,16000);
       Record("context", "\"context\":"+(context.size()<=16000 ? context : "null")+
         ",\"collection_error\":"+JsonString(context.size()>16000 ? "context_capacity" : ""),at);
     }

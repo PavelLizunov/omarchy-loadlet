@@ -1016,9 +1016,11 @@ public:
     output << "sample\t" << UptimeSample(paths_) << '\n';
     auto value = CachedValue();
     if (!value) {
-      Invalidate();
-      Discover();
-      value = CachedValue();
+      if (Clock::now() >= next_discovery_) {
+        Invalidate();
+        Discover();
+        value = CachedValue();
+      }
     }
     if (cached_path_.empty() || !value)
       return;
@@ -1147,6 +1149,8 @@ private:
   std::string cached_id_;
   std::string cached_chip_;
   std::string cached_label_;
+  std::string cached_power_path_;
+  Clock::time_point next_discovery_{};
 
   static int Rank(const std::string &chip, const std::string &label) {
     std::string chip_lower = chip;
@@ -1170,6 +1174,10 @@ private:
   std::optional<std::uint64_t> CachedValue() const {
     if (cached_path_.empty())
       return std::nullopt;
+    const auto power = ReadLine(cached_power_path_);
+    if ((cached_chip_ == "nvidia" && power.value_or("") != "active") ||
+        (power && *power != "active" && *power != "unsupported"))
+      return std::nullopt;
     const auto value = ReadUnsigned(cached_path_);
     if (value && *value > 0 && *value < 150000)
       return value;
@@ -1181,9 +1189,12 @@ private:
     cached_id_.clear();
     cached_chip_.clear();
     cached_label_.clear();
+    cached_power_path_.clear();
   }
 
   void Discover() {
+    if (Clock::now() < next_discovery_)
+      return;
     const std::string root = Join(paths_.sys, "class/hwmon");
     int best_rank = 100;
     std::uint64_t best_value = 0;
@@ -1193,18 +1204,24 @@ private:
       const std::string hwmon_path = Join(root, hwmon);
       const std::string chip =
           ReadLine(Join(hwmon_path, "name")).value_or("unknown");
+      const auto power_path = Join(hwmon_path, "device/power/runtime_status");
+      const auto power = ReadLine(power_path);
+      if ((chip == "nvidia" && power.value_or("") != "active") ||
+          (power && *power != "active" && *power != "unsupported"))
+        continue;
       for (const auto &name : DirectoryNames(hwmon_path)) {
         if (!StartsWith(name, "temp") || !EndsWith(name, "_input"))
-          continue;
-        const auto value = ReadUnsigned(Join(hwmon_path, name));
-        if (!value || *value == 0 || *value >= 150000)
           continue;
         const std::string sensor = name.substr(0, name.size() - 6);
         const std::string label =
             ReadLine(Join(hwmon_path, sensor + "_label")).value_or(chip);
         const int rank = Rank(chip, label);
-        if (rank >= 100 || rank > best_rank ||
-            (rank == best_rank && *value <= best_value))
+        if (rank >= 100 || rank > best_rank)
+          continue;
+        const auto value = ReadUnsigned(Join(hwmon_path, name));
+        if (!value || *value == 0 || *value >= 150000)
+          continue;
+        if (rank == best_rank && *value <= best_value)
           continue;
         best_rank = rank;
         best_value = *value;
@@ -1212,7 +1229,13 @@ private:
         cached_id_ = hwmon + "/" + sensor;
         cached_chip_ = chip;
         cached_label_ = label;
+        cached_power_path_ = power_path;
       }
+    }
+    if (cached_path_.empty()) {
+      next_discovery_ = Clock::now() + std::chrono::seconds(30);
+    } else {
+      next_discovery_ = Clock::time_point{};
     }
   }
 };
@@ -1795,13 +1818,13 @@ public:
           output << "gpu-fan\t" << gpu.id << '\t' << fan.index << '\t' << fan.percent << '\n';
       }
     }
+    const auto now = std::chrono::duration<double>(
+        std::chrono::system_clock::now().time_since_epoch()).count();
+    const auto uptime = nvidia_processes_.empty() ? 0 : ParseDouble(UptimeSample(paths_)).value_or(0);
+    const auto ticks = SystemValue(_SC_CLK_TCK, 100);
     for (const auto &[gpu, process] : nvidia_processes_) {
       const auto start = ProcessStart(process.pid);
       if (!start) continue;
-      const auto now = std::chrono::duration<double>(
-          std::chrono::system_clock::now().time_since_epoch()).count();
-      const auto uptime = ParseDouble(UptimeSample(paths_)).value_or(0);
-      const auto ticks = SystemValue(_SC_CLK_TCK, 100);
       if (uptime <= 0 || process.timestamp / 1000000.0 < now - uptime + *start / static_cast<double>(ticks)) continue;
       output << "process-gpu\t" << gpu << '\t' << process.pid << '\t' << *start
              << '\t' << process.utilization;
@@ -2155,6 +2178,7 @@ private:
     std::unordered_map<std::string, double> shared;
     std::vector<EngineRow> engines;
     std::vector<std::string> retained;
+    std::unordered_map<std::string, std::optional<std::uint64_t>> starts;
 
     for (const auto &path : fdinfo_paths_) {
       const auto sample = ParseFdinfo(path);
@@ -2166,7 +2190,9 @@ private:
       const std::string client_key = sample->pdev + "\t" + sample->client;
       const auto pid_name = BaseName(path.substr(0, path.rfind("/fdinfo/")));
       const auto pid = ParseUnsigned(pid_name);
-      const auto start = pid ? ProcessStart(static_cast<unsigned int>(*pid)) : std::nullopt;
+      const auto cached = starts.find(pid_name);
+      const auto start = cached != starts.end() ? cached->second
+          : starts.emplace(pid_name, pid ? ProcessStart(static_cast<unsigned int>(*pid)) : std::nullopt).first->second;
       if (start && process_clients.insert(pid_name + "\t" + client_key).second) {
         for (const auto &[name, value] : sample->engines)
           output << "process-engine\t" << sample->pdev << '\t' << sample->client << '\t'

@@ -31,4 +31,20 @@ sensorHistory=M.nextSensorHistory(sensorHistory,{sample:160,temperatures:[{id:'c
 assert.equal(sensorHistory.cpu.length,3,'A gap does not erase earlier observations');
 assert.equal(sensorHistory.cpu[2].breakBefore,true);
 assert.equal(M.nextSensorHistory(sensorHistory,{sample:10,temperatures:[{id:'cpu',value:45}],fans:[]},240,15).cpu.length,1,'Counter reset starts a new history');
-console.log('PASS model mathematics: CPU/RAM/swap ratios, rates, identity, bounded history and explicit sensor gaps');
+const missing=M.nextSensorHistory(sensorHistory,{sample:163,temperatures:[],fans:[]},240,15);
+assert.equal(missing.cpu.length,3,'Temporary absence retains observations');
+assert.equal(missing.cpu.at(-1).unavailableAfter,true);
+assert.equal(sensorHistory.cpu.at(-1).unavailableAfter,undefined,'Previous snapshot is immutable');
+const returned=M.nextSensorHistory(missing,{sample:166,temperatures:[{id:'cpu',value:61}],fans:[]},240,15);
+assert.equal(returned.cpu.at(-1).breakBefore,true,'Even a brief disappearance breaks continuity');
+assert.equal(Object.keys(M.nextSensorHistory(missing,{sample:221,temperatures:[],fans:[]},240,15)).length,0);
+const many=Object.fromEntries(Array.from({length:300},(_,i)=>['sensor'+i,[{time:100,value:i}]]));
+assert.equal(Object.keys(M.nextSensorHistory(many,{sample:103,temperatures:[],fans:[]},240,15)).length,288);
+const mixed=M.parseGpuSnapshot('schema\tactivity-gpus\t1\nsample\t100\n'
+  +'process-gpu\tgpu0\t42\t123\t40\nprocess-engine\tgpu0\tclient\trender\t100\t-1\t1\ttime\t42\t123\n'
+  +'process-gpu\tgpu0\t42\t123\t20\nprocess-gpu\tgpu1\t42\t123\t60\n');
+assert.equal(mixed.processGpus.length,2,'One PID/start/GPU identity for direct and engine rows');
+assert.equal(mixed.processGpus[0].engines.length,1);
+assert.equal(mixed.processGpus[0].directUtilization,40);
+assert.deepEqual(M.nextProcessGpus(null,mixed)['42:123'],{usage:60,byGpu:{gpu0:40,gpu1:60}});
+console.log('PASS model mathematics: ratios, identity, mixed GPU records, bounded missing history and explicit gaps');

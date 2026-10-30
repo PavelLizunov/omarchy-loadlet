@@ -1,11 +1,12 @@
 """Exercise history and privileged fan logic against temporary files only."""
-from contextlib import redirect_stdout
+from contextlib import redirect_stdout, nullcontext
 import importlib.machinery
 import importlib.util
 import io
 import json
 from pathlib import Path
 import tempfile
+import subprocess
 from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -107,7 +108,40 @@ with tempfile.TemporaryDirectory(prefix='loadlet-controls-') as tmp:
     assert all(c.args==(204,) for c in floor.call_args_list)
     assert not saved.exists()
     (fan.PROFILES/'pwm2.json').unlink()
-    print('PASS fan simulation: boost floor, exact zero duty, 5s restoration, thermal refusal and unit recovery; no hardware writes')
+    saved_outputs=[]
+    def fail_activation(argv, **kwargs):
+        if argv[1:3]==['enable','--now']:
+            raise subprocess.CalledProcessError(1,argv)
+        return subprocess.CompletedProcess(argv,0,stdout='loaded\n')
+    with patch.object(fan,'channel_files',return_value=(pwm,mode)), \
+         patch.object(fan,'switching',return_value=nullcontext()),patch.object(fan,'install_profile_unit'), \
+         patch.object(fan,'read_profile',return_value=80),patch.object(fan,'save_profile',side_effect=lambda c,p:saved_outputs.append(p)), \
+         patch.object(fan,'restore'),patch.object(fan.os,'geteuid',return_value=0), \
+         patch.object(fan.sys,'argv',['fan-control','save','pwm2','20']), \
+         patch.object(fan.subprocess,'run',side_effect=fail_activation) as calls:
+        try:
+            fan.main()
+        except subprocess.CalledProcessError:
+            pass
+        else:
+            raise AssertionError('Failed fan activation accepted')
+        assert saved_outputs==[20,80],'Rejected output must not replace the saved choice'
+        assert any(c.args[0][1]=='start' for c in calls.call_args_list)
+    (fan.PROFILES/'pwm2.json').write_text('{"percent":80}')
+    with patch.object(fan,'channel_files',return_value=(pwm,mode)), \
+         patch.object(fan,'switching',return_value=nullcontext()) as lock,patch.object(fan,'restore') as restore, \
+         patch.object(fan,'stop_unit',side_effect=OSError('stop failed')),patch.object(fan.os,'geteuid',return_value=0), \
+         patch.object(fan.sys,'argv',['fan-control','restore','pwm2']):
+        try:
+            fan.main()
+        except OSError:
+            pass
+        else:
+            raise AssertionError('Restore ignored failed stop')
+        lock.assert_called_once_with('pwm2');restore.assert_not_called()
+        assert (fan.PROFILES/'pwm2.json').exists(),'Failure retains recovery identity'
+    (fan.PROFILES/'pwm2.json').unlink()
+    print('PASS fan simulation: boost, thermal refusal, unit recovery, failed save rollback and locked restore; no hardware writes')
 
     folder = base/'omarchy/activity-lite/sensors'
     folder.mkdir(parents=True, mode=0o700)

@@ -211,8 +211,29 @@ def gpu_reset(bus):
         lib.nvmlShutdown()
 
 
+def stop_gpu(bus):
+    unit = 'loadlet-gpu-fan@'+bus+'.service'
+    state = subprocess.run(['/usr/bin/systemctl', 'show', '--property=LoadState', '--value', unit],
+                           check=False, timeout=15, capture_output=True, text=True)
+    if state.stdout.strip() == 'not-found':
+        return
+    subprocess.run(['/usr/bin/systemctl', 'disable', '--now', unit], check=True, timeout=15,
+                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
+def recover_step(errors, name, action):
+    try:
+        action()
+        return True
+    except Exception as error:
+        errors.append(name + ': ' + str(error))
+        return False
+
+
 def apply(value, boot=False):
     value = validate(value)
+    if (STORE/'recovery.json').exists():
+        raise ValueError('Previous profile recovery is incomplete; restore original control first')
     original = STORE/'original-cpu.json'
     previous = cpu_snapshot()
     previous_profile = json.loads((STORE/'active.json').read_text()) if (STORE/'active.json').exists() else {}
@@ -239,25 +260,30 @@ def apply(value, boot=False):
         for channel, percent in (value['fans'].items() if not boot else []):
             subprocess.run([FANS, 'save', channel, str(percent)], check=True, timeout=45)
         for bus in set(previous_profile.get('gpuFans', {})) | set(value['gpuFans']):
-            unit = 'loadlet-gpu-fan@'+bus+'.service'
-            subprocess.run(['/usr/bin/systemctl', 'disable', '--now', unit], check=False, timeout=15,
-                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            stop_gpu(bus)
         atomic(STORE/'active.json', value)
         for bus in value['gpuFans']:
             subprocess.run(['/usr/bin/systemctl', 'enable', '--now', 'loadlet-gpu-fan@'+bus+'.service'], check=True, timeout=15)
-    except BaseException:
-        restore_cpu(previous)
+    except BaseException as failure:
+        errors = []
+        recover_step(errors, 'CPU', lambda: restore_cpu(previous))
         for channel, percent in prior_fans.items():
             args = ['restore', channel] if percent is None else ['save', channel, str(percent)]
-            subprocess.run([FANS, *args], check=False, timeout=45)
-        for bus in value['gpuFans']:
-            subprocess.run(['/usr/bin/systemctl', 'disable', '--now', 'loadlet-gpu-fan@'+bus+'.service'], check=False, timeout=15)
-        if previous_profile:
-            atomic(STORE/'active.json', previous_profile)
-            for bus in previous_profile.get('gpuFans', {}):
-                subprocess.run(['/usr/bin/systemctl', 'enable', '--now', 'loadlet-gpu-fan@'+bus+'.service'], check=False, timeout=15)
-        else:
-            (STORE/'active.json').unlink(missing_ok=True)
+            recover_step(errors, channel, lambda args=args: subprocess.run([FANS, *args], check=True, timeout=45))
+        stopped = set()
+        for bus in set(value['gpuFans']) | set(previous_profile.get('gpuFans', {})):
+            if recover_step(errors, bus, lambda bus=bus: stop_gpu(bus)):
+                stopped.add(bus)
+        saved = recover_step(errors, 'profile state', lambda: atomic(STORE/'active.json', previous_profile)
+                             if previous_profile else (STORE/'active.json').unlink(missing_ok=True))
+        if saved:
+            for bus in set(previous_profile.get('gpuFans', {})) & stopped:
+                recover_step(errors, bus, lambda bus=bus: subprocess.run(
+                    ['/usr/bin/systemctl', 'enable', '--now', 'loadlet-gpu-fan@'+bus+'.service'], check=True, timeout=15))
+        if errors:
+            atomic(STORE/'recovery.json', {'previous': previous_profile, 'target': value,
+                                          'cpu': previous, 'fans': prior_fans, 'errors': errors})
+            raise ValueError('Profile failed; recovery incomplete: ' + '; '.join(errors)) from failure
         raise
 
 
@@ -366,21 +392,30 @@ def configure_auto(payload):
         subprocess.run(['/usr/bin/systemctl', 'enable', 'loadlet-power-profile.service'], check=True, timeout=15)
         subprocess.run(['/usr/bin/systemctl', 'enable', '--now', 'loadlet-auto-game.service'], check=True, timeout=15)
         publish_auto(gaming)
-    except BaseException:
+    except BaseException as failure:
+        errors = []
         if existing:
-            atomic(STORE/'auto.json', existing)
+            recover_step(errors, 'automatic configuration', lambda: atomic(STORE/'auto.json', existing))
         else:
-            (STORE/'auto.json').unlink(missing_ok=True)
-            subprocess.run(['/usr/bin/systemctl', 'disable', '--now', 'loadlet-auto-game.service'], check=False, timeout=20)
-            AUTO_STATUS.unlink(missing_ok=True)
+            recover_step(errors, 'automatic configuration', lambda: (STORE/'auto.json').unlink(missing_ok=True))
+            recover_step(errors, 'automatic service', lambda: subprocess.run(
+                ['/usr/bin/systemctl', 'disable', '--now', 'loadlet-auto-game.service'], check=True, timeout=20))
+            recover_step(errors, 'automatic status', lambda: AUTO_STATUS.unlink(missing_ok=True))
         if prior:
-            apply(prior)
+            recover_step(errors, 'previous profile', lambda: apply(prior))
         else:
-            apply({'cpu': {}, 'fans': {c: p for c, p in before_fans.items() if p is not None}, 'gpuFans': {}})
-            restore_cpu(before_cpu)
-            (STORE/'active.json').unlink(missing_ok=True)
-            if not had_original:
-                (STORE/'original-cpu.json').unlink(missing_ok=True)
+            recover_step(errors, 'previous fans', lambda: apply(
+                {'cpu': {}, 'fans': {c: p for c, p in before_fans.items() if p is not None}, 'gpuFans': {}}))
+            recover_step(errors, 'CPU', lambda: restore_cpu(before_cpu))
+            if not errors:
+                (STORE/'active.json').unlink(missing_ok=True)
+                if not had_original:
+                    (STORE/'original-cpu.json').unlink(missing_ok=True)
+        if errors:
+            if not (STORE/'recovery.json').exists():
+                atomic(STORE/'recovery.json', {'previous': prior or {}, 'target': target,
+                                              'cpu': before_cpu, 'fans': before_fans, 'errors': errors})
+            raise ValueError('Automatic setup failed; recovery incomplete: ' + '; '.join(errors)) from failure
         raise
 
 
@@ -500,14 +535,25 @@ def main():
     elif args == ['restore']:
         disable_auto(restore_base=False)
         value = json.loads((STORE/'active.json').read_text()) if (STORE/'active.json').exists() else {}
-        for channel in value.get('fans', {}):
-            subprocess.run([FANS, 'restore', channel], check=True, timeout=30)
-        for bus in value.get('gpuFans', {}):
-            subprocess.run(['/usr/bin/systemctl', 'disable', '--now', 'loadlet-gpu-fan@'+bus+'.service'], check=True, timeout=15)
+        recovery = json.loads((STORE/'recovery.json').read_text()) if (STORE/'recovery.json').exists() else {}
+        profiles = [value, recovery.get('previous', {}), recovery.get('target', {})]
+        channels = set(recovery.get('fans', {}))
+        buses = set()
+        for profile in profiles:
+            channels.update(profile.get('fans', {}))
+            buses.update(profile.get('gpuFans', {}))
+        errors = []
+        for channel in channels:
+            recover_step(errors, channel, lambda channel=channel: subprocess.run([FANS, 'restore', channel], check=True, timeout=30))
+        for bus in buses:
+            recover_step(errors, bus, lambda bus=bus: stop_gpu(bus))
         if (STORE/'original-cpu.json').exists():
-            restore_cpu(json.loads((STORE/'original-cpu.json').read_text()))
+            recover_step(errors, 'CPU', lambda: restore_cpu(json.loads((STORE/'original-cpu.json').read_text())))
+        if errors:
+            raise ValueError('Original control restoration incomplete: ' + '; '.join(errors))
         (STORE/'active.json').unlink(missing_ok=True)
         (STORE/'original-cpu.json').unlink(missing_ok=True)
+        (STORE/'recovery.json').unlink(missing_ok=True)
         subprocess.run(['/usr/bin/systemctl', 'disable', 'loadlet-power-profile.service'], check=True, timeout=15)
     else:
         raise ValueError('Invalid profile operation')

@@ -42,6 +42,19 @@ struct DiagnosticJournalChecks {
     j.Observe("glance",resources(244,1100,350));
     j.Sample();auto bytes=j.buffer_.size();j.Sample();assert(j.buffer_.size()==bytes);
     j.Flush();assert(j.error.empty());
+    const std::string sensor="schema\tactivity-sensors\t1\ntemperature\tcpu\tk10temp\tTctl\t54000\n";
+    j.buffer_=std::string(131040,' ')+"\n";
+    const auto file_size=j.file_size_;
+    j.SaveSensors(sensor);
+    assert(j.file_size_>file_size && j.buffer_.size()<32768 && j.error.empty());
+    const auto sensor_bytes=j.buffer_.size();
+    j.SaveSensors(sensor);assert(j.buffer_.size()==sensor_bytes);
+    j.last_sensor_write_-=std::chrono::seconds(16);
+    j.SaveSensors(sensor);assert(j.buffer_.size()==sensor_bytes*2);
+    j.Flush();assert(j.error.empty());
+    j.buffer_=std::string(131040,' ')+"\n";j.sample_at_={};
+    j.Sample();assert(j.buffer_.size()<32768 && j.error.empty());
+    j.Flush();assert(j.error.empty());
     // Force retention against actual private files, without sleeping or live data.
     const int old=openat(j.dir_,"samples-000000-old.jsonl",O_CREAT|O_EXCL|O_WRONLY,0600);assert(old>=0);close(old);
     timespec age[2]{{std::time(nullptr)-8*86400,0},{std::time(nullptr)-8*86400,0}};
@@ -68,7 +81,7 @@ struct DiagnosticJournalChecks {
     j.Disable();assert(!j.enabled);
     assert(j.Enable());assert(j.previous_cpu_sample_==0);
     assert(j.cpu_window_=="null");assert(j.cpu_=="null");j.Disable();
-    std::cout<<"PASS journal mathematics, PID reuse, timing admission, retention, missing data and reset\n";
+    std::cout<<"PASS journal mathematics, PID reuse, monotonic sensor admission, buffer pressure, retention and reset\n";
   }
 };
 }

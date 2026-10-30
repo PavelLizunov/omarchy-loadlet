@@ -22,6 +22,11 @@ with tempfile.TemporaryDirectory(prefix='activity-diagnostic-') as tmp:
     (proc/'stat').write_text('cpu 100 0 100 800 0 0 0 0\n')
     (proc/'meminfo').write_text('MemTotal: 1000 kB\nMemAvailable: 600 kB\nSwapTotal: 0 kB\nSwapFree: 0 kB\nCached: 100 kB\n')
     (proc/'pressure').mkdir();(proc/'pressure/cpu').write_text('some avg10=2 avg60=1 avg300=0 total=200\n')
+    policies=base/'sys/devices/system/cpu/cpufreq'
+    for n in range(64):
+        policy=policies/f'policy{n}';policy.mkdir(parents=True)
+        (policy/'scaling_driver').write_text('fixture-pstate')
+        (policy/'related_cpus').write_text(str(n))
     state=base/'state';state.mkdir(mode=0o700)
     env=dict(os.environ,HOME=str(base),XDG_STATE_HOME=str(state),OMARCHY_SYSTEM_STATS_PROC_PATH=str(proc),OMARCHY_SYSTEM_STATS_SYS_PATH=str(base/'sys'))
     run=lambda commands: subprocess.run([str(ROOT/'activity-sampler'),'--activity-reader'],input=commands,text=True,capture_output=True,env=env,timeout=5,check=True)
@@ -38,6 +43,11 @@ with tempfile.TemporaryDirectory(prefix='activity-diagnostic-') as tmp:
     assert len(rows)==1 and rows[0]['cpu_pct'] is None and rows[0]['boot_id']=='fixture-boot'
     assert stat.S_IMODE(files[0].stat().st_mode)==0o600
     assert report.valid_record(rows[0])
+    context=rows[0]['context']
+    assert context and context['policies_truncated']
+    assert 0<len(context['policies'])<64
+    assert context['policies'][0]['id']=='policy0'
+    assert context['psi']['cpu'] and context['power_supplies']==[]
     result=report.export(directory,2,base/'export')
     assert (result/'AGENT-PROMPT.md').exists()
     assert json.loads((result/'summary.json').read_text())['samples']==1

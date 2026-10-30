@@ -23,7 +23,7 @@ Column {
   property bool invalidCpuLimit: false
   property bool automationOptionsOpen: false
   readonly property var selectedProfile: profiles.filter(function(p) { return p.id===root.selectedId })[0] || profiles[0]
-  readonly property string activeId: automatic.enabled ? (automatic.error ? "" : automatic.gaming ? "games" : automaticBaseId) : settings.activePowerProfile || ""
+  readonly property string activeId: automatic.error ? "" : automatic.enabled ? (automatic.gaming ? "games" : automaticBaseId) : settings.activePowerProfile || ""
   readonly property string activeName: (profiles.filter(function(p) { return p.id===root.activeId })[0] || {}).name || I18n.t("profile_manual",language)
   function summary(profile) {
     if (!profile) return ""
@@ -40,6 +40,20 @@ Column {
   }
   property var cpuCapabilities: ({policies:[]})
   property bool capabilitiesReady: false
+  property int statusExitCode: -1
+  property bool statusExpired: false
+  property var pendingCapabilities: null
+  function clearCapabilities() {
+    pendingCapabilities = null
+    capabilitiesReady = false
+    cpuCapabilities = {policies:[],automatic:{enabled:false,gaming:null,error:"status_unavailable"}}
+  }
+  function finishStatus() {
+    if (statusExpired || statusExitCode !== 0 || !pendingCapabilities) return
+    cpuCapabilities = pendingCapabilities
+    capabilitiesReady = true
+    if (editorOpen && !draft.id) selectProfile(selectedId)
+  }
   property string statusKey: ""
   property string pendingId: ""
   property string pendingPayload: ""
@@ -163,16 +177,21 @@ Column {
   Process {
     id: statusProcess
     command:["/usr/local/lib/loadlet/power-profile","status"]
-    onExited:statusDeadline.stop()
+    onStarted:{root.statusExitCode=-1;root.statusExpired=false;root.pendingCapabilities=null}
+    onExited:function(code){
+      statusDeadline.stop();root.statusExitCode=code
+      if(code!==0 || root.statusExpired)root.clearCapabilities()
+      else root.finishStatus()
+    }
     stdout:StdioCollector { waitForEnd:true; onStreamFinished:{
+      if(root.statusExpired)return
       try {
-        if(text.length<65536){
-          var value=JSON.parse(text)
-          if(!value || !Array.isArray(value.policies))return
-          root.cpuCapabilities=value;root.capabilitiesReady=true
-        }
-        if(root.editorOpen && !root.draft.id)root.selectProfile(root.selectedId)
-      }catch(error){}
+        if(text.length>=65536)throw new Error("Status exceeds budget")
+        var value=JSON.parse(text)
+        if(!value || !Array.isArray(value.policies))throw new Error("Invalid status")
+        root.pendingCapabilities=value
+        root.finishStatus()
+      }catch(error){root.clearCapabilities()}
     } }
   }
   Process {
@@ -189,7 +208,7 @@ Column {
         root.statusKey=root.operation==="auto-off" ? "profile_auto_stopped" : root.operation==="auto-config" ? "profile_auto_started" : "profile_applied"
         if(root.operation==="apply" || root.operation==="restore")root.saveSettings({activePowerProfile:root.operation==="restore"?"":root.pendingId,autoGameProfiles:false})
         else root.saveSettings(root.operation==="auto-config" ? {autoGameProfiles:true,autoGameBaseProfile:root.pendingBaseId} : {autoGameProfiles:false,activePowerProfile:root.automaticBaseId})
-        root.applied();statusDeadline.restart();statusProcess.running=true
+        root.applied();root.refreshStatus()
       }
     }
   }
@@ -197,7 +216,7 @@ Column {
     interval:5000;repeat:true;running:root.active
     onTriggered:root.refreshStatus()
   }
-  Timer { id:statusDeadline;interval:5000;onTriggered:statusProcess.signal(9) }
+  Timer { id:statusDeadline;interval:5000;onTriggered:{root.statusExpired=true;root.statusExitCode=1;root.clearCapabilities();statusProcess.signal(9)} }
   Timer { id:deadline;interval:360000;onTriggered:{root.operationExpired=true;applyProcess.signal(15);root.statusKey="profile_failed"} }
 
   Text {
