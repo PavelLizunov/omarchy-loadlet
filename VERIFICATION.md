@@ -13,10 +13,14 @@ and EOF cleanup. No hardware settings were written.
 
 The unused catalog and nine uncalled production power-model functions were
 removed; all83remaining Model functions are byte-equivalent. Focused model and
-active-catalog checks pass. Exact hosted CI, installed identity and longer-term
-observations are separate delivery evidence. No new visual change or independent
-review. The shared-shell peak remains unattributed; historical reload bursts are
-a lead, not proof. See [scope and limits](docs/resource-simplification-20261030.md).
+active-catalog checks pass. Hosted CI41118902370passes all3jobs at runtime
+commitff27083d995f400acf4421318402a8e680a1bf00, including109panel results. Exact
+2.18.9is installed/loaded ready without a shell restart or settings change.
+The installed reader retains2eventfds throughout120seconds of500ms capture.
+No new visual change or independent review. Retained history locates the shell
+peak at22:26:34and recovery near1.2GiB by22:27:30without restart; allocator
+attribution is still unknown. Historical reload bursts occurred outside this
+episode. See [scope and limits](docs/resource-simplification-20261030.md).
 
 ## Geometry and module audit — 2.18.8
 

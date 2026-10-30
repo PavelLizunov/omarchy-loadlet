@@ -8,7 +8,8 @@ Private raw process data and logs remain local; only aggregates are published.
 ## Two different resource observations
 
 The existing shared Quickshell had a lifetime RSS high-water mark of9.83GiB.
-That confirms a large historical allocation, not its time, source or permanence.
+Initially this confirmed a large historical allocation, not its time or source.
+A later bounded read of existing process history located the episode (see below).
 During13observations10seconds apart, RSS went from1253956to1253372KiB,
 PSS from1088521to1087937KiB, with170FDs and47threads unchanged. No growing
 shell footprint was observed in that120-second window. A separate application
@@ -48,9 +49,27 @@ session was different; this change retains only the mapping.
 
 The retained shell log also contains large historical plugin-reload bursts,
 including1027notifications within one second. Multiple plugins were involved.
-These are an investigation lead, not a measured association with the peak:
-there is no simultaneous allocation trace. No host watcher or unrelated plugin
-was changed, and the shared shell was not restarted for diagnosis.
+These were an investigation lead, not a measured association with the peak.
+The later history reconstruction places the peak outside those reload bursts.
+No host watcher or unrelated plugin was changed, and the shared shell was not
+restarted for diagnosis.
+
+### Retained history locates the actual episode
+
+A bounded read of existing raw history found22335samples for the same shell
+PID/start identity, from 16:48 to 23:01 local time (UTC+03:00). Its largest retained sample was
+10203444KiB (9.73GiB) at22:26:34. The higher9.83GiB kernel high-water mark can
+fall between samples. RSS was about1.08GiB before22:25:43, exceeded2GiB from
+22:25:59through22:26:58, and returned to about1.20GiB by22:27:30without restart.
+CPU usage was about100%of one logical core during much of the burst. This is a
+transient allocation/work episode, not evidence of continuously retained growth.
+
+The shell log reports Omamail delegate/context-destruction warnings at22:25:43
+and shared UI timer delays during the burst. That temporal association does not
+identify the allocator or prove an Omamail defect; no allocation stack or exact
+user interaction was captured. Reading the named component did not establish a
+causal loop. The shell peak therefore remains unresolved, separately from the
+confirmed reader descriptor defect.
 
 ## Demonstrated simplification
 
@@ -95,8 +114,18 @@ necessary or that overengineering has been universally eliminated.
 - Focused model mathematics and active catalog/install checks passed.
 - Byte comparison confirms83retained Model functions are unchanged.
 - The real-driver32-query comparison above passed without hardware configuration.
-- Full hosted core/UI/package/reproduction results and installed/loaded identity
-  are separate delivery receipts for the exact checkpoint, not implied here.
+- Hosted [CI41118902370](https://github.com/PavelLizunov/omarchy-loadlet/actions/runs/41118902370)
+  completed successfully for runtime commit `ff27083d995f400acf4421318402a8e680a1bf00`:
+  core, reproducible-package and native-ui, including 109 panel results, four raster
+  results perDPR1/2and isolated native installation (shell IPC stubbed).
+- Exact2.18.9runtime was installed and reported ready through the existing shell.
+  Settings were byte-identical; no profile or privileged helper was changed.
+  The shell PID/start identity was preserved. Recording resumed at500ms in a new
+  session, not uninterrupted continuity of the previous session.
+- A120-second installed observation retained2eventfds in every sample; totalFDs
+  varied17–18with journal activity. Reader RSS31192->31204KiB and anonymous
+  RSS21696->21708KiB. The old reader exited. This is a bounded observation, not
+  a long-running leak-free or CPU/energy acceptance claim.
 
 The existing17-module assessment does not become5/5 because of these fixes.
 Native collection gains a demonstrated lifetime regression; maintainability gains
