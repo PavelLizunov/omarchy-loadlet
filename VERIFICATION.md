@@ -1,5 +1,27 @@
 # Loadlet verification
 
+## Language key-handler recovery — 2.19.2 source
+
+After 2.19.1 deployment the user reported that Loadlet disappeared. Live IPC
+returned `Target not found.` The shared-shell journal recorded
+`Panel.qml:1296:16: Cannot assign to non-existent property "onPageUpPressed"`.
+The installed Qt Quick Keys type declares `pressed`, but no Home/End/PageUp/
+PageDown-specific signals. All four invalid handlers now use `Keys.onPressed`
+with the corresponding `Qt.Key_*` values; unhandled keys remain unaccepted.
+
+Availability was restored first by pointing the installed manifest back to its
+existing 2.19.0 runtime and requesting a plugin rescan, exit 0. A subsequent
+read-only status returned `ready`, revision `memory-watch-20261031`, four fan
+control channels and capture enabled at 500 ms with no reported capture error.
+The user-requested details IPC returned exit 0. That is recovery evidence for
+2.19.0, not acceptance of this candidate or proof of physical cooling.
+
+The source correction is published separately and is not installed during the
+user’s game. No root helper, profile, fan setting or service was changed.
+No tests, linter, new render, hardware trial or independent review ran. The
+checkpoint skips CI. Candidate loading, keyboard input and notifications remain
+unverified. Historical 2.19.1 rescan success did not establish loaded readiness.
+
 ## Language picker and memory alerts — 2.19.1
 
 User-provided compact/expanded screenshots show a short, center-aligned language

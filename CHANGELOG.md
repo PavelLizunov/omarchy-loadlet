@@ -1,5 +1,15 @@
 # Changelog
 
+## 2.19.2 — source recovery
+
+- Replace unsupported Home/End/PageUp/PageDown attached signal handlers with
+  native `Keys.onPressed` key dispatch. The 2.19.1 handlers prevented the entire
+  plugin from loading, not just the language picker.
+- Restore the existing 2.19.0 installation for immediate cooling-control access.
+  Its live IPC reports `ready`; no fan/profile settings or root helpers changed.
+  Keep this source correction separate from the running installation during play.
+  Candidate loading/input, tests and notification delivery remain unverified.
+
 ## 2.19.1
 
 - Replace the five-row language viewport with a full-height list, readable

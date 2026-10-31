@@ -119,8 +119,8 @@ Panel {
         captureInterval: activity.captureAppliedInterval,
         heatThreshold: activity.heatThreshold,
         productName: "Loadlet",
-        iconRevision: "2.19.1",
-        implementationRevision: "language-memory-alerts-20261031",
+        iconRevision: "2.19.2",
+        implementationRevision: "language-keys-recovery-20261031",
         memoryWatchEvents: memoryCleanup.watch.events.length,
         memoryWatchNotifications: memoryCleanup.watch.notificationsEnabled,
         memoryWatching: memoryCleanup.watch.running,
@@ -1290,10 +1290,14 @@ Panel {
             if (currentIndex <= 0) languageSearch.forceActiveFocus()
             else move(-1)
           }
-          Keys.onHomePressed: { currentIndex = 0; move(0) }
-          Keys.onEndPressed: { currentIndex = count-1; move(0) }
-          Keys.onPageDownPressed: move(Math.max(1,Math.floor(height/Style.space(48))))
-          Keys.onPageUpPressed: move(-Math.max(1,Math.floor(height/Style.space(48))))
+          Keys.onPressed: function(event) {
+            if (event.key === Qt.Key_Home) { currentIndex = 0; move(0) }
+            else if (event.key === Qt.Key_End) { currentIndex = count-1; move(0) }
+            else if (event.key === Qt.Key_PageDown) move(Math.max(1,Math.floor(height/Style.space(48))))
+            else if (event.key === Qt.Key_PageUp) move(-Math.max(1,Math.floor(height/Style.space(48))))
+            else return
+            event.accepted = true
+          }
           Keys.onReturnPressed: chooseCurrent()
           Keys.onEnterPressed: chooseCurrent()
           Keys.onSpacePressed: chooseCurrent()
