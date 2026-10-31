@@ -85,10 +85,11 @@ With **Background icon indicators** enabled (default), the same native reader
 requests aggregate CPU/RAM and a separate CPU thermal sample every 15 seconds
 while the panel is closed. Requests are serial. The thermal reader reuses its
 cached sensor path; initial discovery or sensor loss can enumerate hwmon sensors.
-With diagnostic history disabled, no process inventory, topology, GPU or disk
-requests run in this mode. Open-panel samples feed the icon without a second
-reader. Disabling both background icon indicators and diagnostic history stops
-closed-panel collection, while open-panel sampling continues normally.
+With diagnostic history, high-resolution capture and explicit memory observation
+disabled, no process inventory, topology, GPU or disk requests run in this mode.
+Open-panel samples feed the icon without a second reader. Disabling background
+indicators and all explicit recording/observation sessions stops closed-panel
+collection, while open-panel sampling continues normally.
 
 CPU requires two counter samples; the initial baseline is unavailable, not 0%.
 CPU is an average between samples, so short peaks are smoothed. Unavailable values
@@ -97,6 +98,62 @@ limits are 35 seconds. Exact CPU, used/total RAM and fresh temperature are in th
 tooltip. These tiny gauges show approximate levels; background polling is not
 zero-overhead, timer cadence can slip during shell stalls, and battery impact
 has not been measured.
+
+## Memory growth observation
+
+Open Memory and choose Start observation before repeating a workload you want to
+understand. Opening the page alone does not start a session. Samples target every
+30 seconds for one hour in the existing native reader, including while the panel
+is closed. Stop keeps the result in memory until plugin reload; starting again
+replaces it. Reload disables observation and does not change saved high-resolution
+capture preferences. Stop and Copy local report remain in the pinned footer.
+
+System history separates total-minus-available (an estimate, not summed process
+heaps), cache plus reclaimable slab, anonymous pages, shared memory/tmpfs,
+unreclaimable slab and swap used. Memory PSI reports the kernel’s 10-second
+percentage of time with some/all non-idle tasks stalled on memory. Zero sampled
+pressure does not exclude earlier shortages. These categories overlap; do not add
+them into a fabricated complete accounting or equate cache with guaranteed savings.
+
+Select one of the ten largest current anonymous-memory increases for baseline,
+peak, change, average change per minute and charts of anonymous RSS, PSS or USS.
+PSS apportions shared resident pages; USS here is Private_Clean + Private_Dirty.
+Anonymous RSS may include shared anonymous pages and is only a screening signal.
+Permission gaps, process exit and eviction from the bounded set mean unknown, not
+zero. Identity uses PID/start ticks within each boot. Restarted/reused PIDs do not
+continue the prior trend. System and process reads are not an atomic snapshot.
+
+A growth warning requires a continuous interval of at least 10 minutes and
+12 samples, anonymous growth of at least 64 MiB and 25%, and at least 70% of steps
+growing by 1 MiB or more. It is a disclosed heuristic, not a statistically validated
+leak detector. Absence of a warning proves nothing about slow, bursty, privileged
+or unretained consumers. Repeat comparable actions after warm-up; a plateau may
+reflect useful caching or allocator reuse. Allocation profiling is needed to
+attribute retained memory. No automatic kill, cache drop or profiler is added.
+
+Bounds: scan at most 4096 numeric procfs entries, retain the largest 256 readable
+RSS processes, and attempt smaps_rollup for the largest 32. A 300 ms admission
+deadline stops new reads; it cannot interrupt an individual kernel read. The
+existing reader watchdog/retry remains in force, so a stall can interrupt other
+collection too. Coverage, unreadable/changed identities, observed zombies, partial
+snapshots and elapsed collection time are retained. Collection duration is not a
+CPU-cost measurement. Sparse access and scan limits can omit the actual culprit.
+
+Keep at most 121 snapshots in QML memory; no new disk journal, daemon, package,
+network call or root permission. The closed-panel scheduler ticks once per second
+only while observing, but memory requests remain about 30 seconds apart and do
+not reset on page changes. Reader interruption, samples more than 75 seconds apart,
+boot changes and wall/uptime discontinuities reset comparisons and break charts.
+Wall-clock reversal starts a new chart segment. A stale snapshot remains labeled.
+Observed costs and full-hour/input behavior have not been measured.
+
+Copy local report puts JSON in the desktop clipboard, without sending it to an
+agent/provider. It includes system frames, coverage and histories for the ten
+current leading processes (the selected retained process replaces the tenth if
+needed), with names, PID/start and boot identity; no argv or
+environment. Exited or no-longer-retained processes are not in that current top
+report. The clipboard payload is capped at 524288 characters; copy before reload
+and review before sharing. This is not a complete process archive.
 
 ## Memory cleanup
 
@@ -114,6 +171,8 @@ Terminate confirmation. Zombie processes have already released their address spa
 their parent must reap the exit status. Killing zombies is not a RAM cleanup method.
 No automatic process cleanup, swap reset or stronger cache-drop mode is added.
 
+Expand Cache cleanup to reveal this secondary tool. It is disabled while a
+memory observation is running, so the plugin does not itself distort that session.
 Clear cache opens an explicit confirmation. Authenticate and clear invokes
 Polkit for that one request, flushes pending file writes with `sync()`, then
 writes `3` to `/proc/sys/vm/drop_caches`. This asks the kernel to reclaim clean

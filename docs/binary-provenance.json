@@ -1,18 +1,19 @@
 {
   "schemaVersion": 1,
   "platform": "linux-x86_64",
-  "sourceBaseCommit": "50738ae99827d5bce7e07d699b96e6946ff6b6df",
+  "sourceBaseCommit": "bbfbc4b9505397db1aef05a1e1a11402ba6f44a5",
   "sha256": {
-    "activity-sampler": "2855bea54aeea6af1e93e3ed806fca8fa4bfc4d28f2807953528e55f983c2347",
-    "activity-sampler.cpp": "0be492f9397bac698fd2ff4cf9e55260252f6f923cdbe833e93791e26ca5d0e2",
+    "activity-sampler": "a08b20a36d90eb8b30c934c9f69d74fc959a9ad251dba639a9a6dda351683965",
+    "activity-sampler.cpp": "a2b488442c977f6ada0b42047269e0ccbbe3c0e3a91280a8bced4e37211171f5",
     "DiagnosticJournal.h": "4f335f7005396bb1f487779ea2e27e71082edcf52fe658c1bf242f61042ee076",
     "FastDiagnostics.h": "cc31f214b6a596fc365902929b10c7195b67106811bc1bb6f34a7e5fbe944d02",
-    "Makefile": "73b4db0652f1bc975fa20236501f4a62cfc0a86df664d083150a3470e3aa7d6f"
+    "MemoryWatch.h": "3ddb4bc4290ec580f5ca56d1370d109cc41eafe9bd1753f9fff54e1287c5d78b",
+    "Makefile": "046bae41115feacaac843a2baed3f4e00298cec022342f5b354df39fc73a518d"
   },
-  "size": 313464,
+  "size": 333944,
   "compiler": "GCC 16.2.1 20260810",
-  "buildCommand": "LC_ALL=C make activity-sampler",
-  "buildResult": "Retain NVML mapping, end each sample session; inert lifetime regression and bounded real-driver comparison passed; full CI and installed acceptance are separate",
+  "buildCommand": "make activity-sampler (recipe sets LC_ALL=C)",
+  "buildResult": "2.19.0 explicit memory-watch collector compiled successfully. No tests, reproducibility check, live observation or CI ran for these bytes.",
   "dynamicRequirements": {
     "glibc": "2.34",
     "libstdc++": "GLIBCXX_3.4.32",
@@ -22,10 +23,11 @@
     ],
     "optional": "libnvidia-ml.so.1; not required without NVIDIA telemetry"
   },
-  "packagingChange": "2.18.11 adds MemoryCleanup.qml and memory-clean to install-local after the 2.18.10 locale migration. Compiler recipe and shipped sampler are unchanged; no new rebuild or reproduction was run.",
+  "packagingChange": "2.19.0 includes MemoryWatch.qml and MemoryWatch.js; MemoryWatch.h is a native build dependency. Existing compilation hardening is unchanged.",
   "runtimeBuild": false,
   "runtimeDownload": false,
   "limits": [
+    "Memory observation, runtime symbol compatibility, observer cost and one-hour/UI acceptance are unverified for 2.19.0; dynamicRequirements are inherited, not remeasured",
     "Per-process NVIDIA and DRM runtime behavior is unverified on physical hardware",
     "x86_64 only; no prebuilt ARM support",
     "Maintainer listing approval is separate from source and binary evidence"

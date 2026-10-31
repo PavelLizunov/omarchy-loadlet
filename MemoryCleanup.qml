@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Window
 import QtQuick.Controls as QQC
 import Quickshell.Io
 import qs.Commons
@@ -11,6 +12,8 @@ Item {
   id: root
   objectName: "memoryCleanup"
   property var locale: null
+  property alias watch: memoryWatch
+  property bool cleanupExpanded: false
   property bool active: false
   property var memory: ({})
   property bool memoryReady: false
@@ -40,7 +43,7 @@ Item {
       && isFinite(value.available) && value.available >= 0))
   }
   function request() {
-    if (!active || running || !confirming) return
+    if (!active || running || !confirming || memoryWatch.running) return
     confirming = false; result = null; captured = ""; timedOut = false; finishedAt = 0
     statusKey = "memory_clean_running"
     deadline.restart()
@@ -48,7 +51,7 @@ Item {
   }
   onActiveChanged: if (!active) confirming = false
   onConfirmingChanged: Qt.callLater(function() {
-    if (root.active) {
+    if (root.active && root.cleanupExpanded) {
       (root.confirming ? cancelButton : cleanButton).forceActiveFocus()
       if (root.confirming) viewport.contentY = Math.max(0, viewport.contentHeight - viewport.height)
     }
@@ -109,10 +112,33 @@ Item {
       anchors.left: viewport.right
       anchors.top: viewport.top; anchors.bottom: viewport.bottom
     }
+    Connections {
+      target: viewport.Window.window
+      function onActiveFocusItemChanged() {
+        var window = viewport.Window.window
+        if (!window || !root.active) return
+        var item = window.activeFocusItem, ancestor = item
+        while (ancestor && ancestor !== viewport.contentItem) ancestor = ancestor.parent
+        if (!ancestor) return
+        var top = item.mapToItem(viewport.contentItem,0,0).y
+        if (top < viewport.contentY) viewport.contentY = Math.max(0,top)
+        else if (top + item.height > viewport.contentY + viewport.height)
+          viewport.contentY = Math.max(0,Math.min(viewport.contentHeight-viewport.height,top+item.height-viewport.height))
+      }
+    }
     Column {
       id: body
       width: viewport.width
       spacing: Style.spacing.sm
+      MemoryWatch { id: memoryWatch; width: parent.width; locale: root.locale }
+      Button {
+        width: parent.width
+        text: root.t("memory_watch_cache_tools")
+        foreground: Host.Color.popups.text; accent: Host.Color.accent; focusable: true
+        onClicked: { root.cleanupExpanded = !root.cleanupExpanded; root.confirming = false }
+      }
+      Column {
+        width: parent.width; spacing: Style.spacing.sm; visible: root.cleanupExpanded
       Row {
         width: parent.width; spacing: Style.spacing.sm
         SvgIcon { name: "ram"; tint: Host.Color.popups.text }
@@ -162,12 +188,36 @@ Item {
         textFormat: Text.PlainText; wrapMode: Text.Wrap
         color: Host.Color.popups.text; font.family: Style.font.family; font.pixelSize: Style.font.caption
       }
+      }
     }
   }
   Column {
     id: actions
     anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom
     spacing: Style.spacing.sm
+    Row {
+      width: parent.width; spacing: Style.spacing.sm
+      Button {
+        objectName: "memoryWatchStart"
+        width: (parent.width-parent.spacing)/2
+        text: root.t(memoryWatch.running ? "memory_watch_stop" : "memory_watch_start")
+        enabled: root.active && !root.running
+        foreground: Host.Color.popups.text; accent: Host.Color.accent; bordered: true; focusable: true
+        Accessible.role: Accessible.Button; Accessible.name: text
+        onClicked: {
+          root.confirming = false
+          if (memoryWatch.running) memoryWatch.stop()
+          else memoryWatch.begin()
+        }
+      }
+      Button {
+        width: (parent.width-parent.spacing)/2
+        text: root.t("memory_watch_copy"); enabled: memoryWatch.frames.length > 0
+        foreground: Host.Color.popups.text; accent: Host.Color.accent; bordered: true; focusable: true
+        Accessible.role: Accessible.Button; Accessible.name: text
+        onClicked: memoryWatch.copyReport()
+      }
+    }
     Button {
       objectName: "memoryProcesses"
       width: parent.width
@@ -178,6 +228,7 @@ Item {
       onClicked: root.processesRequested()
     }
     Row {
+      visible: root.cleanupExpanded
       width: parent.width; spacing: Style.spacing.sm
       Button {
         id: cancelButton
@@ -198,7 +249,7 @@ Item {
         foreground: Host.Color.popups.text; accent: Host.Color.accent
         bordered: true; focusable: true
         Accessible.role: Accessible.Button; Accessible.name: text
-        enabled: root.active && !root.running
+        enabled: root.active && !root.running && !memoryWatch.running
         onClicked: {
           if (root.confirming) root.request()
           else root.confirming = true

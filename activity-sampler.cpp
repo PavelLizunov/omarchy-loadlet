@@ -2233,13 +2233,14 @@ private:
 };
 
 #include "FastDiagnostics.h"
+#include "MemoryWatch.h"
 
 class Sampler {
 public:
   explicit Sampler(Paths paths)
       : resources_(paths), processes_(paths), thermals_(paths), storage_(paths),
         gpus_(paths), journal_(paths), sensor_journal_(paths, "sensors"),
-        fast_(paths, resources_, processes_, thermals_, gpus_) {}
+        fast_(paths, resources_, processes_, thermals_, gpus_), memory_watch_(paths) {}
 
   void Tick() { fast_.Tick(); }
   int Timeout() const { return fast_.Timeout(); }
@@ -2272,7 +2273,9 @@ public:
       output << "schema\tactivity-journal\t1\n"
              << "enabled\t" << (journal_.enabled?1:0) << '\n'
              << "error\t" << journal_.error << '\n';
-    } else if (kind == "resources")
+    } else if (kind == "memory-watch")
+      memory_watch_.Collect(output);
+    else if (kind == "resources")
       resources_.Collect(output);
     else if (kind == "glance")
       resources_.Glance(output);
@@ -2311,6 +2314,7 @@ private:
   DiagnosticJournal journal_;
   DiagnosticJournal sensor_journal_;
   FastDiagnostics fast_;
+  MemoryWatchCollector memory_watch_;
 };
 
 volatile sig_atomic_t reader_stopping = 0;
@@ -2334,7 +2338,7 @@ void Reader(Sampler &sampler) {
     if(n<=0) break;
     if(ch!='\n') { if(request.size()>=31) break;request+=ch;continue; }
     request=Trim(request);
-    if (request != "glance" && request != "resources" && request != "processes" &&
+    if (request != "memory-watch" && request != "glance" && request != "resources" && request != "processes" &&
         request != "thermals" && request != "sensors" && request != "sensors-on" && request != "sensors-off" && request != "gpus" && request != "storage" &&
         request != "journal-on" && request != "journal-off" && request != "journal" && request != "diagnostics" &&
         request != "capture-250" && request != "capture-500" && request != "capture-1000" &&

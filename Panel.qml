@@ -119,8 +119,10 @@ Panel {
         captureInterval: activity.captureAppliedInterval,
         heatThreshold: activity.heatThreshold,
         productName: "Loadlet",
-        iconRevision: "2.18.12",
-        implementationRevision: "stable-process-scroll-20261031",
+        iconRevision: "2.19.0",
+        implementationRevision: "memory-watch-20261031",
+        memoryWatching: memoryCleanup.watch.running,
+        memoryWatchSamples: memoryCleanup.watch.frames.length,
         memoryTab: root.memoryOpen,
         memoryCleanupRunning: memoryCleanup.running,
         memoryCleanupStatus: memoryCleanup.statusKey,
@@ -998,6 +1000,9 @@ Panel {
     }
     settings: root.settings
     active: root.opened
+    memoryWatchEnabled: memoryCleanup.watch.running
+    onMemoryObserved: function(frame) { memoryCleanup.watch.observe(frame) }
+    onMemoryInterrupted: memoryCleanup.watch.interrupt()
     backgroundEnabled: root.booleanSetting("iconIndicator", true)
     expanded: root.expanded
     sensorsActive: (root.sensorsOpen || root.profilesOpen) && !root.settingsOpen

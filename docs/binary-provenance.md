@@ -6,18 +6,17 @@ an automatic build on enablement. The native Omarchy add/update flow obtains it
 with the QML and Python helpers from this public repository.
 
 The distributed executable was rebuilt from `activity-sampler.cpp`,
-`DiagnosticJournal.h`, `FastDiagnostics.h` and Makefile using GCC 16.2.1 20260810
-on Linux x86_64. Version2.18.9 retains the NVIDIA driver mapping for the reader
-lifetime while shutting down each NVML session after its sample. This removes
-the observed per-sample eventfd growth; active-device admission and the existing
-high-resolution recorder remain unchanged. Inherited laptop corrections remain
-included; see [integration evidence](laptop-integration.md).
+`DiagnosticJournal.h`, `FastDiagnostics.h`, `MemoryWatch.h` and Makefile using
+GCC 16.2.1 20260810 on Linux x86_64. Version2.19.0 adds an explicitly requested
+memory snapshot to the existing reader. It inherits the 2.18.9 driver-mapping
+lifetime repair and laptop corrections; see [historical resource evidence](resource-simplification-20261030.md)
+and [integration evidence](laptop-integration.md). Those earlier checks do not
+certify the current binary.
 The exact executable size/hash and every build-input hash are recorded in the
-[machine-readable provenance](binary-provenance.json). `LC_ALL=C make
-activity-sampler` completed. The inert NVIDIA lifetime regression and a bounded
-32-query real-driver comparison passed. Current full CI, remote reproduction and
-installed runtime acceptance are separate delivery evidence; earlier passes do
-not certify this build. See [resource evidence](resource-simplification-20261030.md).
+[machine-readable provenance](binary-provenance.json). `make activity-sampler`
+completed with `LC_ALL=C` in the recipe. No tests, runtime observations, symbol
+inspection, reproduction or CI were run for this delivery. Installed files,
+rescan and loaded acceptance remain distinct.
 This checkpoint does not replace the v2.16.0 tag.
 
 [Machine-readable provenance](binary-provenance.json) binds source, header,
@@ -26,18 +25,17 @@ are in Makefile. An optional local reproduction is `make -B activity-sampler`;
 that is a developer verification command, not an installation prerequisite.
 Other compiler versions can legitimately produce different executable hashes.
 
-Versions 2.18.10–2.18.11 change only the Makefile installation list to include the
-locale adapter, JSON catalogs, MemoryCleanup.qml and memory-clean. The current
-Makefile hash is recorded separately from
-the unchanged 2.18.9 executable and compilation recipe. No new native build or
-reproducibility check was run for that packaging change.
+Versions 2.18.10–2.18.12 retained the 2.18.9 executable. Version2.19.0 rebuilds
+it and adds MemoryWatch.qml/MemoryWatch.js to installation. The native header is
+an explicit Makefile dependency; all build-input hashes are in the provenance.
 
 ## Runtime compatibility
 
 The package is an ELF64 Linux x86_64 executable, with baseline x86-64 code generation
 and no machine-specific `-march=native` flag. It dynamically uses glibc, libstdc++,
-libm and libgcc_s. Required symbol ceilings are glibc 2.34 and GLIBCXX_3.4.32.
-These are included by the current supported Arch-based Omarchy host. Optional
+libm and libgcc_s. Previously measured symbol ceilings were glibc 2.34 and
+GLIBCXX_3.4.32, included by the supported Arch-based host. Symbol ceilings and
+runtime compatibility have not been rechecked for the 2.19.0 rebuild. Optional
 NVIDIA NVML remains dynamically admitted by the existing device-state guard;
 no NVIDIA package is required for ordinary CPU/RAM metrics.
 

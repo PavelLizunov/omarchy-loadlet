@@ -1,5 +1,28 @@
 # Loadlet verification
 
+## Explicit memory observation — 2.19.0
+
+Implemented one panel-owned session, a `memory-watch` request in the existing
+reader, bounded native procfs snapshots and local QML trends. The sampling due
+time is independent of presentation resets. The collector does not hold process
+handles or modify capture preferences. Start is explicit and off after reload.
+PID/start identities, boot ID, monotonic/wall/uptime gaps and optional values are
+retained; the heuristic identifies candidates, not allocation ownership.
+
+`make activity-sampler` completed with the existing hardened compiler recipe.
+Build-input and binary hashes are recorded in binary-provenance.json. The
+task-owned source diff was reviewed directly. No tests, new regression tests,
+linters, CI, QML renders, live observation, profiler or independent review ran.
+The existing UI fixture copy list was adapted but not executed. Translation
+copy uses the local four-catalog fallback; no fluent review is claimed.
+
+Installation and rescan are separate from loaded identity and input acceptance.
+The feature remains off; no cache drop, authentication, process termination,
+hardware Apply or settings write was executed. Resource overhead, sampler
+coexistence under load, one-hour duration and constrained UI remain unverified.
+Earlier CI and NVML evidence do not validate the new bytes.
+See [behavior and limits](docs/guide.md#memory-growth-observation).
+
 ## Process-scroll correction — 2.18.12
 
 Source diagnosis: `sortedProcesses` is a newly allocated JavaScript array on

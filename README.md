@@ -54,12 +54,14 @@ inline analysis sends a small summary to your configured Pi provider.
 
 ![Profile selection and fan controls, inert demonstration data](docs/video/2.17.2/assets/profiles.png)
 
-The Memory tab offers manual cache cleanup with confirmation and system
-authentication. It drops clean file cache, not application memory, and does not
-fix leaks. Linux normally reclaims cache automatically; cleanup can slow later
-file reads. Processes by memory opens the existing table sorted by RAM usage
-for targeted inspection, not automatic termination.
-[Operation and limits](docs/guide.md#memory-cleanup).
+The Memory tab offers an explicit one-hour observation of system memory and
+process growth. Compare cache with anonymous pages, available memory, swap and
+memory stalls. Select a process for anonymous, proportional-share and private-page
+history; growth warnings are investigation candidates, not proven leaks. Stop
+keeps the local session until reload; copy its report before starting again.
+Processes by memory opens the existing table, without automatic termination.
+Manual authenticated cache cleanup remains a secondary diagnostic tool, not a
+leak fix. [Observation and limits](docs/guide.md#memory-growth-observation).
 
 ## Optional system controls
 

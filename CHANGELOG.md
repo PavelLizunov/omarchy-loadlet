@@ -1,5 +1,20 @@
 # Changelog
 
+## 2.19.0
+
+- Make Memory an explicit one-hour growth observation, using the existing native
+  reader at approximately 30-second intervals, including with the panel closed.
+- Separate system/cache/anonymous/shared/slab/swap and memory-stall readings.
+  Track PID/start identity, anonymous trends and optional PSS/private-page history.
+  Missing samples break comparisons rather than becoming zero.
+- Show bounded growth candidates with disclosed thresholds, not leak verdicts.
+  Keep Stop and Copy report reachable; retain at most 121 local snapshots, no
+  automatic persistence, application termination or provider call.
+- Keep authenticated cache cleanup secondary and unavailable during observation.
+  Preserve existing saved capture settings, process actions and hardware controls.
+- Rebuild the sampler. Tests, renders, live observation and independent review
+  were not run for this delivery.
+
 ## 2.18.12
 
 - Keep a stable native process-list model instead of replacing the JavaScript

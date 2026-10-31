@@ -16,6 +16,10 @@ Item {
     return locale ? locale.t(key, a, b, c) : key
   }
   property bool active: false
+  property bool memoryWatchEnabled: false
+  property double memoryWatchDue: 0
+  signal memoryObserved(string frame)
+  signal memoryInterrupted()
   property bool backgroundEnabled: false
   readonly property bool journalEnabled: settings && settings.diagnosticJournal === true
   readonly property bool sensorRecording: settings && settings.sensorRecording === true
@@ -35,7 +39,7 @@ Item {
   property double captureDuration: 0
   property string captureAction: ""
   signal captureFlushed()
-  readonly property bool collectionEnabled: active || backgroundEnabled || journalEnabled || sensorRecording || captureWanted || captureEnabled
+  readonly property bool collectionEnabled: active || backgroundEnabled || journalEnabled || sensorRecording || captureWanted || captureEnabled || memoryWatchEnabled
   property bool journalWriterEnabled: false
   property string journalError: ""
   readonly property int backgroundInterval: 15000
@@ -258,7 +262,11 @@ Item {
     if (!collectionEnabled || state !== "ready" || pending !== "") return
     var now = Date.now()
     var maxGap = active ? 15000 : glanceMaxAge
-    if (lastTick > 0 && (now < lastTick || now - lastTick > maxGap)) { resetData(); clearGlance() }
+    if (lastTick > 0 && (now < lastTick || now - lastTick > maxGap)) {
+      resetData(); clearGlance()
+      memoryWatchDue = 0
+      if (memoryWatchEnabled) memoryInterrupted()
+    }
     lastTick = now
 
     var configure = captureWanted !== captureEnabled || (captureWanted && captureInterval !== captureAppliedInterval)
@@ -284,6 +292,7 @@ Item {
       kinds = ["sensors", "glance", "thermals"]
       if (gpuEnabled) kinds.push("gpus")
     }
+    if (memoryWatchEnabled) kinds.unshift("memory-watch")
     if (captureEnabled) kinds.unshift("capture-status")
     if (sensorRecording && kinds.indexOf("sensors") < 0) kinds.push("sensors")
     if (sensorRecording !== sensorWriterEnabled) {
@@ -309,7 +318,7 @@ Item {
 
     for (var i = 0; i < kinds.length; i++) {
       var kind = kinds[i]
-      if ((due[kind] || 0) > now) continue
+      if ((kind === "memory-watch" ? memoryWatchDue : (due[kind] || 0)) > now) continue
       pending = kind
       buffer = []; bufferSize = 0
       watchdog.restart()
@@ -335,7 +344,7 @@ Item {
     if (!accept(kind, raw)) { fail(); return }
     errorText = ""
 
-    var interval = kind.indexOf("capture-") === 0 ? (active ? 1000 : backgroundInterval)
+    var interval = kind === "memory-watch" ? 30000 : kind.indexOf("capture-") === 0 ? (active ? 1000 : backgroundInterval)
       : kind === "journal-on" || kind === "journal-off" ? 60000
       : kind === "sensors-on" || kind === "sensors-off" ? 60000
       : kind === "sensors" ? (sensorRecording ? 15000 : 3000)
@@ -343,12 +352,17 @@ Item {
       : kind === "processes" && !active ? 30000
       : kind === "glance" || !active ? backgroundInterval : kind === "processes" && !_processMetricsReady ? 600
       : (kind === "resources" ? profile.resources : profile[kind])
-    due[kind] = Date.now() + interval
+    if (kind === "memory-watch") memoryWatchDue = Date.now() + interval
+    else due[kind] = Date.now() + interval
     if (active && kind === "processes" && !_processMetricsReady) processWarmup.restart()
     Qt.callLater(dispatch)
   }
 
   function accept(kind, raw) {
+    if (kind === "memory-watch") {
+      if (memoryWatchEnabled) memoryObserved(raw)
+      return true
+    }
     if (kind.indexOf("capture-") === 0) {
       var captureLines = String(raw).split("\n")
       if (captureLines[0] !== "schema\tactivity-diagnostics\t2") return false
@@ -363,7 +377,7 @@ Item {
       captureDuration = Number(status["duration-ms"]) || 0
       if (captureWanted !== captureEnabled) due["capture-config"] = Date.now() + 30000
       if (kind === "capture-flush") captureFlushed()
-      if (!captureWanted && !active && !backgroundEnabled && !journalEnabled && !sensorRecording) stop()
+      if (!captureWanted && !active && !backgroundEnabled && !journalEnabled && !sensorRecording && !memoryWatchEnabled) stop()
       return true
     }
     if (kind === "resources" || kind === "glance") {
@@ -456,6 +470,11 @@ Item {
       errorText = ""
     }
   }
+  onMemoryWatchEnabledChanged: {
+    memoryWatchDue = 0
+    if (memoryWatchEnabled) { start(); dispatch() }
+    else if (!collectionEnabled) stop()
+  }
   onBackgroundEnabledChanged: {
     if (collectionEnabled) start()
     else { stop(); clearGlance() }
@@ -520,6 +539,7 @@ Item {
       root.dispatch()
     }
     onExited: {
+      if (root.memoryWatchEnabled) root.memoryInterrupted()
       root.journalWriterEnabled = false
       root.sensorWriterEnabled = false
       root.captureEnabled = false
@@ -542,11 +562,12 @@ Item {
 
   Timer {
     id: scheduler
-    interval: root.active ? (root.captureEnabled ? 1000 : root.sensorsActive ? 3000 : Math.max(750, root.profile.resources)) : root.backgroundInterval
+    interval: root.active ? (root.captureEnabled ? 1000 : root.sensorsActive ? 3000 : Math.max(750, root.profile.resources))
+      : root.memoryWatchEnabled ? 1000 : root.backgroundInterval
     repeat: true
     onTriggered: {
       root.freshnessClock = Date.now()
-      if (!root.active) { root.due.glance = 0; root.due.thermals = 0 }
+      if (!root.active && !root.memoryWatchEnabled) { root.due.glance = 0; root.due.thermals = 0 }
       root.dispatch()
     }
   }
