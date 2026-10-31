@@ -106,6 +106,14 @@ Available memory and cache reuse the existing sampler; the cache figure is
 reclaims cache automatically as applications need memory. High cache usage alone
 is not a leak or a reason to clear it.
 
+Processes by memory opens the existing expanded process table sorted by resident
+memory, without ending anything. RSS includes shared pages and must not be summed
+as unique application memory. To release application memory, save work and close
+the application normally; an identified stuck process can use the existing explicit
+Terminate confirmation. Zombie processes have already released their address space;
+their parent must reap the exit status. Killing zombies is not a RAM cleanup method.
+No automatic process cleanup, swap reset or stronger cache-drop mode is added.
+
 Clear cache opens an explicit confirmation. Authenticate and clear invokes
 Polkit for that one request, flushes pending file writes with `sync()`, then
 writes `3` to `/proc/sys/vm/drop_caches`. This asks the kernel to reclaim clean
@@ -225,6 +233,12 @@ work, exact energy use or the physical cause of heat by itself.
 - No automatic escalation or promotion to a same-name parent process.
 - Selection follows PID and sampled start time across updates. When that identity
   disappears from the visible list, action buttons disable until another selection.
+- Expanded process updates reuse a stable list model. Metrics and sorting stay live
+  without resetting the scroll to the beginning or following the selected row.
+  The viewport retains its rank position, not a pinned process; sorted rows can
+  change underneath it. Changing the sort or search explicitly returns to the
+  beginning. Keyboard selection alone reveals its target. A shorter list may
+  clamp the viewport at its new end.
 - Escape cancels confirmation first, then collapses details/closes the panel.
 - In Settings, Escape closes an open dropdown first, then returns to the metrics.
 - The language picker blocks process actions. `?` shows or hides keyboard hints.

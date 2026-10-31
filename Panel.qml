@@ -42,6 +42,13 @@ Panel {
     memory: activity.glancePrevious.memory
     memoryReady: activity.glanceFresh && activity.glanceMemoryTotal > 0
     onCompleted: if (root.opened) activity.refresh()
+    onProcessesRequested: {
+      root.showPage("overview")
+      root.setExpanded(true)
+      root.processQuery = ""
+      root.sortKey = "memory"
+      root.sortAscending = false
+    }
   }
   PowerProfiles {
     id: powerProfiles
@@ -112,8 +119,8 @@ Panel {
         captureInterval: activity.captureAppliedInterval,
         heatThreshold: activity.heatThreshold,
         productName: "Loadlet",
-        iconRevision: "2.18.11",
-        implementationRevision: "memory-clean-20261031",
+        iconRevision: "2.18.12",
+        implementationRevision: "stable-process-scroll-20261031",
         memoryTab: root.memoryOpen,
         memoryCleanupRunning: memoryCleanup.running,
         memoryCleanupStatus: memoryCleanup.statusKey,
@@ -681,6 +688,7 @@ Panel {
       sortKey = nextKey
       sortAscending = nextKey === "name"
     }
+    if (processViewport) processViewport.positionViewAtBeginning()
   }
 
   function cycleSort(delta) {
@@ -3096,6 +3104,7 @@ Panel {
               root.selectedProcessKey = ""
               root.cursorActive = false
               pointerGate.reset()
+              if (root.processViewport) root.processViewport.positionViewAtBeginning()
             }
             Keys.onPressed: function(event) {
               if (event.key === Qt.Key_Escape || event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
@@ -3132,7 +3141,19 @@ Panel {
         ListView {
           id: processList
           anchors.fill: parent
-          model: root.sortedProcesses
+          // Stable rank slots: replacing a JS-array model resets ListView scroll.
+          // Metrics/order stay live through indexed bindings; selection stays PID/start keyed.
+          model: ListModel { id: processSlots }
+          readonly property int rowCount: root.sortedProcesses.length
+          onRowCountChanged: syncRows()
+          function syncRows() {
+            if (!processSlots) return
+            if (processSlots.count > rowCount)
+              processSlots.remove(rowCount, processSlots.count - rowCount)
+            while (processSlots.count < rowCount) processSlots.append({rank: processSlots.count})
+          }
+          currentIndex: -1
+          highlightFollowsCurrentItem: false
           spacing: Style.space(2)
           clip: true
           boundsBehavior: Flickable.StopAtBounds
@@ -3143,19 +3164,21 @@ Panel {
               positionViewAtIndex(root.selectedProcessIndex, ListView.Contain)
           }
 
-          Component.onCompleted: root.processViewport = processList
+          Component.onCompleted: {
+            syncRows()
+            root.processViewport = processList
+          }
           Component.onDestruction: if (root.processViewport === processList) root.processViewport = null
 
           ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
 
           delegate: ProcessRow {
-            required property var modelData
             required property int index
             width: ListView.view.width
-            processData: modelData
+            processData: root.sortedProcesses[index] || ({})
             rowIndex: index
             compact: false
-            selected: root.cursorActive && root.selectedProcessKey === Model.processIdentityKey(modelData)
+            selected: root.cursorActive && root.selectedProcessKey === Model.processIdentityKey(processData)
           }
         }
 

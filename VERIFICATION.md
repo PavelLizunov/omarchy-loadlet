@@ -1,5 +1,29 @@
 # Loadlet verification
 
+## Process-scroll correction — 2.18.12
+
+Source diagnosis: `sortedProcesses` is a newly allocated JavaScript array on
+each process/GPU update. Binding it directly to `ListView.model` replaces the
+model and allows its viewport to reset. Selection restoration was already keyed
+by PID/start time and did not itself call `positionViewAtIndex` on polling.
+
+The implementation now retains a native `ListModel` of rank slots, adds/removes
+only tail slots when the count changes, and binds visible rows to the current
+sorted snapshot. No model reset or forced reveal occurs for metric refreshes.
+The selected identity is still resolved independently; disappeared/reused PIDs
+never transfer the selection. Explicit sort/search resets and keyboard reveal
+remain intentional. Rank preservation does not freeze ordering or pin a process.
+
+Memory now offers a shortcut to the existing table sorted by memory. No sampler,
+cache-drop helper, settings, persistent privileges or hardware controls changed.
+One bounded, user-requested local memory snapshot was collected separately; raw
+process identities stay outside this repository. It does not explain historical
+memory growth or prove a leak absent.
+
+Tests, new tests, CI, QML renders, independent review and live input acceptance
+were not requested or run. The checkpoint skips CI. Installation and a successful
+rescan are not proof of loaded identity or repaired physical scrolling.
+
 ## Manual cache cleanup — 2.18.11
 
 Implemented a panel-owned Memory module, five-tab navigation, a RAM-tile shortcut,

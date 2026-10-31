@@ -57,7 +57,9 @@ inline analysis sends a small summary to your configured Pi provider.
 The Memory tab offers manual cache cleanup with confirmation and system
 authentication. It drops clean file cache, not application memory, and does not
 fix leaks. Linux normally reclaims cache automatically; cleanup can slow later
-file reads. [Operation and limits](docs/guide.md#memory-cleanup).
+file reads. Processes by memory opens the existing table sorted by RAM usage
+for targeted inspection, not automatic termination.
+[Operation and limits](docs/guide.md#memory-cleanup).
 
 ## Optional system controls
 

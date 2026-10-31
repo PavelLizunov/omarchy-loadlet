@@ -23,6 +23,7 @@ Item {
   readonly property bool running: cleaner.running
   readonly property string helper: decodeURIComponent(String(Qt.resolvedUrl("memory-clean")).replace(/^file:\/\//, ""))
   signal completed()
+  signal processesRequested()
   LayoutMirroring.enabled: locale ? locale.rightToLeft : Host.I18n.rightToLeft
   LayoutMirroring.childrenInherit: true
 
@@ -167,6 +168,15 @@ Item {
     id: actions
     anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom
     spacing: Style.spacing.sm
+    Button {
+      objectName: "memoryProcesses"
+      width: parent.width
+      text: root.t("memory_processes")
+      foreground: Host.Color.popups.text; accent: Host.Color.accent
+      bordered: true; focusable: true
+      Accessible.role: Accessible.Button; Accessible.name: text
+      onClicked: root.processesRequested()
+    }
     Row {
       width: parent.width; spacing: Style.spacing.sm
       Button {

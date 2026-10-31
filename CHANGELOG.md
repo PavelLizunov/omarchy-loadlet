@@ -1,5 +1,16 @@
 # Changelog
 
+## 2.18.12
+
+- Keep a stable native process-list model instead of replacing the JavaScript
+  array on every CPU/GPU update. Update sorted row data in place, preserving the
+  scroll rank and PID/start-time selection. Only explicit sort/search resets the
+  viewport; keyboard movement reveals its selected row.
+- Add Processes by memory to the Memory page, reusing the existing sorted table
+  and guarded termination flow. Explain why zombies and application heaps cannot
+  be reclaimed with cache cleanup. No automatic kill or extra reclaim operation.
+- No tests, renders or live scrolling acceptance were run for this delivery.
+
 ## 2.18.11
 
 - Add a Memory tab and a RAM-tile shortcut for explicit cache cleanup. Keep the
