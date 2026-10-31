@@ -45,7 +45,9 @@ Item {
   signal loaded()
   signal loadFailed()
   signal fileChanged()
-  function reload() {}
+  function reload() { loaded() }
+  Component.onCompleted: loaded()
+  onPathChanged: Qt.callLater(function() { loaded() })
   property string fixtureText: ""
   onFixtureTextChanged: loaded()
   function text() {

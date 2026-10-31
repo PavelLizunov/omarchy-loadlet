@@ -35,7 +35,13 @@ call or automatic memory observation was started by this pass.
 
 Retained local failures include README/metadata assertions, the old chart lookup,
 missing controller fixture fields, and an initial Rust temporary-lifetime build
-error. Subsequent success does not erase those earlier failures.
+error. Hosted run 41233180723 passed core and binary reproduction but failed two
+UI assertions (110 passed, 2 failed): the older pinned host updates its translation
+catalogs on FileView.loaded, which the inert adapter did not emit on completion
+or path changes. The adapter now emits that native event and reload notification.
+Both installed-host and pinned-host local consumers pass all 112 results. Eight
+recaptured PNGs are byte-identical after the adapter correction. Subsequent
+success does not erase those earlier failures.
 
 ## Executed local checks
 

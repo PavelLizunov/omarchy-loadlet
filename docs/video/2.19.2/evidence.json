@@ -29,7 +29,7 @@
     "i18n/zh-CN.json": "322ca9d9424ccbc2b71dc9fcc66ff3ce10513dd88aacc33e51bddc3f6b0c8513",
     "test/mock-data.js": "c2087d43c107d6b31413c2cf583844687c16ea0dbb486eb7593171639655a126",
     "test/render-release-2192.qml": "044271bfe64b43e860fd3d99e56fe74118c0b0d194286ab517767c7147817ac2",
-    "test/ui-checks.py": "9756e1f913c8be72f89f8501b233402909f10f457a1486d1767e5e0cb44aacb8"
+    "test/ui-checks.py": "6718e14e423db59c0b51360f8b4ce55ef330a8684e76eb409684783d69105762"
   },
   "fixtureHashes": {
     "plugin/Panel.qml": "0995545c51a611f6702c0011d1f5157f29c96dbd21adccc10e6ee348afb47f29",
@@ -315,5 +315,6 @@
       "sha256": "618df997fee55a73c928e2f100b1f4c2147ece3e6c29af235ef7426a33ced948",
       "bytes": 3969
     }
-  }
+  },
+  "recaptureAfterAdapterCorrection": "All eight PNG SHA256 values match after native FileView.loaded emulation for the pinned host."
 }
