@@ -43,6 +43,8 @@ check-core: activity-sampler
 	node docs/design-drafts/export-omarchy-characters.js
 	node test/math-checks.js
 	node test/catalog-checks.js
+	node test/memory-watch-checks.js
+	PYTHONDONTWRITEBYTECODE=1 python3 test/memory-native-checks.py
 	PYTHONDONTWRITEBYTECODE=1 python3 test/diagnostic-checks.py
 	PYTHONDONTWRITEBYTECODE=1 python3 test/fast-diagnostics-checks.py
 	PYTHONDONTWRITEBYTECODE=1 python3 test/diagnostic-report-checks.py

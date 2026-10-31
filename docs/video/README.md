@@ -1,7 +1,8 @@
 # Loadlet video
 
-[Current 2.17.2 walkthrough](2.17.2/README.md) shows the cooling map, history,
-profiles and processes. The files below remain historical 2.8.1 media.
+[Current 2.19.2 walkthrough](2.19.2/README.md) uses fframes and native inert UI
+images for monitoring, cooling, profiles, memory events and language selection.
+The [2.17.2 walkthrough](2.17.2/README.md) and files below are historical media.
 
 [Master MP4](loadlet.mp4) · [Messenger MP4](loadlet-web.mp4)
 

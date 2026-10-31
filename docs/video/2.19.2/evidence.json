@@ -1,0 +1,319 @@
+{
+  "schema": 1,
+  "version": "2.19.2",
+  "sourceBaseCommit": "e79df373879a1c9334697b584866ca54351cef69",
+  "sourceHashes": {
+    "ActivityController.qml": "d676273efb6c3e7cd7ac6eff6435d630998f7c32061dcb0ef7e319d14dda8d76",
+    "ActivityIcon.qml": "9e799b388b1ee577d0738da6640a6890169a1ca3e0db70f2958a05f055a6bc3a",
+    "ActivityIconSvg.js": "e183d251ef9eda24a6e0284db1d84f9812b13b3c1443b3a7fe57343473ad2eae",
+    "ChoiceDropdown.qml": "69c87335340a9c3514c07fd8083b25905f0b915f5a941b45263519c8b8c909a0",
+    "ComputerMap.qml": "20bdf342acb17dd009be2a98ce99174a16b52bea01c9ad9f9a87dd3351527fea",
+    "DiagnosticExport.qml": "56c696b2c8d0f867103b7d12d06b81d1a9467346806962b91ab1214fcd2604c8",
+    "Diagnostics.qml": "f102f1e7d03e07bb13077213e074a627a3089d3299a7cc488c0dcd7f10c926f4",
+    "HeatPolicy.js": "5e2a3fb26eaa51a202127fb3439d231f1c5353979575b859fde147ae8bdb28b3",
+    "LoadletLocale.qml": "13b0142ac8667cc87d06226671b46208aa013faa9be63217266c785d33177908",
+    "MemoryCleanup.qml": "35daf29d8b0710f45ecd1f19becf23fac925d1d2b5714e71e6e0656781501164",
+    "MemoryWatch.js": "3d220305790aac3b13d66f6734307d566319c3381bdeb897fc5a8c8b0dab0637",
+    "MemoryWatch.qml": "76289ddb7e268f0734148c71b057d48369a87ad268575dd6c48100cbe365128c",
+    "Model.js": "4f6fea275ae04d6afc493ec5a594b04fc8a6e7329bcd21c1d692a118212a51d8",
+    "Panel.qml": "3e6675eb445c9a8c535ae325aa9cb376cb1d04e78d42d82adf340f772fac2b2b",
+    "PowerProfiles.qml": "f8def793026cd66c5f0d47050f0d97f1fefd0c95efd7aecd3127cc93da934525",
+    "ProcessActionController.qml": "00326a0acddd053fcccb2abaff216c34cba017107de55dd0c740e458d46764a7",
+    "ProfileCodec.js": "7a1097153245826d575cd38506bc6383d3484a116d37e68400cde91cec1677f5",
+    "SensorHistoryChart.qml": "59f28f72573cae9878f956e6f4187a64062e08d55f211fcf2e7f3382cd6e5ea9",
+    "Sparkline.qml": "af92bb46af457e7fa42f6379aeb04d0404036547c174d59ec5af042efa48b6fb",
+    "SvgIcon.qml": "95320eb28f792f10c31ed881d1ad0c35b82646a37f99f413e9591335084d7c84",
+    "i18n/de.json": "0919e96340b9478d9752c018dad4087a96c651fbe8377742c48b07690e39002d",
+    "i18n/en.json": "ea5667223faf0a9e6ad137a68255d96150dd6b8d83aa1751d220dd6177f56e5b",
+    "i18n/ru.json": "7880e754f31d77be3edaeadbe97cf4302cfca6c81de69834094fefa0c1c0562d",
+    "i18n/zh-CN.json": "322ca9d9424ccbc2b71dc9fcc66ff3ce10513dd88aacc33e51bddc3f6b0c8513",
+    "test/mock-data.js": "c2087d43c107d6b31413c2cf583844687c16ea0dbb486eb7593171639655a126",
+    "test/render-release-2192.qml": "044271bfe64b43e860fd3d99e56fe74118c0b0d194286ab517767c7147817ac2",
+    "test/ui-checks.py": "9756e1f913c8be72f89f8501b233402909f10f457a1486d1767e5e0cb44aacb8"
+  },
+  "fixtureHashes": {
+    "plugin/Panel.qml": "0995545c51a611f6702c0011d1f5157f29c96dbd21adccc10e6ee348afb47f29",
+    "plugin/MemoryCleanup.qml": "e15b2b03aa4423792172b54cef1e00bed7dcaf8ab41379880e54b0f954f670d0",
+    "plugin/MemoryWatch.qml": "44694c3939c2dc497dde4d8d0720543658d075d4c868c14baaaa87bba1468cae",
+    "plugin/MemoryWatch.js": "3d220305790aac3b13d66f6734307d566319c3381bdeb897fc5a8c8b0dab0637",
+    "plugin/PowerProfiles.qml": "4278d52fc184bf0adbfed135d3cfab5fcd51d8909c55104ef65bd98b49637e01",
+    "plugin/ChoiceDropdown.qml": "365c47b26f69bf327b9ad9f405795642ea540f76b347eb1b5e8e29a36176f811",
+    "plugin/ComputerMap.qml": "ecf61957005d357c71e1f12cbff8acf168e0865c038c377f74ad02ec6abc2b84",
+    "plugin/SvgIcon.qml": "07221925417c47fd8c56d96c99cf1f17ad0fe5a38f8ea5f8ab70225416b572e1",
+    "plugin/ActivityIcon.qml": "155a86013117746c9128825e1712d4752677537114a55c2cff48e65e50243e4d",
+    "plugin/ActivityIconSvg.js": "e183d251ef9eda24a6e0284db1d84f9812b13b3c1443b3a7fe57343473ad2eae",
+    "plugin/HeatPolicy.js": "5e2a3fb26eaa51a202127fb3439d231f1c5353979575b859fde147ae8bdb28b3",
+    "plugin/DiagnosticExport.qml": "53f3c4446e4c3bc8630947c4a4f92e24eda9de03a396caab85ad25e29c39c9e7",
+    "plugin/Diagnostics.qml": "42e16a3aa7e31e91f6201d2f5fe95682d17469baaaa0e7d4e202107348f7008a",
+    "plugin/ActivityController.qml": "617a13d62c98175d8dcac06859cadd9cbcfcedef360e404fd601e78b1c8383a4",
+    "plugin/ProcessActionController.qml": "a25242c6c60cd3db28fc4be03f0f680790ac469e830cb8830c8ed033e941d07e",
+    "plugin/Sparkline.qml": "ad9a47bc3d5aa633982b2e0266ec95efdbfa2a0889af20a08b7fcdb491279cf8",
+    "plugin/SensorHistoryChart.qml": "f4f3dc7e4782f0a1f2161b212b21ee0cb977303f8d5ef089b3a07fe01b82ebdf",
+    "plugin/Model.js": "4f6fea275ae04d6afc493ec5a594b04fc8a6e7329bcd21c1d692a118212a51d8",
+    "plugin/LoadletLocale.qml": "ec32400f4caea57c3ed0510b38d534a3c08cb4daf85493e37dbcc5fa296a8552",
+    "plugin/ProfileCodec.js": "7a1097153245826d575cd38506bc6383d3484a116d37e68400cde91cec1677f5",
+    "plugin/i18n/de.json": "0919e96340b9478d9752c018dad4087a96c651fbe8377742c48b07690e39002d",
+    "plugin/i18n/en.json": "ea5667223faf0a9e6ad137a68255d96150dd6b8d83aa1751d220dd6177f56e5b",
+    "plugin/i18n/ru.json": "7880e754f31d77be3edaeadbe97cf4302cfca6c81de69834094fefa0c1c0562d",
+    "plugin/i18n/zh-CN.json": "322ca9d9424ccbc2b71dc9fcc66ff3ce10513dd88aacc33e51bddc3f6b0c8513"
+  },
+  "renderAdapter": "test/ui-checks.py prepare(); IO and window inert, host imports renamed only",
+  "captures": {
+    "overview": {
+      "width": 480,
+      "height": 390,
+      "dpr": 2,
+      "sha256": "e670528ae08afb6fe5b5a196f913fe945855ffcf09781707b7e84705d68dbd10",
+      "qmlSha256": "044271bfe64b43e860fd3d99e56fe74118c0b0d194286ab517767c7147817ac2",
+      "initialProperties": {
+        "language": "en"
+      },
+      "acceptance": "PASS",
+      "qtVersion": "6.12.0",
+      "rendererVersion": "0.3.0",
+      "warnings": [
+        "AT-SPI/atk-bridge warning messages; report policy"
+      ],
+      "fontSupportInformation": true,
+      "inspectedInline": true
+    },
+    "map": {
+      "width": 900,
+      "height": 650,
+      "dpr": 2,
+      "sha256": "8555f5f314005ce49d4715d029250789280c733e4ec1b855f296e092b53656ea",
+      "qmlSha256": "044271bfe64b43e860fd3d99e56fe74118c0b0d194286ab517767c7147817ac2",
+      "initialProperties": {
+        "language": "en",
+        "page": "sensors",
+        "expanded": true,
+        "showMap": true
+      },
+      "acceptance": "PASS",
+      "qtVersion": "6.12.0",
+      "rendererVersion": "0.3.0",
+      "warnings": [
+        "AT-SPI/atk-bridge warning messages; report policy"
+      ],
+      "fontSupportInformation": true,
+      "inspectedInline": true
+    },
+    "profiles": {
+      "width": 480,
+      "height": 390,
+      "dpr": 2,
+      "sha256": "0c17f9fb35854ad86a788ecb2a2a74bcccdf34a84ee741298dd49cb1b307a1de",
+      "qmlSha256": "044271bfe64b43e860fd3d99e56fe74118c0b0d194286ab517767c7147817ac2",
+      "initialProperties": {
+        "language": "en",
+        "page": "profiles"
+      },
+      "acceptance": "PASS",
+      "qtVersion": "6.12.0",
+      "rendererVersion": "0.3.0",
+      "warnings": [
+        "AT-SPI/atk-bridge warning messages; report policy"
+      ],
+      "fontSupportInformation": true,
+      "inspectedInline": true
+    },
+    "memory": {
+      "width": 900,
+      "height": 650,
+      "dpr": 2,
+      "sha256": "77ff0beace703f6edff38d6536c2627de4a7383c1d859e67e01dd280ff26cd2d",
+      "qmlSha256": "044271bfe64b43e860fd3d99e56fe74118c0b0d194286ab517767c7147817ac2",
+      "initialProperties": {
+        "language": "en",
+        "page": "memory",
+        "expanded": true,
+        "memoryDemo": true
+      },
+      "acceptance": "PASS",
+      "qtVersion": "6.12.0",
+      "rendererVersion": "0.3.0",
+      "warnings": [
+        "AT-SPI/atk-bridge warning messages; report policy"
+      ],
+      "fontSupportInformation": true,
+      "inspectedInline": true
+    },
+    "language": {
+      "width": 480,
+      "height": 390,
+      "dpr": 2,
+      "sha256": "45c120b90ad5d9b9c8543da90cc1dceee3ac34cac5e7210322c6c14b8734fa44",
+      "qmlSha256": "044271bfe64b43e860fd3d99e56fe74118c0b0d194286ab517767c7147817ac2",
+      "initialProperties": {
+        "language": "en",
+        "languages": true
+      },
+      "acceptance": "PASS",
+      "qtVersion": "6.12.0",
+      "rendererVersion": "0.3.0",
+      "warnings": [
+        "AT-SPI/atk-bridge warning messages; report policy"
+      ],
+      "fontSupportInformation": true,
+      "inspectedInline": true
+    },
+    "narrow": {
+      "width": 400,
+      "height": 360,
+      "dpr": 1,
+      "sha256": "c4cc39eac2ac671cf8d54deff22d9180a7ec1a5e7f0bef6e4d6242e7a04f951d",
+      "qmlSha256": "044271bfe64b43e860fd3d99e56fe74118c0b0d194286ab517767c7147817ac2",
+      "initialProperties": {
+        "language": "ru",
+        "page": "memory",
+        "memoryDemo": true
+      },
+      "acceptance": "PASS",
+      "qtVersion": "6.12.0",
+      "rendererVersion": "0.3.0",
+      "warnings": [
+        "AT-SPI/atk-bridge warning messages; report policy"
+      ],
+      "fontSupportInformation": true,
+      "inspectedInline": true
+    },
+    "rtl": {
+      "width": 480,
+      "height": 390,
+      "dpr": 1,
+      "sha256": "993d0192ed960a6372650ebb98b6316fadecca0406fa9c43342052a2d949489e",
+      "qmlSha256": "044271bfe64b43e860fd3d99e56fe74118c0b0d194286ab517767c7147817ac2",
+      "initialProperties": {
+        "language": "ar",
+        "languages": true
+      },
+      "acceptance": "PASS",
+      "qtVersion": "6.12.0",
+      "rendererVersion": "0.3.0",
+      "warnings": [
+        "AT-SPI/atk-bridge warning messages; report policy"
+      ],
+      "fontSupportInformation": true,
+      "inspectedInline": true
+    },
+    "dark": {
+      "width": 480,
+      "height": 390,
+      "dpr": 1,
+      "sha256": "3d608b87e245d4ff3562ad494fb68abb9bdd67ce02b5444e9d4fe8a8a30daa32",
+      "qmlSha256": "044271bfe64b43e860fd3d99e56fe74118c0b0d194286ab517767c7147817ac2",
+      "initialProperties": {
+        "language": "ru",
+        "light": false,
+        "manyProfiles": true
+      },
+      "acceptance": "PASS",
+      "qtVersion": "6.12.0",
+      "rendererVersion": "0.3.0",
+      "warnings": [
+        "AT-SPI/atk-bridge warning messages; report policy"
+      ],
+      "fontSupportInformation": true,
+      "inspectedInline": true
+    }
+  },
+  "film": {
+    "pipeline": "PavelLizunov/fframes-video-pipelines",
+    "pipelineCommit": "06bf109a6fabf410c6573bb4a3a19bb2a83d2d69",
+    "fframes": "1.3.0",
+    "durationSeconds": 30,
+    "fps": 30,
+    "frames": 900,
+    "width": 1920,
+    "height": 1080,
+    "codec": "h264",
+    "pixelFormat": "yuv420p",
+    "silent": true,
+    "inspectionFrames": 900,
+    "inspectionFindings": [],
+    "fullDecode": "PASS",
+    "fastStart": "PASS",
+    "inspectedChapterSeconds": [
+      3,
+      9,
+      15,
+      21,
+      27
+    ],
+    "continuousHumanPlayback": false
+  },
+  "assets": {
+    "Cargo.lock": {
+      "sha256": "48bf34dce8d8ca07184725d235f657c0f1e6bfc0e070513cc3900b35fd86c86a",
+      "bytes": 64941
+    },
+    "Cargo.toml": {
+      "sha256": "8651e44e6c8ade7fda3638bb21ff49ea0cbede9a8d32e547de6d4490edbfd5c8",
+      "bytes": 250
+    },
+    "README.md": {
+      "sha256": "3cb499c53c1f068e63b777f23c04fe86bf78ef6dae1277403b8e66fbd87474e4",
+      "bytes": 3362
+    },
+    "checks/dark.png": {
+      "sha256": "3d608b87e245d4ff3562ad494fb68abb9bdd67ce02b5444e9d4fe8a8a30daa32",
+      "bytes": 35240
+    },
+    "checks/narrow.png": {
+      "sha256": "c4cc39eac2ac671cf8d54deff22d9180a7ec1a5e7f0bef6e4d6242e7a04f951d",
+      "bytes": 31097
+    },
+    "checks/rtl.png": {
+      "sha256": "993d0192ed960a6372650ebb98b6316fadecca0406fa9c43342052a2d949489e",
+      "bytes": 22833
+    },
+    "licenses/DM-Sans-OFL.txt": {
+      "sha256": "7ec15e79c59bc14b86436a17e5eb7926b46cbcaeb08e1a7e6c110b415e6eb2a2",
+      "bytes": 4388
+    },
+    "licenses/pipeline-MIT.txt": {
+      "sha256": "3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986",
+      "bytes": 35149
+    },
+    "loadlet-2.19.2.mp4": {
+      "sha256": "cdb4dbc8b2c504f7fb91ae7c3e3f7f66ed7506aa96a6d76118810380f265d1fa",
+      "bytes": 3207502
+    },
+    "media/DMSans-Medium.ttf": {
+      "sha256": "4f6a909db85e054e53cd180fe781cfe048416cdd87f7365ac2871c8d646a9033",
+      "bytes": 73300
+    },
+    "media/DMSans-Regular.ttf": {
+      "sha256": "9ae2da663d64342031e59b5fa680dd355171d021b7ebf83774efc7c0330ae7b5",
+      "bytes": 72000
+    },
+    "media/language.png": {
+      "sha256": "45c120b90ad5d9b9c8543da90cc1dceee3ac34cac5e7210322c6c14b8734fa44",
+      "bytes": 47713
+    },
+    "media/map.png": {
+      "sha256": "8555f5f314005ce49d4715d029250789280c733e4ec1b855f296e092b53656ea",
+      "bytes": 180878
+    },
+    "media/memory.png": {
+      "sha256": "77ff0beace703f6edff38d6536c2627de4a7383c1d859e67e01dd280ff26cd2d",
+      "bytes": 182587
+    },
+    "media/overview.png": {
+      "sha256": "e670528ae08afb6fe5b5a196f913fe945855ffcf09781707b7e84705d68dbd10",
+      "bytes": 83003
+    },
+    "media/profiles.png": {
+      "sha256": "0c17f9fb35854ad86a788ecb2a2a74bcccdf34a84ee741298dd49cb1b307a1de",
+      "bytes": 59802
+    },
+    "poster.png": {
+      "sha256": "636d25c45f5649817d73d5ee216200238938b5c609caf06ba17b667709cd42f1",
+      "bytes": 253463
+    },
+    "src/main.rs": {
+      "sha256": "618df997fee55a73c928e2f100b1f4c2147ece3e6c29af235ef7426a33ced948",
+      "bytes": 3969
+    }
+  }
+}

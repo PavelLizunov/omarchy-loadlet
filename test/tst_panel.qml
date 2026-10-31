@@ -92,10 +92,57 @@ Item {
       wait(60)
     }
     function cleanup() { plugin.close(); plugin.bar=null; wait(60) }
-    function named(name) {
-      var item=nodes(plugin).filter(function(n){return n.objectName===name})[0]
+    function named(name, scope) {
+      var item=nodes(scope || plugin).filter(function(n){return n.objectName===name})[0]
       verify(!!item,'Missing '+name)
       return item
+    }
+    function memoryFrame(i, pid) {
+      return 'schema\tactivity-memory-watch\t1\nsample\t'+(1000+i*30)+'\t'+(100+i*30)+'\t'+(100+i*30)+'\tfixture\n'
+        +'memory\tMemTotal\t1000000\nmemory\tMemAvailable\t700000\n'
+        +'process\t'+(pid||42)+'\t7\t1\tS\t300000\t'+(100000+i*4096)+'\t0\t-1\t-1\t<fixture>\n'
+        +'coverage\t1\t1\t0\t0\t0\t0\t2'
+    }
+    function test_memory_session_events_and_notification() {
+      var watch=named('memoryWatch')
+      watch.notificationsEnabled=false;watch.begin()
+      for(var i=0;i<=20;i++)watch.observe(memoryFrame(i))
+      compare(watch.events.length,1);compare(watch.events[0].process.growth,81920)
+      watch.observe(memoryFrame(21));compare(watch.events.length,1)
+      watch.observe(memoryFrame(22,99));compare(watch.events.length,1,'Exited process event is retained')
+      watch.stop();compare(watch.events.length,1)
+      watch.begin();compare(watch.events.length,0)
+      watch.notificationsEnabled=true
+      for(var j=0;j<=20;j++)watch.observe(memoryFrame(j))
+      var sender=nodes(watch).find(function(n){return n.command && n.command[0]==='/usr/bin/timeout'})
+      verify(!!sender);compare(sender.running,true)
+      compare(sender.command.slice(-4).join(' '),'--exec /usr/share/omarchy/bin/omarchy-shell slovn.activity-lite.status memory')
+      verify(sender.command.join(' ').indexOf('<fixture>')<0,'Notification markup is neutralized')
+      sender.running=false;sender.exited(1);compare(watch.notificationError,true)
+      for(var k=0;k<=20;k++)watch.observe(memoryFrame(k,43))
+      compare(watch.events.length,2);compare(sender.running,false,'Cooldown prevents a second immediate send')
+      verify(watch.notificationQueue.length>0)
+      watch.notificationsEnabled=false;compare(watch.notificationQueue.length,0)
+      watch.begin()
+      for(var pid=100;pid<121;pid++)for(var sample=0;sample<=20;sample++)watch.observe(memoryFrame(sample,pid))
+      compare(watch.events.length,20,'Event retention is capped')
+      watch.stop();compare(watch.notificationQueue.length,0)
+      watch.notificationsEnabled=false;watch.frames=[];watch.events=[]
+    }
+    function test_language_picker_keys_and_search() {
+      plugin.setExpanded(false);plugin.languageExpanded=true;wait(40)
+      var search=named('languageSearch'),list=named('languageList')
+      verify(list.height>160,'Picker uses the available height')
+      search.text='';search.forceActiveFocus();keyClick(Qt.Key_E);keyClick(Qt.Key_H)
+      compare(plugin.expanded,false);compare(plugin.languageExpanded,true);compare(search.text,'eh')
+      search.text='';wait(20);list.forceActiveFocus()
+      keyClick(Qt.Key_End);compare(list.currentIndex,list.count-1)
+      keyClick(Qt.Key_Home);compare(list.currentIndex,0)
+      keyClick(Qt.Key_PageDown);verify(list.currentIndex>0)
+      keyClick(Qt.Key_PageUp);compare(list.currentIndex,0)
+      search.text='de';wait(20);verify(list.count>0)
+      search.text='zzzz-no-language';wait(20);compare(list.count,0)
+      plugin.languageExpanded=false
     }
     function test_live_shell_language_and_saved_override() {
       var ctrl=plugin.activityController
@@ -519,14 +566,14 @@ Item {
       chart.points=[{time:410,value:50,breakBefore:false},{time:900,value:60,breakBefore:false}]
       compare(chart.breakBefore(1),false,'Downsampled continuous samples are not gaps')
       chart.points=[{time:410,value:50},{time:420,value:55},{time:900,value:60,breakBefore:true}]
-      chart.selectAt((600-400)/600*named('chartPlot').width)
+      chart.selectAt((600-400)/600*named('chartPlot',chart).width)
       compare(chart.selectedIndex,-1);compare(chart.cursorInGap,true)
-      var pointer=named('chartPointer')
+      var pointer=named('chartPointer',chart)
       mouseClick(pointer,chart.xFor(chart.points[0]),pointer.height/2);wait(10)
       compare(chart.pinned,true);compare(chart.selectedPoint.time,410)
       mouseMove(pointer,pointer.width-2,pointer.height/2);wait(10)
       compare(chart.selectedPoint.time,410,'Pinned reading does not follow hover')
-      clickVisible(named('chartLiveButton'));compare(chart.selectedIndex,-1);compare(chart.pinned,false)
+      clickVisible(named('chartLiveButton',chart));compare(chart.selectedIndex,-1);compare(chart.pinned,false)
       chart.forceActiveFocus();keyClick(Qt.Key_End);compare(chart.selectedPoint.time,900)
       keyClick(Qt.Key_Escape);compare(chart.selectedIndex,-1);compare(plugin.sensorsOpen,true)
       chart.ceiling=0;chart.unit='RPM';chart.points=[{time:420,value:1800}]
@@ -771,6 +818,19 @@ Item {
       Style.fontBaseSize=24;host.width=960;host.height=660
       plugin.setExpanded(true);wait(80)
       verify(pick('ensureSelected').height>=plugin.processRowHeight)
+    }
+    function test_process_scroll_survives_live_reorder() {
+      plugin.setExpanded(true);wait(30)
+      var seed=plugin.activityController._processes[0],list=[]
+      for(var i=0;i<80;i++)list.push(Object.assign({},seed,{pid:String(2000+i),startTicks:String(5000+i),cpu:80-i,name:'fixture-'+i}))
+      plugin.activityController._processes=list;wait(30)
+      var view=plugin.processViewport,model=view.model
+      view.contentY=plugin.processRowHeight*20;wait(20)
+      var position=view.contentY
+      verify(position>0)
+      plugin.activityController._processes=list.map(function(p,i){return Object.assign({},p,{cpu:i})});wait(30)
+      compare(view.model,model,'Metrics do not replace the rank model')
+      compare(view.contentY,position,'Live reorder preserves scroll rank')
     }
     function test_selection_reorder() {
       plugin.selectProcess(0);var pid=plugin.selectedProcess.pid

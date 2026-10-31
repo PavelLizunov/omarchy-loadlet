@@ -199,6 +199,7 @@ Column {
       onChanged: function(value) { root.systemField = value }
     }
     SensorHistoryChart {
+      objectName: "memorySystemChart"
       width: parent.width; height: Style.space(135); locale: root.locale
       points: root.systemPoints; unit: "MiB"; ceiling: 0
       emptyText: root.t("memory_watch_no_value"); gapText: root.t("memory_watch_gap"); liveText: root.t("memory_watch_live")
@@ -249,6 +250,7 @@ Column {
       onChanged: function(value) { root.processField = value }
     }
     SensorHistoryChart {
+      objectName: "memoryProcessChart"
       width: parent.width; height: Style.space(135); locale: root.locale
       points: root.processPoints; unit: "MiB"; ceiling: 0
       emptyText: root.t(root.selected ? "memory_watch_no_value" : "memory_watch_select"); gapText: root.t("memory_watch_gap"); liveText: root.t("memory_watch_live")

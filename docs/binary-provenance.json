@@ -8,12 +8,12 @@
     "DiagnosticJournal.h": "4f335f7005396bb1f487779ea2e27e71082edcf52fe658c1bf242f61042ee076",
     "FastDiagnostics.h": "cc31f214b6a596fc365902929b10c7195b67106811bc1bb6f34a7e5fbe944d02",
     "MemoryWatch.h": "3ddb4bc4290ec580f5ca56d1370d109cc41eafe9bd1753f9fff54e1287c5d78b",
-    "Makefile": "046bae41115feacaac843a2baed3f4e00298cec022342f5b354df39fc73a518d"
+    "Makefile": "5ed86ed32810f3c9d94a90c3918ce078b6a3189e69ab4ee1eb729528aa3d3051"
   },
   "size": 333944,
   "compiler": "GCC 16.2.1 20260810",
   "buildCommand": "make activity-sampler (recipe sets LC_ALL=C)",
-  "buildResult": "2.19.0 explicit memory-watch collector compiled successfully. No tests, reproducibility check, live observation or CI ran for these bytes.",
+  "buildResult": "2.19.2: rebuilt with the recorded GCC and compared SHA256 byte-identical to the distributed 2.19.0 sampler. Local make check and synthetic memory/capture tests passed; hosted exact-commit CI pending.",
   "dynamicRequirements": {
     "glibc": "2.34",
     "libstdc++": "GLIBCXX_3.4.32",
@@ -23,11 +23,11 @@
     ],
     "optional": "libnvidia-ml.so.1; not required without NVIDIA telemetry"
   },
-  "packagingChange": "2.19.0 includes MemoryWatch.qml and MemoryWatch.js; MemoryWatch.h is a native build dependency. Existing compilation hardening is unchanged.",
+  "packagingChange": "2.19.2 retains native bytes; Makefile adds memory regression checks only.",
   "runtimeBuild": false,
   "runtimeDownload": false,
   "limits": [
-    "Memory observation, runtime symbol compatibility, observer cost and one-hour/UI acceptance are unverified for 2.19.0; dynamicRequirements are inherited, not remeasured",
+    "Memory-watch full-hour workload/observer-cost and physical driver acceptance remain unverified. Symbol ceilings remeasured: GLIBC_2.34 and GLIBCXX_3.4.32.",
     "Per-process NVIDIA and DRM runtime behavior is unverified on physical hardware",
     "x86_64 only; no prebuilt ARM support",
     "Maintainer listing approval is separate from source and binary evidence"

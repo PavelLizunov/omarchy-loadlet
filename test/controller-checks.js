@@ -7,6 +7,7 @@ const source = fs.readFileSync(path.join(__dirname, '../ActivityController.qml')
 const timer = () => ({started: 0, stopped: 0, interval: 0,
   start() { this.started++; }, restart() { this.started++; }, stop() { this.stopped++; }});
 const context = vm.createContext({
+  memoryWatchEnabled:false, memoryWatchDue:0, memoryInterrupted() {}, memoryObserved() {},
   captureWanted:false, captureEnabled:false, captureInterval:500, captureAppliedInterval:0, captureAction:"",
   sensorRecording: false, sensorWriterEnabled: false, sensorRecordingError: "", sensorsActive: false,
   gpuEnabled: false, storageEnabled: false, sensorSummaryEnabled: false,
@@ -136,3 +137,14 @@ context.sensorRecording=false;context.pending='';context.reader.writes=[];contex
 vm.runInContext('dispatch()',context);assert.equal(context.reader.writes[0],'sensors-off\n');
 vm.runInContext('resetData()',context);assert.equal(Object.keys(context.sensorHistory).length,0);
 console.log('PASS sensor recording: configuration-first admission, units, retained background history, explicit stop');
+context.sensorWriterEnabled=false;context.memoryWatchEnabled=true;context.state='ready';
+context.pending='';context.reader.writes=[];context.memoryWatchDue=0;context.due={};
+vm.runInContext('dispatch()',context);assert.equal(context.reader.writes[0],'memory-watch\n');
+context.pending='memory-watch';context.buffer=[];
+vm.runInContext('consume("snapshot-end\tmemory-watch")',context);
+const nextWatch=context.memoryWatchDue;
+assert.ok(nextWatch>=Date.now()+29900);
+vm.runInContext('resetData()',context);assert.equal(context.memoryWatchDue,nextWatch);
+context.pending='';context.reader.writes=[];context.due={glance:Date.now()+15000,thermals:Date.now()+15000};
+vm.runInContext('dispatch()',context);assert.equal(context.reader.writes.length,0);
+console.log('PASS memory scheduling: explicit admission, 30s due survives presentation reset, closed-panel dispatch does not oversample');

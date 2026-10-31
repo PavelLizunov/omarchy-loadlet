@@ -1,6 +1,6 @@
 # Changelog
 
-## 2.19.2 — source recovery
+## 2.19.2
 
 - Replace unsupported Home/End/PageUp/PageDown attached signal handlers with
   native `Keys.onPressed` key dispatch. The 2.19.1 handlers prevented the entire
@@ -8,7 +8,15 @@
 - Restore the existing 2.19.0 installation for immediate cooling-control access.
   Its live IPC reports `ready`; no fan/profile settings or root helpers changed.
   Keep this source correction separate from the running installation during play.
-  Candidate loading/input, tests and notification delivery remain unverified.
+  The subsequent release pass validates offscreen loading, language keyboard
+  input, memory/event logic, native framing and packaged installation. Production
+  loading and actual notification delivery remain unverified.
+- Style horizontal overflow indicators with a thin native accent line. Show the
+  saved language at the beginning of the available viewport.
+- Give memory charts distinct object names and scope chart regression lookups.
+  Add native/JavaScript/QML memory regressions and controller admission coverage.
+- Publish a 30-second Full HD fframes walkthrough with native demonstration UI,
+  reproducible source and explicit limits. See [release checks](docs/release-2.19.2.md).
 
 ## 2.19.1
 

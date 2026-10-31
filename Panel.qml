@@ -1269,7 +1269,7 @@ Panel {
             var code = strings.followsSystem ? "system" : root.effectiveLanguage
             var index = languageSearch.text.trim() ? 0 : model.findIndex(function(item) { return item.value === code })
             currentIndex = count ? Math.max(0,index) : -1
-            if (currentIndex >= 0) positionViewAtIndex(currentIndex,ListView.Contain)
+            if (currentIndex >= 0) positionViewAtIndex(currentIndex,ListView.Beginning)
           }
           function move(delta) {
             if (!count) return
@@ -1382,7 +1382,7 @@ Panel {
         onWidthChanged: Qt.callLater(function() {
           pageTabs.reveal(root.memoryOpen ? memoryTab : root.profilesOpen ? profilesTab : root.sensorsOpen ? (root.fansOpen ? fansTab : sensorsTab) : overviewTab)
         })
-        ScrollBar.horizontal: ScrollBar { policy: ScrollBar.AsNeeded }
+        ScrollBar.horizontal: HorizontalScrollBar { objectName: "pageTabsScrollBar" }
         Row {
           id: tabRow
           spacing: Style.spacing.xs
@@ -1467,7 +1467,7 @@ Panel {
               }
             }
           }
-          ScrollBar.horizontal:ScrollBar {policy:ScrollBar.AsNeeded}
+          ScrollBar.horizontal: HorizontalScrollBar { objectName: "profileShortcutsScrollBar" }
         }
         Text {
           id: quickProfileStatus
@@ -1973,6 +1973,19 @@ Panel {
       bordered: true; focusable: true
       onClicked: { root.sensorPart = ""; root.focusedFanChannel = "" }
     }
+  }
+
+  component HorizontalScrollBar: ScrollBar {
+    height: Style.space(3)
+    padding: 0
+    policy: ScrollBar.AsNeeded
+    visible: size < 1
+    contentItem: Rectangle {
+      implicitWidth: Style.space(40); implicitHeight: Style.space(3)
+      color: root.accent
+      opacity: parent.pressed || parent.hovered ? 0.8 : 0.45
+    }
+    background: null
   }
 
   component PageScrollBar: ScrollBar {

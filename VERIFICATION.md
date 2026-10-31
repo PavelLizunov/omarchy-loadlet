@@ -1,5 +1,23 @@
 # Loadlet verification
 
+## 2.19.2 release validation
+
+The requested release pass supersedes the *untested candidate* state below for
+local automated and offscreen behavior, not for the production installation.
+Full `make check` passed: 112 panel results, native icon checks at DPR 1 and 2,
+synthetic memory/capture tests and isolated native add/enable/update consumers.
+Native sampler reproduction was byte-identical. The 30-second fframes film was
+inspected at chapter midpoints and fully decoded; all 900 SVG frames passed the
+renderer inspection. Details, retained failures, visual warnings and open limits
+are in [the release report](docs/release-2.19.2.md).
+
+The observed shared-shell consumer remained 2.19.0, ready, with 117 retained
+memory snapshots and capture at 500 ms. No reload or hardware/settings change was
+performed by release preparation, so those session-local results were not lost.
+No actual notification delivery, physical fan/game/reboot, full-hour observation
+or independent reviewer acceptance is claimed. The following sections retain the
+evidence available at each earlier delivery.
+
 ## Language key-handler recovery — 2.19.2 source
 
 After 2.19.1 deployment the user reported that Loadlet disappeared. Live IPC

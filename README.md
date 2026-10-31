@@ -6,9 +6,9 @@ sensor history, and optional automatic CPU and cooling profiles for Steam games.
 [Releases](https://github.com/PavelLizunov/omarchy-loadlet/releases) ·
 [Guide](docs/guide.md) · [Changelog](CHANGELOG.md)
 
-[![Loadlet cooling map, inert demonstration data](docs/video/2.17.2/assets/map.png)](docs/video/2.17.2/README.md)
+[![Loadlet 2.19.2 cooling map, demonstration data](docs/video/2.19.2/media/map.png)](docs/video/2.19.2/README.md)
 
-[Watch the 24-second walkthrough](docs/video/2.17.2/loadlet-2.17.2.mp4)
+[Watch the 30-second walkthrough](docs/video/2.19.2/loadlet-2.19.2.mp4) · [Checks and limits](docs/release-2.19.2.md)
 
 ## Install
 
@@ -31,17 +31,13 @@ Expand the panel for per-GPU processes and detailed resources. Cooling groups
 sensors by component and offers bounded, opt-in history. Unknown readings stay
 unavailable; manual sensor locations do not claim physical connector identity.
 
-The Profiles tab offers named presets combining fan output with CPU boost, governor, energy
-preference and a frequency cap. Optional automatic switching detects Steam/Proton
-game processes, selects Games, and returns to your non-game preset after exit.
-It works with the panel closed. Non-Steam games without Steam metadata are not
-currently detected. Select a preset to inspect it, then Apply or Edit. New profile
-and Edit open a dedicated page with an icon picker and CPU/cooling sections. Save
-only updates the preset; Apply on Profiles activates it. The selected icon also
-appears in Overview shortcuts. Fans holds individual channel controls. Manual
-control cancels automation.
-The computer map shows fresh temperatures and RPM beside its component points.
-No guaranteed noise, temperature, power or performance improvement.
+Profiles combines fan output with CPU boost, governor, energy preference and a
+frequency cap. Select a preset, then Apply or Edit. Save only stores a preset;
+Apply activates it. Overview has shortcuts; Fans holds individual controls.
+Optional automatic switching selects Games for Steam/Proton processes and returns
+to your non-game preset after exit, including with the panel closed. Non-Steam
+games without Steam metadata are not detected. Manual control cancels automation.
+The map shows fresh temperatures and RPM; no noise, temperature or performance benefit is guaranteed.
 
 Settings → History offers opt-in 250/500/1000 ms CPU diagnostics, incident markers,
 correlated local charts and an on-demand Pi answer inside the panel. Start/Stop and
@@ -52,7 +48,7 @@ named model choices; other agents receive an explicit terminal handoff. Manual
 inline analysis sends a small summary to your configured Pi provider.
 [Usage and limits](docs/fast-diagnostics.md).
 
-![Profile selection and fan controls, inert demonstration data](docs/video/2.17.2/assets/profiles.png)
+![Profile selection and fan controls, demonstration data](docs/video/2.19.2/media/profiles.png)
 
 The Memory tab offers an explicit one-hour observation of system memory and
 process growth. Compare cache with anonymous pages, available memory, swap and
@@ -95,13 +91,10 @@ not uninstall system helpers/services or delete your local history.
 [2.16.0 audit evidence and limits](docs/release-2.16.0.md) ·
 [Issues](https://github.com/PavelLizunov/omarchy-loadlet/issues)
 
-Russian, English, German and Simplified Chinese have native JSON catalogs.
-The searchable language picker follows the Omarchy registry and preserves saved
-overrides. The other 46 languages still use English text fallback; this is not
-50 translated interfaces. [Localization progress and limits](docs/localization.md). Report the plugin
-version, Omarchy version and reproducible steps. Do not post private diagnostic
-exports without reviewing them. Marketplace review is commit-specific and separate
-from GitHub releases; a listing badge does not certify current upstream code.
+Russian, English, German and Simplified Chinese have native JSON catalogs; the
+other 46 registry languages use English fallback. [Localization](docs/localization.md).
+Report plugin/Omarchy versions and reproducible steps; review exports before sharing.
+Marketplace review is commit-specific, not certification of current upstream code.
 
 MIT licensed. Derived from Kristoffer Haugland's Activity Monitor;
 [attributions](ATTRIBUTIONS.md) retain upstream and adapted-control provenance.

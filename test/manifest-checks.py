@@ -52,7 +52,17 @@ for name, expected in release_visuals['sourceHashes'].items():
     assert actual == expected, name
 for name, expected in release_visuals['assetHashes'].items():
     assert sha(root / 'docs/images/release-2.16.0' / name) == expected, name
-assert (root / 'preview.png').read_bytes() == (root / 'docs/video/2.17.2/assets/map.png').read_bytes()
+current_film = root / 'docs/video/2.19.2'
+assert (root / 'preview.png').read_bytes() == (current_film / 'media/map.png').read_bytes()
+current_evidence = json.loads((current_film / 'evidence.json').read_text())
+for name, expected in current_evidence['sourceHashes'].items():
+    assert sha(root / name) == expected, name
+for name, expected in current_evidence['assets'].items():
+    assert sha(current_film / name) == expected['sha256'], name
+    assert (current_film / name).stat().st_size == expected['bytes'], name
+assert current_evidence['film']['frames'] == 900
+assert current_evidence['film']['durationSeconds'] == 30
+assert current_evidence['film']['silent'] and current_evidence['film']['fullDecode'] == 'PASS'
 profile_visuals = json.loads((root / 'docs/images/profile-ux-2.17.0/manifest.json').read_text())
 profile_commit = 'f09d5b796e4401d7296236c8d5eda122a4e76bea'
 for name, expected in profile_visuals['sourceHashes'].items():

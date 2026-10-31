@@ -14,10 +14,12 @@ and [integration evidence](laptop-integration.md). Those earlier checks do not
 certify the current binary.
 The exact executable size/hash and every build-input hash are recorded in the
 [machine-readable provenance](binary-provenance.json). `make activity-sampler`
-completed with `LC_ALL=C` in the recipe. No tests, runtime observations, symbol
-inspection, reproduction or CI were run for this delivery. Installed files,
-rescan and loaded acceptance remain distinct.
-This checkpoint does not replace the v2.16.0 tag.
+completed with `LC_ALL=C` in the recipe. The 2.19.2 release preparation rebuilt
+the same native source with `make -B activity-sampler` and directly compared
+SHA256: byte-identical to the distributed executable. The full local `make check`
+passed, including synthetic memory-watch/capture coexistence and packaged install
+checks. See [release evidence and limits](release-2.19.2.md); exact-commit CI and
+loaded production identity are separate from this local result.
 
 [Machine-readable provenance](binary-provenance.json) binds source, header,
 Makefile and executable SHA256 values. Build hardening and source-path mapping
@@ -33,9 +35,9 @@ an explicit Makefile dependency; all build-input hashes are in the provenance.
 
 The package is an ELF64 Linux x86_64 executable, with baseline x86-64 code generation
 and no machine-specific `-march=native` flag. It dynamically uses glibc, libstdc++,
-libm and libgcc_s. Previously measured symbol ceilings were glibc 2.34 and
-GLIBCXX_3.4.32, included by the supported Arch-based host. Symbol ceilings and
-runtime compatibility have not been rechecked for the 2.19.0 rebuild. Optional
+libm and libgcc_s. Symbol ceilings were remeasured for the 2.19.2 release:
+glibc 2.34 and GLIBCXX_3.4.32, included by the supported Arch-based host. This is
+not an arbitrary-distribution or physical-driver compatibility claim. Optional
 NVIDIA NVML remains dynamically admitted by the existing device-state guard;
 no NVIDIA package is required for ordinary CPU/RAM metrics.
 
