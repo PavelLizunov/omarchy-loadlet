@@ -388,5 +388,20 @@
   "memory_watch_process_chart": "进程历史",
   "memory_watch_metric_anon": "匿名驻留页面（RSS）",
   "memory_watch_metric_pss": "按比例分摊的驻留页面（PSS）",
-  "memory_watch_metric_uss": "私有驻留页面（USS）"
+  "memory_watch_metric_uss": "私有驻留页面（USS）",
+  "language_back": "返回",
+  "language_system_hint": "跟随 Omarchy 的界面语言",
+  "language_english_fallback": "使用英文文本",
+  "language_no_matches": "没有匹配的语言",
+  "memory_watch_notifications": "通知内存增长",
+  "memory_watch_notifications_hint": "仅在观察期间生效。每个进程提醒一次，每分钟最多一次。点击通知打开“内存”。",
+  "memory_watch_notification_title": "发现内存增长",
+  "memory_watch_notification_hint": "值得进一步检查，但并非已证实的泄漏。打开“内存”查看事件和图表。",
+  "memory_watch_notification_failed": "通知发送失败或超时。事件仍保留在本次观察中。",
+  "memory_watch_event": "%1：匿名内存在 %3 内变化 %2。",
+  "memory_watch_event_context": "发现时：可用内存 %1 · 最近 10 秒内存等待：%2%。",
+  "memory_watch_events": "增长事件：%1",
+  "memory_watch_events_hint": "最多 20 个事件，每个进程实例一次。进程退出后仍保留发现时的数值。开始新的观察或重新加载插件会清空列表；复制报告包含这些事件。",
+  "memory_watch_events_full": "已达到 20 个事件的上限。本次观察不再记录其他进程的事件。重新开始前请复制报告。",
+  "memory_watch_more_events": "其他新事件：%1。"
 }

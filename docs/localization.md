@@ -41,7 +41,11 @@ System tracks live host language changes. Saved `zh` maps to `zh-CN`; `zh-TW`,
 Hong Kong and Hant choices never use Simplified Chinese. Registry codes remain
 selected even without a translated catalog. Unknown codes fall back to English.
 The picker offers System plus registry entries, filters native/English names and
-codes, and uses a height-bounded scrolling list. Choosing a language only saves
+codes. Version2.19.1 uses the remaining panel height rather than a 160-pixel
+viewport: native body-size names, English descriptions, locale codes and explicit
+fallback labels. It reveals the saved selection on open, restores search focus,
+and suppresses panel letter shortcuts during language entry. Search and Back
+stay pinned. No new rendered/input acceptance is claimed. Choosing a language only saves
 that preference; it does not apply a hardware profile or restart the reader.
 
 ## Presentation
@@ -79,6 +83,7 @@ on discovery, capture or export and proves no provider-language capability.
   linters, previews, soaks or new measurement campaign were requested or run in
   this continuation. Earlier109panel results belong to2.18.9, not this revision.
 
-The unchanged sampler retains the2.18.9NVML fix and its documented memory trade-off.
+Version2.19.1 retains the2.19.0sampler (including the2.18.9NVML fix and its
+documented memory trade-off). The language/notification change does not rebuild it.
 The separate shell-memory incident is not a localization finding. Its cause
 remains unknown; development does not wait for that attribution.

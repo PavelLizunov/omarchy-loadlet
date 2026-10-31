@@ -388,5 +388,20 @@
   "memory_watch_process_chart": "Process history",
   "memory_watch_metric_anon": "Anonymous resident pages (RSS)",
   "memory_watch_metric_pss": "Proportional share of resident pages (PSS)",
-  "memory_watch_metric_uss": "Private resident pages (USS)"
+  "memory_watch_metric_uss": "Private resident pages (USS)",
+  "language_back": "Back",
+  "language_system_hint": "Follow the Omarchy interface language",
+  "language_english_fallback": "English text fallback",
+  "language_no_matches": "No matching languages",
+  "memory_watch_notifications": "Notify about memory growth",
+  "memory_watch_notifications_hint": "During observation only. One alert per process, at most once a minute. Clicking the notification opens Memory.",
+  "memory_watch_notification_title": "Memory growth noticed",
+  "memory_watch_notification_hint": "A candidate for investigation, not a proven leak. Open Memory for the event and graphs.",
+  "memory_watch_notification_failed": "Notification delivery failed or timed out. The event remains in this session.",
+  "memory_watch_event": "%1: anonymous memory %2 over %3.",
+  "memory_watch_event_context": "At detection: available %1 · memory stalls over 10 s: %2%.",
+  "memory_watch_events": "Growth events: %1",
+  "memory_watch_events_hint": "Up to 20 events, once per process instance. Detection values remain after the process exits. New observation or plugin reload clears them; Copy report includes them.",
+  "memory_watch_events_full": "Session limit reached: 20 events. No additional processes will be recorded in this session. Copy the report before starting again.",
+  "memory_watch_more_events": "More new events: %1."
 }

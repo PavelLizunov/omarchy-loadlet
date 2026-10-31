@@ -5,11 +5,18 @@
 ## Language
 
 The header language button opens a searchable, scrollable list of Omarchy registry
-languages plus System. Search accepts native names, English names and locale codes.
+languages plus System. The list uses the available height in both compact and
+expanded panels, with readable start-aligned names, English descriptions and
+locale codes. Search and Back remain pinned. Opening reveals the selected language;
+search selects its first match. Down enters the results; Up from the first result
+returns to search; Enter selects and Escape/Back dismisses without changing it.
+Panel letter shortcuts are suspended while searching, including `e` and `h`.
+Search accepts native names, English names and locale codes.
 System follows live shell-language changes; an explicit choice affects only Loadlet.
 The legacy `zh` preference still selects Simplified Chinese (`zh-CN`), not `zh-TW`.
 Only English, Russian, German and Simplified Chinese have translated catalogs.
-Other choices use English text and show a fallback notice in the picker.
+Other choices use English text and are labeled as fallback in the picker. This
+layout correction does not add the other 46 translated catalogs.
 
 Displayed metrics use the selected language’s decimal separator and digits. Dates
 use its Qt locale. Process IDs and editable hardware values remain machine-form
@@ -131,6 +138,34 @@ or unretained consumers. Repeat comparable actions after warm-up; a plateau may
 reflect useful caching or allocator reuse. Allocation profiling is needed to
 attribute retained memory. No automatic kill, cache drop or profiler is added.
 
+**Notify about memory growth** is initially enabled for the explicit observation,
+not a background-on-startup monitor. The toggle affects this loaded plugin only;
+reload restores it to enabled, while observation itself remains off. Every new
+candidate creates a Growth event once per boot/PID/start identity, up to 20 per
+session, even if notifications are disabled. Each event retains its detection
+time, process growth/baseline/peak, available memory, pressure and coverage.
+Events remain after process exit and are included in Copy report, but a new Start
+or plugin reload clears them. They are not written to the diagnostic journal or
+a persistent incident database.
+
+The native Omarchy notification shows the process, anonymous-memory increase and
+interval, explicitly without a leak verdict. Clicking opens Memory with Growth
+events expanded; it never starts observation or applies a system action. At most
+one notification per minute, grouping up to three process summaries and a count
+of additional candidates. Stop or disabling notifications discards pending alerts;
+reenabling does not replay old events. Submission failures/timeouts are displayed,
+and the event stays available. No automatic retries or notification service is
+installed. Delivery uses the installed `omarchy-notification-send`, ordinary
+urgency and the `Loadlet` sender, respecting the desktop quiet-mode policy. A
+successful send does not establish that a toast was displayed. Notification
+history retention belongs to the host, not this plugin.
+
+The sender is a short-lived owned Process, bounded by `timeout` to 5 seconds
+with a 1-second kill grace. Notification text is localized; process-name markup
+and directional controls are neutralized for presentation. Click argv is fixed
+to the plugin Memory IPC route and never contains process names or a shell
+command string. No notification was sent during this implementation.
+
 Bounds: scan at most 4096 numeric procfs entries, retain the largest 256 readable
 RSS processes, and attempt smaps_rollup for the largest 32. A 300 ms admission
 deadline stops new reads; it cannot interrupt an individual kernel read. The
@@ -152,7 +187,8 @@ agent/provider. It includes system frames, coverage and histories for the ten
 current leading processes (the selected retained process replaces the tenth if
 needed), with names, PID/start and boot identity; no argv or
 environment. Exited or no-longer-retained processes are not in that current top
-report. The clipboard payload is capped at 524288 characters; copy before reload
+history; recorded growth events still retain their detection snapshots. The
+clipboard payload is capped at 524288 characters; copy before reload
 and review before sharing. This is not a complete process archive.
 
 ## Memory cleanup

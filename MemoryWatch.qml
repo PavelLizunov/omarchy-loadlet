@@ -1,5 +1,6 @@
 import QtQuick
 import Quickshell
+import Quickshell.Io
 import qs.Commons
 import qs.Commons as Host
 import qs.Ui
@@ -14,6 +15,12 @@ Column {
   property bool running: false
   property var frames: []
   property bool interrupted: false
+  property bool notificationsEnabled: true
+  property bool notificationError: false
+  property bool eventsExpanded: false
+  readonly property alias eventsControl: eventsButton
+  property var events: []
+  property var notificationQueue: []
   property string stateKey: "memory_watch_idle"
   property string selectedKey: ""
   property string systemField: "used"
@@ -34,11 +41,15 @@ Column {
   function delta(kib) { return kib === null || kib === undefined ? "—" : (kib < 0 ? "−" : "+") + bytes(Math.abs(kib)) }
   function begin() {
     frames = []; selectedKey = ""; interrupted = false; stateKey = "memory_watch_running"
+    events = []; eventsExpanded = false; notificationQueue = []; notificationError = false
     clock = Date.now()/1000
     sessionLimit.restart()
     running = true
   }
-  function stop(key) { running = false; sessionLimit.stop(); stateKey = key || "memory_watch_stopped" }
+  function stop(key) {
+    running = false; sessionLimit.stop(); notificationQueue = []
+    stateKey = key || "memory_watch_stopped"
+  }
   function observe(raw) {
     if (!running) return
     var next = Watch.parse(raw)
@@ -46,13 +57,56 @@ Column {
     frames = Watch.append(frames,next,interrupted)
     interrupted = false; clock = Date.now()/1000; stateKey = "memory_watch_running"
     if (!selectedKey && leaders.length) selectedKey = leaders[0].key
+    recordEvents(next)
   }
   function interrupt() { if (running) { interrupted = true; stateKey = "memory_watch_unavailable" } }
   function copyReport() {
-    var report = Watch.report(frames,rows,selectedKey)
+    var report = Watch.report(frames,rows,selectedKey,events)
     if (report.length > 524288) { stateKey = "memory_watch_report_large"; return }
     Quickshell.clipboardText = report
   }
+  function recordEvents(frame) {
+    var seen = events.map(function(event) { return event.process.key })
+    var found = Watch.summaries(frames).filter(function(row) { return row.candidate && seen.indexOf(row.key) < 0 })
+      .slice(0,Math.max(0,20-events.length)).map(function(row) {
+        return {time:frame.time, process:row, system:frame.system, pressure:frame.pressure, coverage:frame.coverage}
+      })
+    if (!found.length) return
+    events = events.concat(found)
+    if (notificationsEnabled) {
+      notificationQueue = notificationQueue.concat(found).slice(0,20)
+      sendNotification()
+    }
+  }
+  function eventText(event) {
+    var p = event.process
+    return t("memory_watch_event",p.name + " · PID " + p.pid,delta(p.growth),locale ? locale.duration(p.span) : String(Math.round(p.span)) + " s")
+  }
+  function sendNotification() {
+    if (!running || !notificationsEnabled || notifier.running || notificationCooldown.running || !notificationQueue.length) return
+    var batch = notificationQueue
+    notificationQueue = []
+    var body = batch.slice(0,3).map(function(event) { return root.eventText(event) }).join("\n")
+    if (batch.length > 3) body += "\n" + t("memory_watch_more_events",batch.length-3)
+    body += "\n" + t("memory_watch_notification_hint")
+    // The desktop notification body supports markup; process names are plain data.
+    body = body.replace(/[\x00-\x08\x0b-\x1f\x7f-\x9f\u202a-\u202e\u2066-\u2069]/g," ")
+      .replace(/&/g,"＆").replace(/</g,"‹").replace(/>/g,"›").slice(0,4000)
+    notifier.command = ["/usr/bin/timeout","--kill-after=1s","5s",
+      "/usr/share/omarchy/bin/omarchy-notification-send","--app-name","Loadlet","-u","normal","-t","10000",
+      "Loadlet · " + t("memory_watch_notification_title"),body,
+      "--exec","/usr/share/omarchy/bin/omarchy-shell","slovn.activity-lite.status","memory"]
+    notificationCooldown.restart()
+    notificationError = false
+    notifier.running = true
+  }
+  onNotificationsEnabledChanged: if (!notificationsEnabled) notificationQueue = []
+  Process {
+    id: notifier
+    onExited: function(code) { root.notificationError = code !== 0 }
+  }
+  Component.onDestruction: if (notifier.running) notifier.signal(15)
+  Timer { id: notificationCooldown; interval: 60000; onTriggered: root.sendNotification() }
   Timer { id: sessionLimit; interval: 3600000; onTriggered: root.stop("memory_watch_finished") }
   Timer { interval: 5000; running: root.visible && root.frames.length > 0; repeat: true; onTriggered: root.clock = Date.now()/1000 }
 
@@ -70,6 +124,53 @@ Column {
     width: parent.width; text: root.t("memory_watch_intro")
     textFormat: Text.PlainText; wrapMode: Text.Wrap; color: Host.Color.popups.text
     font.family: Style.font.family; font.pixelSize: Style.font.caption
+  }
+  Toggle {
+    objectName: "memoryWatchNotifications"
+    width: parent.width
+    label: root.t("memory_watch_notifications")
+    description: root.t("memory_watch_notifications_hint")
+    checked: root.notificationsEnabled
+    foreground: Host.Color.popups.text; accent: Host.Color.accent
+    Accessible.role: Accessible.CheckBox; Accessible.name: label; Accessible.checked: checked
+    onClicked: root.notificationsEnabled = !root.notificationsEnabled
+  }
+  Text {
+    width: parent.width; visible: root.notificationError
+    text: root.t("memory_watch_notification_failed")
+    textFormat: Text.PlainText; wrapMode: Text.Wrap; color: Host.Color.popups.text
+    font.family: Style.font.family; font.pixelSize: Style.font.caption
+  }
+  Button {
+    id: eventsButton
+    objectName: "memoryWatchEvents"
+    width: parent.width
+    text: root.t("memory_watch_events",root.events.length)
+    selected: root.eventsExpanded; focusable: true; leftAlign: true
+    foreground: Host.Color.popups.text; accent: Host.Color.accent
+    Accessible.role: Accessible.Button; Accessible.name: text
+    onClicked: root.eventsExpanded = !root.eventsExpanded
+  }
+  Column {
+    width: parent.width; visible: root.eventsExpanded; spacing: Style.spacing.sm
+    Text {
+      width: parent.width; text: root.t(root.events.length >= 20 ? "memory_watch_events_full" : "memory_watch_events_hint")
+      textFormat: Text.PlainText; wrapMode: Text.Wrap; color: Host.Color.popups.text
+      font.family: Style.font.family; font.pixelSize: Style.font.caption
+    }
+    Repeater {
+      model: root.events.length
+      Text {
+        required property int index
+        readonly property var event: root.events[root.events.length-1-index]
+        width: parent.width
+        text: event ? (root.locale ? root.locale.dateTime(event.time,false,false) : "") + "\n" + root.eventText(event)
+          + "\n" + root.t("memory_watch_event_context",root.bytes(event.system.MemAvailable),
+            event.pressure.some === null ? "—" : (root.locale ? root.locale.number(event.pressure.some,2) : String(event.pressure.some))) : ""
+        textFormat: Text.PlainText; wrapMode: Text.Wrap; color: Host.Color.popups.text
+        font.family: Style.font.family; font.pixelSize: Style.font.bodySmall
+      }
+    }
   }
   Text {
     width: parent.width

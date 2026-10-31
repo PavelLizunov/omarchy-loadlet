@@ -1,5 +1,20 @@
 # Changelog
 
+## 2.19.1
+
+- Replace the five-row language viewport with a full-height list, readable
+  start-aligned names, descriptions, locale codes and explicit fallback labels.
+  Reveal the saved selection on opening; keep search/Back pinned and suppress
+  panel letter shortcuts while typing. Preserve all registry choices and drafts.
+- Add optional native memory-growth notifications during explicit observation,
+  deduplicated by process instance and grouped at most once a minute. Clicking
+  opens Memory, never starts collection or applies system changes.
+- Retain up to 20 growth-event snapshots per session, including after process
+  exit, and include them in Copy report. No persistent incident database or
+  leak-proof claim; Stop keeps events, new Start/reload clears them.
+- No tests, renders, real notification or observation was run in this delivery.
+  The native sampler binary is unchanged.
+
 ## 2.19.0
 
 - Make Memory an explicit one-hour growth observation, using the existing native

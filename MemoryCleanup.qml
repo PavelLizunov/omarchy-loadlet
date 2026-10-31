@@ -42,6 +42,13 @@ Item {
     }) && (value.available === null || (typeof value.available === "number"
       && isFinite(value.available) && value.available >= 0))
   }
+  function showEvents() {
+    memoryWatch.eventsExpanded = true
+    Qt.callLater(function() {
+      var top = memoryWatch.eventsControl.mapToItem(viewport.contentItem,0,0).y
+      viewport.contentY = Math.max(0,Math.min(top,viewport.contentHeight-viewport.height))
+    })
+  }
   function request() {
     if (!active || running || !confirming || memoryWatch.running) return
     confirming = false; result = null; captured = ""; timedOut = false; finishedAt = 0

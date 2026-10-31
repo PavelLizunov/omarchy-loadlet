@@ -388,5 +388,20 @@
   "memory_watch_process_chart": "Prozessverlauf",
   "memory_watch_metric_anon": "Anonyme residente Seiten (RSS)",
   "memory_watch_metric_pss": "Proportionaler Anteil residenter Seiten (PSS)",
-  "memory_watch_metric_uss": "Private residente Seiten (USS)"
+  "memory_watch_metric_uss": "Private residente Seiten (USS)",
+  "language_back": "Zurück",
+  "language_system_hint": "Der Oberflächensprache von Omarchy folgen",
+  "language_english_fallback": "Englischer Ersatztext",
+  "language_no_matches": "Keine passenden Sprachen",
+  "memory_watch_notifications": "Über Speicherwachstum informieren",
+  "memory_watch_notifications_hint": "Nur während der Beobachtung. Ein Hinweis pro Prozess, höchstens einmal pro Minute. Ein Klick öffnet Speicher.",
+  "memory_watch_notification_title": "Speicherwachstum bemerkt",
+  "memory_watch_notification_hint": "Ein Anlass zur Untersuchung, kein bewiesenes Speicherleck. Speicher öffnen, um Ereignis und Diagramme zu sehen.",
+  "memory_watch_notification_failed": "Benachrichtigung fehlgeschlagen oder Zeitlimit erreicht. Das Ereignis bleibt in dieser Sitzung erhalten.",
+  "memory_watch_event": "%1: anonymer Speicher %2 in %3.",
+  "memory_watch_event_context": "Bei Erkennung: verfügbar %1 · Speicherwartezeit über 10 s: %2%.",
+  "memory_watch_events": "Wachstumsereignisse: %1",
+  "memory_watch_events_hint": "Bis zu 20 Ereignisse, einmal je Prozessinstanz. Erkennungswerte bleiben nach Prozessende erhalten. Eine neue Beobachtung oder das Neuladen des Plugins leert die Liste; Bericht kopieren enthält die Ereignisse.",
+  "memory_watch_events_full": "Sitzungslimit erreicht: 20 Ereignisse. In dieser Sitzung werden keine weiteren Prozesse erfasst. Bericht vor dem Neustart der Beobachtung kopieren.",
+  "memory_watch_more_events": "Weitere neue Ereignisse: %1."
 }

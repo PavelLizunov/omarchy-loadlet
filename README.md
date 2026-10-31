@@ -59,6 +59,9 @@ process growth. Compare cache with anonymous pages, available memory, swap and
 memory stalls. Select a process for anonymous, proportional-share and private-page
 history; growth warnings are investigation candidates, not proven leaks. Stop
 keeps the local session until reload; copy its report before starting again.
+Growth candidates also become session events, with optional native desktop
+notifications. One event per process instance, up to 20 per session; clicking a
+notification opens Memory. This is not a persistent incident database.
 Processes by memory opens the existing table, without automatic termination.
 Manual authenticated cache cleanup remains a secondary diagnostic tool, not a
 leak fix. [Observation and limits](docs/guide.md#memory-growth-observation).

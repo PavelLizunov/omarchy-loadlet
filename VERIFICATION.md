@@ -1,5 +1,31 @@
 # Loadlet verification
 
+## Language picker and memory alerts — 2.19.1
+
+User-provided compact/expanded screenshots show a short, center-aligned language
+list and unused space. Owning source caps it at 160 logical pixels and uses caption
+text in bordered full-width buttons. The source correction fills the available
+page height, uses readable two-line rows and restores the saved selection. It
+also stops `e`/`h` page shortcuts intercepting language-search input. No translation
+backend change or full 50-catalog completion is claimed.
+
+Memory now records at most 20 deduplicated growth events in its local session and
+optionally sends native desktop notifications, at most once per minute. Detection
+snapshots outlive process exit, appear in the report and remain explicitly
+nonpersistent. Native notification command, quiet-mode policy, markup handling
+and fixed click argv were read from installed host sources. Notification success
+means submission only, not guaranteed visible delivery. The process is bounded
+by the system timeout; no additional long-lived service or sampler is introduced.
+
+The task-owned diff was reviewed directly. Supplied screenshots were inspected;
+no new render, test, linter, CI, live input, notification, observation campaign,
+independent review or fluent language review ran. The checkpoint skips CI.
+Sampler/source/build inputs are unchanged from 2.19.0; no rebuild was needed.
+Installation/rescan, loaded identity and repaired input/layout remain separate.
+Settings, saved recording preferences, profiles, root helpers and histories were
+not written by delivery. Local event lifetime and desktop notification history
+are different; this is not persistent incident-journal acceptance.
+
 ## Explicit memory observation — 2.19.0
 
 Implemented one panel-owned session, a `memory-watch` request in the existing

@@ -119,8 +119,10 @@ Panel {
         captureInterval: activity.captureAppliedInterval,
         heatThreshold: activity.heatThreshold,
         productName: "Loadlet",
-        iconRevision: "2.19.0",
-        implementationRevision: "memory-watch-20261031",
+        iconRevision: "2.19.1",
+        implementationRevision: "language-memory-alerts-20261031",
+        memoryWatchEvents: memoryCleanup.watch.events.length,
+        memoryWatchNotifications: memoryCleanup.watch.notificationsEnabled,
         memoryWatching: memoryCleanup.watch.running,
         memoryWatchSamples: memoryCleanup.watch.frames.length,
         memoryTab: root.memoryOpen,
@@ -146,6 +148,10 @@ Panel {
         iconMotion: root.booleanSetting("iconMotion", true),
         mode: root.opened ? "detail" : (activity.backgroundEnabled ? "glance" : "off")
       })
+    }
+    function memory(): void {
+      root.open(); root.setSettingsOpen(false); root.languageExpanded = false
+      root.showPage("memory"); memoryCleanup.showEvents()
     }
     function details(): void { root.openDetails() }
     function preferences(): void { root.open(); root.setSettingsOpen(true) }
@@ -422,7 +428,9 @@ Panel {
   onLanguageExpandedChanged: {
     if (languageExpanded) {
       languageSearch.text = ""
-      Qt.callLater(function() { if (root.languageExpanded) languageSearch.forceActiveFocus() })
+      Qt.callLater(function() {
+        if (root.languageExpanded) { languageList.restoreSelection(); languageSearch.forceActiveFocus() }
+      })
     } else if (root.opened) {
       Qt.callLater(function() { persistentHeader.focusLanguage() })
     }
@@ -1096,7 +1104,7 @@ Panel {
       Item {
         id: pageShortcuts
         Keys.onPressed: function(event) {
-          if (processActions.confirmationOpen || (root.searchField && root.searchField.activeFocus)) return
+          if (root.languageExpanded || processActions.confirmationOpen || (root.searchField && root.searchField.activeFocus)) return
           var key = String(event.text || "").toLowerCase()
           if (key === "e") { root.setExpanded(!root.expanded); event.accepted = true }
           else if (key === "h" && !root.settingsOpen && !root.languageExpanded && !powerProfiles.editorOpen) {
@@ -1196,82 +1204,154 @@ Panel {
         height: Style.space(36)
       }
 
-      // A bounded picker keeps the registry accessible without growing the panel.
-      Column {
+      // Search and Back stay pinned; the list uses the remaining panel height.
+      Item {
         id: languageSection
         visible: root.languageExpanded
         anchors.top: persistentHeader.bottom
         anchors.topMargin: Style.spacing.md
         anchors.left: parent.left
         anchors.right: parent.right
-        spacing: Style.space(8)
+        anchors.bottom: parent.bottom
         z: 60
 
-        PanelSectionHeader {
+        Column {
+          id: languageHeading
+          anchors.top: parent.top
           width: parent.width
-          text: root.t("language")
-          foreground: root.foreground
-          fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
-        }
-
-        Text {
-          visible: !strings.hasCatalog
-          width: parent.width
-          text: root.t("language_fallback")
-          textFormat: Text.PlainText
-          wrapMode: Text.WordWrap
-          color: root.foreground
-          font.family: Style.font.family
-          font.pixelSize: Style.font.caption
-        }
-        TextField {
-          id: languageSearch
-          objectName: "languageSearch"
-          width: parent.width
-          placeholderText: root.t("language_search")
-          Accessible.name: placeholderText
-          text: ""
-          Keys.onDownPressed: { languageList.currentIndex = 0; languageList.forceActiveFocus() }
+          spacing: Style.spacing.sm
+          PanelSectionHeader {
+            width: parent.width
+            text: root.t("language")
+            foreground: root.foreground
+            fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
+          }
+          Text {
+            visible: !strings.hasCatalog
+            width: parent.width
+            text: root.t("language_fallback")
+            textFormat: Text.PlainText; wrapMode: Text.WordWrap
+            color: root.foreground; font.family: Style.font.family; font.pixelSize: Style.font.caption
+          }
+          TextField {
+            id: languageSearch
+            objectName: "languageSearch"
+            width: parent.width
+            placeholderText: root.t("language_search")
+            Accessible.name: placeholderText
+            foreground: root.foreground; accent: root.accent
+            font.family: Style.font.family; font.pixelSize: Style.font.body
+            text: ""
+            Keys.onDownPressed: languageList.move(0)
+            Keys.onReturnPressed: languageList.chooseCurrent()
+            Keys.onEnterPressed: languageList.chooseCurrent()
+          }
         }
         ListView {
           id: languageList
           objectName: "languageList"
-          width: parent.width
-          height: Math.max(0, Math.min(contentHeight, Style.space(160), keyCatcher.height - languageSection.y - y))
+          anchors.top: languageHeading.bottom; anchors.topMargin: Style.spacing.sm
+          anchors.left: parent.left; anchors.right: parent.right
+          anchors.bottom: languageBack.top; anchors.bottomMargin: Style.spacing.sm
           clip: true
+          spacing: Style.spacing.xxs
           boundsBehavior: Flickable.StopAtBounds
-          model: [{value:"system", label:root.t("lang_system"), description:""}].concat(strings.languages)
+          activeFocusOnTab: true
+          keyNavigationEnabled: false
+          model: [{value:"system", label:root.t("lang_system"), description:root.t("language_system_hint")}].concat(strings.languages)
             .filter(function(item) {
               var query = languageSearch.text.trim().toLowerCase()
               return !query || (item.label + " " + item.description + " " + item.value).toLowerCase().indexOf(query) >= 0
             })
-          ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+          currentIndex: -1
+          ScrollBar.vertical: ScrollBar { id: languageScroll; policy: ScrollBar.AsNeeded }
+          function restoreSelection() {
+            var code = strings.followsSystem ? "system" : root.effectiveLanguage
+            var index = languageSearch.text.trim() ? 0 : model.findIndex(function(item) { return item.value === code })
+            currentIndex = count ? Math.max(0,index) : -1
+            if (currentIndex >= 0) positionViewAtIndex(currentIndex,ListView.Contain)
+          }
+          function move(delta) {
+            if (!count) return
+            currentIndex = Math.max(0,Math.min(count-1,Math.max(0,currentIndex)+delta))
+            forceActiveFocus()
+            positionViewAtIndex(currentIndex,ListView.Contain)
+          }
           function choose(code) {
             root.persistSettings({locale:code})
             root.languageExpanded = false
           }
-          function chooseCurrent() { if (currentItem) choose(currentItem.modelData.value) }
+          function chooseCurrent() {
+            if (currentIndex >= 0 && currentIndex < count) choose(model[currentIndex].value)
+          }
+          onModelChanged: Qt.callLater(restoreSelection)
+          Keys.onDownPressed: move(1)
+          Keys.onUpPressed: {
+            if (currentIndex <= 0) languageSearch.forceActiveFocus()
+            else move(-1)
+          }
+          Keys.onHomePressed: { currentIndex = 0; move(0) }
+          Keys.onEndPressed: { currentIndex = count-1; move(0) }
+          Keys.onPageDownPressed: move(Math.max(1,Math.floor(height/Style.space(48))))
+          Keys.onPageUpPressed: move(-Math.max(1,Math.floor(height/Style.space(48))))
           Keys.onReturnPressed: chooseCurrent()
           Keys.onEnterPressed: chooseCurrent()
           Keys.onSpacePressed: chooseCurrent()
           delegate: Button {
+            id: languageRow
             required property var modelData
             required property int index
-            width: languageList.width
-            height: Style.space(32)
-            text: modelData.label
-            fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
-            fontSize: Style.font.caption
+            width: languageList.width - (languageScroll.visible ? languageScroll.width + Style.spacing.xs : 0)
+            height: Math.max(Style.space(48), languageRowText.implicitHeight + Style.spacing.sm*2)
             foreground: root.foreground; accent: root.accent
-            bordered: true; focusable: true
             hasCursor: languageList.activeFocus && languageList.currentIndex === index
-            onActiveFocusChanged: if (activeFocus) {
-              languageList.currentIndex = index
-              languageList.positionViewAtIndex(index, ListView.Contain)
-            }
             selected: modelData.value === (strings.followsSystem ? "system" : root.effectiveLanguage)
+            Accessible.role: Accessible.Button
+            Accessible.name: languageName.text + ". " + languageDescription.text
+            Accessible.onPressAction: languageList.choose(modelData.value)
             onClicked: languageList.choose(modelData.value)
+            Column {
+              id: languageRowText
+              anchors.left: parent.left; anchors.right: parent.right
+              anchors.leftMargin: Style.spacing.controlPaddingX
+              anchors.rightMargin: Style.spacing.controlPaddingX
+              anchors.verticalCenter: parent.verticalCenter
+              spacing: Style.spacing.xxs
+              Text {
+                id: languageName
+                width: parent.width
+                text: languageRow.modelData.label + (languageRow.modelData.value === "system" ? "" : " · " + languageRow.modelData.value)
+                textFormat: Text.PlainText; elide: Text.ElideRight
+                horizontalAlignment: strings.rightToLeft ? Text.AlignRight : Text.AlignLeft
+                color: root.foreground; font.family: Style.font.family; font.pixelSize: Style.font.body
+                font.bold: languageRow.selected
+              }
+              Text {
+                id: languageDescription
+                width: parent.width
+                text: languageRow.modelData.description
+                  + (languageRow.modelData.value !== "system" && ["en","ru","de","zh-CN"].indexOf(languageRow.modelData.value) < 0
+                    ? " · " + root.t("language_english_fallback") : "")
+                textFormat: Text.PlainText; elide: Text.ElideRight
+                horizontalAlignment: strings.rightToLeft ? Text.AlignRight : Text.AlignLeft
+                color: root.dim; font.family: Style.font.family; font.pixelSize: Style.font.caption
+              }
+            }
           }
+          Text {
+            anchors.centerIn: parent; width: parent.width
+            visible: languageList.count === 0
+            text: root.t("language_no_matches")
+            textFormat: Text.PlainText; wrapMode: Text.Wrap; horizontalAlignment: Text.AlignHCenter
+            color: root.foreground; font.family: Style.font.family; font.pixelSize: Style.font.body
+          }
+        }
+        SvgButton {
+          id: languageBack
+          anchors.left: parent.left; anchors.bottom: parent.bottom
+          text: root.t("language_back"); iconName: "back"
+          foreground: root.foreground; accent: root.accent; focusable: true
+          onClicked: root.languageExpanded = false
         }
       }
 

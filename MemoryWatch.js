@@ -83,12 +83,14 @@ function summaries(frames) {
     return Number(b.candidate)-Number(a.candidate) || (b.growth || 0)-(a.growth || 0) || (b.rss || 0)-(a.rss || 0)
   })
 }
-function report(frames, rows, selectedKey) {
+function report(frames, rows, selectedKey, events) {
   var included = rows.slice(0,10)
   var selected = rows.find(function(row) { return row.key === selectedKey })
   if (selected && !included.some(function(row) { return row.key === selectedKey })) included[9] = selected
   return JSON.stringify({schema: 1, scope: "Local memory observation; growth candidates are not proven leaks. KiB unless stated. No argv or environment.",
     limits: "Up to 256 largest RSS processes; PSS/USS attempted for 32. Gaps reset comparisons. Session is not persisted. No workload matching or allocation tracing.",
+    events: events || [],
+    eventLimit: "First 20 distinct boot/PID/start growth candidates per observation; detection snapshots are retained after exit until next Start/reload.",
     candidateRule: "Contiguous >=10min, >=12 samples, anonymous RSS growth >=64MiB and >=25%, >=70% steps grow by >=1MiB.",
     system: frames.map(function(f) { return {time:f.time, mono:f.mono, uptime:f.uptime, boot:f.boot, breakBefore:f.breakBefore,
       memory:f.system, pressure:f.pressure, coverage:f.coverage} }),
