@@ -17,10 +17,12 @@ This is programmatic Rust/SVG animation, not a neural video generator.
 The composition is in `src/main.rs`; dependency versions are pinned in Cargo.lock.
 No network service or generative model produced these frames.
 
-Loadlet and the composition use the repository MIT license. DM Sans is bundled
-unchanged under [SIL OFL 1.1](licenses/DM-Sans-OFL.txt), copyright the DM Sans
-Project Authors. Native UI keeps Loadlet's existing attributions. The copied
-pipeline license is retained in `licenses/pipeline-MIT.txt`.
+Loadlet and its native UI assets keep the repository MIT license and existing
+attributions. This separate film-renderer subproject adapts the GPL pipeline and
+is GPL-3.0-or-later, not covered by the root MIT grant; see [LICENSE](LICENSE).
+DM Sans is bundled unchanged under [SIL OFL 1.1](licenses/DM-Sans-OFL.txt),
+copyright the DM Sans Project Authors. The rendered film is also offered under
+GPL-3.0-or-later; its composition and required source assets are included.
 The build enables fframes' GPL-compatible H.264/FFmpeg feature. Renderer binaries,
 FFmpeg, build caches and system tools are not distributed here. Their software
 licenses are separate from the rendered movie. No third-party music is included.
@@ -39,7 +41,10 @@ ffmpeg -i /tmp/loadlet-2.19.2-master.mp4 -map 0:v:0 -c copy -an -map_metadata -1
 ffmpeg -v error -i /tmp/loadlet-2.19.2.mp4 -f null -
 ```
 
-Only film development needs these tools; plugin installation does not.
+Only film development needs these tools; plugin installation does not. Cargo.lock
+pins Rust dependencies, but the transitive FFmpeg source builder follows mutable
+upstream. This is a rebuild recipe, not a hermetic or byte-reproducible film-build
+guarantee. No renderer/build scripts execute on plugin enablement.
 The release machine lacked system NASM. A package was extracted into task-local
 scratch for this build; no successful system package installation occurred.
 

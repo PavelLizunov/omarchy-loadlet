@@ -248,12 +248,16 @@
       "bytes": 64941
     },
     "Cargo.toml": {
-      "sha256": "8651e44e6c8ade7fda3638bb21ff49ea0cbede9a8d32e547de6d4490edbfd5c8",
-      "bytes": 250
+      "sha256": "e0aec7a89bab84163d8118c6a1c641d0fa45c9ca6073c67bd772e3f605a2a76f",
+      "bytes": 263
+    },
+    "LICENSE": {
+      "sha256": "3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986",
+      "bytes": 35149
     },
     "README.md": {
-      "sha256": "3cb499c53c1f068e63b777f23c04fe86bf78ef6dae1277403b8e66fbd87474e4",
-      "bytes": 3362
+      "sha256": "57d147d4c771d8fce76a7a0828391a41707857176e2287406759360bc8db92a1",
+      "bytes": 3777
     },
     "checks/dark.png": {
       "sha256": "3d608b87e245d4ff3562ad494fb68abb9bdd67ce02b5444e9d4fe8a8a30daa32",
@@ -270,10 +274,6 @@
     "licenses/DM-Sans-OFL.txt": {
       "sha256": "7ec15e79c59bc14b86436a17e5eb7926b46cbcaeb08e1a7e6c110b415e6eb2a2",
       "bytes": 4388
-    },
-    "licenses/pipeline-MIT.txt": {
-      "sha256": "3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986",
-      "bytes": 35149
     },
     "loadlet-2.19.2.mp4": {
       "sha256": "cdb4dbc8b2c504f7fb91ae7c3e3f7f66ed7506aa96a6d76118810380f265d1fa",
