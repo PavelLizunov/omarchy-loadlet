@@ -182,6 +182,56 @@ Item {
       ctrl.captureWanted=false;ctrl.captureEnabled=false;ctrl.captureAction="";ctrl.stop()
       view.report={series:[],sessions:[],process_frames:[],top_processes:[]}
     }
+    function test_pin_preserves_process_state() {
+      plugin.setExpanded(true);wait(30)
+      plugin.processQuery="fire";plugin.setSort("name");plugin.selectProcess(0)
+      var selected=plugin.selectedProcessKey, viewport=plugin.processViewport
+      var sample=plugin.activityController.previousProcesses.sample
+      var keyTarget=pick('moveRequested'), popup=pick('fittedContentWidth')
+      var width=popup.contentWidth,height=popup.contentHeight
+      var settings=JSON.stringify(plugin.settings)
+      var pin=named('pinPanelButton')
+      mouseClick(pin,pin.width/2,pin.height/2);wait(30)
+      compare(plugin.pinned,true);compare(plugin.opened,true);compare(popup.open,false)
+      compare(named('pinnedPanelCard').visible,true)
+      compare(keyTarget.parent.parent.objectName,'pinnedPanelCard')
+      compare(plugin.selectedProcessKey,selected);compare(plugin.processQuery,"fire")
+      compare(plugin.processViewport,viewport,'pinning must not recreate the content')
+      compare(plugin.activityController.previousProcesses.sample,sample)
+      compare(plugin.activityController.active,true)
+      compare(popup.contentWidth,width);compare(popup.contentHeight,height)
+      mouseClick(pin,pin.width/2,pin.height/2);wait(30)
+      compare(plugin.pinned,false);compare(popup.open,true)
+      compare(plugin.selectedProcessKey,selected);compare(plugin.processQuery,"fire")
+      compare(plugin.processViewport,viewport)
+      compare(JSON.stringify(plugin.settings),settings,'pinning is temporary')
+    }
+    function test_pin_pages_and_close_data() {
+      return ['overview','sensors','fans','profiles','memory','settings'].map(function(page){return {tag:page,page:page}})
+    }
+    function test_pin_pages_and_close(data) {
+      plugin.showPage(data.page==='settings'?'overview':data.page)
+      plugin.setSettingsOpen(data.page==='settings');wait(20)
+      var pin=named('pinPanelButton'),before=[plugin.sensorsOpen,plugin.fansOpen,plugin.profilesOpen,plugin.memoryOpen,plugin.settingsOpen]
+      mouseClick(pin,pin.width/2,pin.height/2);wait(30)
+      compare(plugin.pinned,true)
+      compare([plugin.sensorsOpen,plugin.fansOpen,plugin.profilesOpen,plugin.memoryOpen,plugin.settingsOpen],before)
+      verify(pin.Accessible.checked)
+      var close=named('closePanelButton');mouseClick(close,close.width/2,close.height/2);wait(20)
+      compare(plugin.opened,false);compare(plugin.pinned,false)
+      plugin.open();wait(20);compare(plugin.pinned,false);compare(pick('fittedContentWidth').open,true)
+    }
+    function test_pin_preserves_profile_draft_and_escape() {
+      plugin.showPage('profiles');wait(20)
+      var profiles=named('powerProfiles');profiles.beginEdit();wait(20)
+      profiles.draft=Object.assign({},profiles.draft,{name:'Unsaved fixture draft'})
+      var pin=named('pinPanelButton');mouseClick(pin,pin.width/2,pin.height/2);wait(30)
+      compare(profiles.editorOpen,true);compare(profiles.draft.name,'Unsaved fixture draft')
+      pick('moveRequested').forceActiveFocus();keyClick(Qt.Key_Escape);wait(20)
+      compare(profiles.editorOpen,false);compare(plugin.pinned,true);compare(plugin.opened,true)
+      keyClick(Qt.Key_Escape);wait(20);compare(plugin.overviewOpen,true);compare(plugin.pinned,true)
+      keyClick(Qt.Key_Escape);wait(20);compare(plugin.opened,false);compare(plugin.pinned,false)
+    }
     function test_all_pages_expand_data() {
       return ['overview','cooling','fans','profiles','settings'].map(function(page){return {tag:page,page:page}})
     }

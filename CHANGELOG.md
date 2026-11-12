@@ -1,5 +1,18 @@
 # Changelog
 
+## 2.20.0
+
+- Add a temporary pin button beside Close on every page. Keep Loadlet open
+  while working in other windows or on another monitor; unpin to restore
+  outside-click dismissal. Expand and Collapse still control size independently.
+- Move the existing content between the normal popup and a card-sized native
+  surface. Preserve page, selected process, search, scroll position and profile
+  drafts without restarting sampling. Closing clears the temporary pin.
+- Add native UI coverage for pin/unpin, every page, explicit close and Escape.
+  Include the new surface in source installation. Keep sampler bytes unchanged.
+- Bind the existing 2.19.2 walkthrough to its published source commit; it remains
+  historical media and does not show the pin control.
+
 ## 2.19.2
 
 - Replace unsupported Home/End/PageUp/PageDown attached signal handlers with

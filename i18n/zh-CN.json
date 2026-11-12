@@ -120,6 +120,8 @@
   "map_open_short": "示意图",
   "map_close_short": "隐藏示意图",
   "close_panel": "关闭 Loadlet",
+  "pin_panel": "固定面板 — 在其他显示器上工作时保持打开",
+  "unpin_panel": "取消固定面板 — 恢复点击外部关闭",
   "fan_stop_trial": "停转5秒",
   "fan_run_trial": "以 %1% 运行5秒",
   "fan_trial_target": "试运行通道：%1 · %2",

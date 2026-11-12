@@ -8,7 +8,7 @@ sensor history, and optional automatic CPU and cooling profiles for Steam games.
 
 [![Loadlet 2.19.2 cooling map, demonstration data](docs/video/2.19.2/media/map.png)](docs/video/2.19.2/README.md)
 
-[Watch the 30-second walkthrough](docs/video/2.19.2/loadlet-2.19.2.mp4) · [Checks and limits](docs/release-2.19.2.md)
+[Watch the 2.19.2 walkthrough](docs/video/2.19.2/loadlet-2.19.2.mp4) · [Checks and limits](docs/release-2.19.2.md)
 
 ## Install
 
@@ -27,9 +27,9 @@ requests. Installation does not replace an existing plugin with the same ID.
 ## Use
 
 Click the bar character to open Loadlet. CPU fills its left eye, RAM the right.
-Expand the panel for per-GPU processes and detailed resources. Cooling groups
-sensors by component and offers bounded, opt-in history. Unknown readings stay
-unavailable; manual sensor locations do not claim physical connector identity.
+Expand for per-GPU processes and detailed resources. The header pin keeps the panel open while you work on another screen.
+Unpin restores outside-click dismissal; closing clears the pin. Cooling groups sensors and offers bounded, opt-in history.
+Unknown readings stay unavailable; manual sensor locations do not claim physical connector identity.
 
 Profiles combines fan output with CPU boost, governor, energy preference and a
 frequency cap. Select a preset, then Apply or Edit. Save only stores a preset;
@@ -87,7 +87,7 @@ not uninstall system helpers/services or delete your local history.
 
 ## Development and support
 
-[Build and checks](docs/guide.md#build-and-install) ·
+[Build and checks](docs/guide.md#build-and-install) · [2.20.0 scope](docs/release-2.20.0.md) ·
 [2.16.0 audit evidence and limits](docs/release-2.16.0.md) ·
 [Issues](https://github.com/PavelLizunov/omarchy-loadlet/issues)
 

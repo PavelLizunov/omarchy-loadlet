@@ -114,6 +114,8 @@ Item {
   property int contentHeight: 200
   property bool centerOnBar: false
   property bool open: false
+  property var screen: null
+  readonly property point cardOrigin: Qt.point(0, 0)
   property Item focusTarget: null
   property var borderSpec: Border.surfaceSpec("popups", "border", Color.popups.border, Math.max(1, Style.space(2)))
   readonly property real availableCardWidth: parent ? parent.width : 0
@@ -140,6 +142,14 @@ Item {
   }
   default property alias contentItem: holder.children
 }''')
+    # Keep the production card/content and substitute only its native surface.
+    pinned_surface = '''import QtQuick
+Item {
+  property var screen: null
+  property point origin: Qt.point(0, 0)
+  width: implicitWidth
+  height: implicitHeight
+}'''
     # Render the actual bar tooltip's content without its Wayland PopupWindow.
     bar_source = (HOST / 'plugins/bar/Bar.qml').read_text()
     start = bar_source.index('      BorderSurface {\n        id: tooltipBubble')
@@ -159,6 +169,7 @@ Item {
     plugin.mkdir()
     for name in ['Panel.qml', 'MemoryCleanup.qml', 'MemoryWatch.qml', 'MemoryWatch.js', 'PowerProfiles.qml', 'ChoiceDropdown.qml', 'ComputerMap.qml', 'SvgIcon.qml', 'ActivityIcon.qml', 'ActivityIconSvg.js', 'HeatPolicy.js', 'DiagnosticExport.qml', 'Diagnostics.qml', 'ActivityController.qml', 'ProcessActionController.qml', 'Sparkline.qml', 'SensorHistoryChart.qml', 'Model.js', 'LoadletLocale.qml', 'ProfileCodec.js']:
         shutil.copyfile(ROOT / name, plugin / name)
+    (plugin / 'PinnedWindow.qml').write_text(pinned_surface)
     shutil.copytree(ROOT / 'i18n', plugin / 'i18n')
     shutil.copyfile(ROOT / 'test/mock-data.js', base / 'mock-data.js')
     shutil.copyfile(ROOT / 'test/tst_panel.qml', base / 'tst_panel.qml')

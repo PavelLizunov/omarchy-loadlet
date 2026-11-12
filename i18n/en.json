@@ -120,6 +120,8 @@
   "map_open_short": "Diagram",
   "map_close_short": "Hide diagram",
   "close_panel": "Close Loadlet",
+  "pin_panel": "Pin panel — keep open while working on other monitors",
+  "unpin_panel": "Unpin panel — restore click-outside dismissal",
   "fan_stop_trial": "Stop for 5 s",
   "fan_run_trial": "Run %1% for 5 s",
   "fan_trial_target": "Trial channel: %1 · %2",

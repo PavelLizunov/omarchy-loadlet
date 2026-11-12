@@ -31,6 +31,10 @@ Versions 2.18.10–2.18.12 retained the 2.18.9 executable. Version2.19.0 rebuild
 it and adds MemoryWatch.qml/MemoryWatch.js to installation. The native header is
 an explicit Makefile dependency; all build-input hashes are in the provenance.
 
+Version 2.20.0 adds PinnedWindow.qml to the installation list. The sampler
+sources, compilation and link flags, and distributed executable are unchanged.
+The provenance records the updated Makefile hash.
+
 ## Runtime compatibility
 
 The package is an ELF64 Linux x86_64 executable, with baseline x86-64 code generation

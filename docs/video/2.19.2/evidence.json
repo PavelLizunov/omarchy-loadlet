@@ -1,6 +1,7 @@
 {
   "schema": 1,
   "version": "2.19.2",
+  "sourceCommit": "fcd6ff3fcee79e74bf8787fb522120526127424a",
   "sourceBaseCommit": "e79df373879a1c9334697b584866ca54351cef69",
   "sourceHashes": {
     "ActivityController.qml": "d676273efb6c3e7cd7ac6eff6435d630998f7c32061dcb0ef7e319d14dda8d76",

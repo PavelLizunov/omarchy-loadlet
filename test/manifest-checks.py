@@ -55,8 +55,11 @@ for name, expected in release_visuals['assetHashes'].items():
 current_film = root / 'docs/video/2.19.2'
 assert (root / 'preview.png').read_bytes() == (current_film / 'media/map.png').read_bytes()
 current_evidence = json.loads((current_film / 'evidence.json').read_text())
+# Published footage describes its pinned release, not subsequent UI edits.
 for name, expected in current_evidence['sourceHashes'].items():
-    assert sha(root / name) == expected, name
+    actual = hashlib.sha256(subprocess.check_output(
+        ['git', '-C', str(root), 'show', f'{current_evidence["sourceCommit"]}:{name}'])).hexdigest()
+    assert actual == expected, name
 for name, expected in current_evidence['assets'].items():
     assert sha(current_film / name) == expected['sha256'], name
     assert (current_film / name).stat().st_size == expected['bytes'], name

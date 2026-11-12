@@ -755,6 +755,21 @@ GPU collection now runs while the process table is visible even without a GPU
 summary tile. Existing closed-panel collection is unchanged. No measured battery
 or physical-driver compatibility claim follows from this implementation.
 
+## Keep the panel open on a monitor
+
+Use the pin button in the header to keep Loadlet visible while using other
+windows or monitors. The highlighted pin indicates this temporary mode. Only
+the card receives pointer input; there are no dismissal overlays on other
+screens and no exclusive keyboard grab. The panel remains on the monitor whose
+bar icon opened it. Expand and Collapse still control its size independently.
+
+Pinning and unpinning preserve the current page, process selection, search,
+scroll position and profile draft. Sampling continues through the same reader.
+Use the cross or bar icon to close explicitly; Escape keeps its existing nested
+back/collapse/close behavior. Closing clears the pin, so the next opening uses
+the normal popup. Unpin to restore outside-click dismissal. Pin state is not
+saved in settings.
+
 ## Sampling and limits
 
 The default Efficient profile samples resources every 3 seconds, processes every

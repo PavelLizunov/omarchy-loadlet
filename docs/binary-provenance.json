@@ -8,7 +8,7 @@
     "DiagnosticJournal.h": "4f335f7005396bb1f487779ea2e27e71082edcf52fe658c1bf242f61042ee076",
     "FastDiagnostics.h": "cc31f214b6a596fc365902929b10c7195b67106811bc1bb6f34a7e5fbe944d02",
     "MemoryWatch.h": "3ddb4bc4290ec580f5ca56d1370d109cc41eafe9bd1753f9fff54e1287c5d78b",
-    "Makefile": "5ed86ed32810f3c9d94a90c3918ce078b6a3189e69ab4ee1eb729528aa3d3051"
+    "Makefile": "83a15bd8a1bc392fdb3f93d8f3ecea8be894a0bc31583827ec69712603dcb372"
   },
   "size": 333944,
   "compiler": "GCC 16.2.1 20260810",
@@ -23,7 +23,7 @@
     ],
     "optional": "libnvidia-ml.so.1; not required without NVIDIA telemetry"
   },
-  "packagingChange": "2.19.2 retains native bytes; Makefile adds memory regression checks only.",
+  "packagingChange": "Pinning adds PinnedWindow.qml to the runtime install list; sampler sources, compilation/link flags and packaged executable bytes are unchanged.",
   "runtimeBuild": false,
   "runtimeDownload": false,
   "limits": [

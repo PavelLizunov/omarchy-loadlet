@@ -73,6 +73,8 @@ Panel {
     function status(): string {
       return JSON.stringify({
         opened: root.opened,
+        pinned: root.pinned,
+        panelRevision: "pinned-panel-v1",
         expanded: root.expanded,
         sensorsOpen: root.sensorsOpen,
         sensorSample: activity.sensorSnapshot.sample,
@@ -119,7 +121,7 @@ Panel {
         captureInterval: activity.captureAppliedInterval,
         heatThreshold: activity.heatThreshold,
         productName: "Loadlet",
-        iconRevision: "2.19.2",
+        iconRevision: "2.20.0",
         implementationRevision: "language-keys-recovery-20261031",
         memoryWatchEvents: memoryCleanup.watch.events.length,
         memoryWatchNotifications: memoryCleanup.watch.notificationsEnabled,
@@ -158,6 +160,10 @@ Panel {
   }
 
   property bool expanded: false
+  property bool pinned: false
+  onPinnedChanged: Qt.callLater(function() {
+    if (root.opened) keyCatcher.forceActiveFocus()
+  })
   property bool settingsOpen: false
   property bool sensorsOpen: false
   property bool fansOpen: false
@@ -988,6 +994,7 @@ Panel {
       hintsVisible = false
       resetDriveSelection()
     } else {
+      pinned = false
       expanded = false
       fansOpen = false
       sensorsOpen = false
@@ -1084,7 +1091,7 @@ Panel {
     anchorItem: button
     owner: root
     bar: root.bar
-    open: root.opened
+    open: root.opened && !root.pinned
     focusTarget: keyCatcher
     centerOnBar: false
 
@@ -1092,8 +1099,15 @@ Panel {
     contentWidth: panel.fittedContentWidth(root.expanded ? Style.space(900) : Style.space(480))
     contentHeight: panel.fittedContentHeight(Style.space(root.expanded ? 650 : 390))
 
+    Item {
+      id: popupContent
+      anchors.fill: parent
+    }
+
     PanelKeyCatcher {
       id: keyCatcher
+      // Move the existing content tree so selection, drafts and scrolling survive.
+      parent: root.pinned ? pinnedContent : popupContent
       LayoutMirroring.enabled: strings.rightToLeft
       LayoutMirroring.childrenInherit: true
       anchors.fill: parent
@@ -1170,7 +1184,7 @@ Panel {
           return
         }
         if (root.settingsOpen || root.languageExpanded || !root.overviewOpen) return
-        root.switchPanel(direction)
+        if (!root.pinned) root.switchPanel(direction)
       }
       onTextKey: function(text) {
         if (processActions.confirmationOpen) return
@@ -1524,6 +1538,34 @@ Panel {
     }
   }
 
+  PinnedWindow {
+    id: pinnedWindow
+    visible: root.opened && root.pinned
+    screen: panel.screen
+    origin: panel.cardOrigin
+    implicitWidth: panel.contentWidth
+    implicitHeight: panel.contentHeight
+
+    BorderSurface {
+      id: pinnedCard
+      objectName: "pinnedPanelCard"
+      anchors.fill: parent
+      color: Host.Color.popups.background
+      borderSpec: panel.borderSpec
+      padding: panel.padding
+      radius: Style.cornerRadius
+
+      Item {
+        id: pinnedContent
+        anchors.fill: parent
+        anchors.topMargin: pinnedCard.contentTopInset
+        anchors.rightMargin: pinnedCard.contentRightInset
+        anchors.bottomMargin: pinnedCard.contentBottomInset
+        anchors.leftMargin: pinnedCard.contentLeftInset
+      }
+    }
+  }
+
   component SvgButton: Button {
     id: svgButton
     property string iconName: ""
@@ -1701,6 +1743,23 @@ Panel {
         fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
         bordered: true
         onClicked: root.setExpanded(!root.expanded)
+      }
+
+      SvgActionButton {
+        objectName: "pinPanelButton"
+        size: parent.parent.headerControlHeight
+        anchors.verticalCenter: parent.verticalCenter
+        iconName: "pin"
+        tooltipText: root.t(root.pinned ? "unpin_panel" : "pin_panel")
+        foreground: root.pinned ? root.accent : root.foreground
+        hoverColor: root.accent
+        fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
+        bordered: true; focusable: true
+        hasCursor: root.pinned
+        Accessible.role: Accessible.CheckBox
+        Accessible.checkable: true
+        Accessible.checked: root.pinned
+        onClicked: root.pinned = !root.pinned
       }
 
       SvgActionButton {

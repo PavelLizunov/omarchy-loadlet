@@ -33,6 +33,7 @@ Image {
     settings: '<path d="m9 3-1 3-3 1-2 3 2 2-1 3 2 3 3-1 3 4 3-4 3 1 2-3-1-3 2-2-2-3-3-1-1-3Z"/><circle cx="12" cy="12" r="3"/>',
     expand: '<path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/>',
     collapse: '<path d="M3 8h5V3m8 0v5h5M8 21v-5H3m13 5v-5h5"/>',
+    pin: '<path d="m16 3 5 5-3 1-4 4v4l-3-3-6 6m6-6-4-4h4l4-4Z"/>',
     restore: '<path d="M3 10a9 9 0 1 1 2 8M3 4v6h6"/>',
     check: '<path d="m4 12 5 5L20 6"/>',
     stop: '<circle cx="12" cy="12" r="9"/><path d="m8 8 8 8m0-8-8 8"/>',

@@ -120,6 +120,8 @@
   "map_open_short": "Schema",
   "map_close_short": "Schließen",
   "close_panel": "Loadlet schließen",
+  "pin_panel": "Panel anheften — bei der Arbeit auf anderen Monitoren geöffnet lassen",
+  "unpin_panel": "Panel lösen — durch Klicken außerhalb wieder schließen",
   "fan_stop_trial": "5 s anhalten",
   "fan_run_trial": "%1% für 5 s",
   "fan_trial_target": "Testkanal: %1 · %2",
