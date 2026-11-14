@@ -1661,14 +1661,16 @@ var protectedProcessNames = [
   "omarchy-hyprlan"
 ]
 
-function processActionBlockReason(process, currentUser) {
+function processActionBlockReason(process, currentUser, authorizeOtherOwner) {
   if (!process || number(process.pid) <= 1) return "Protected system process"
   if (number(process.startTicks) <= 0) return "Process identity is unavailable"
   if (/^[ZXx]$/.test(String(process.state || ""))) return "Process has already stopped"
-  if (String(process.user || "") !== String(currentUser || ""))
-    return "Only your own processes can be ended"
   if (protectedProcessNames.indexOf(String(process.name || "").toLowerCase()) >= 0)
     return "Desktop session is protected"
+  if (!String(process.user || "") || !String(currentUser || ""))
+    return "Process identity is unavailable"
+  if (String(process.user) !== String(currentUser) && authorizeOtherOwner !== true)
+    return "Only your own processes can be ended"
   return ""
 }
 

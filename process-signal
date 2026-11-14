@@ -4,15 +4,17 @@
 # omarchy:group=system
 # omarchy:args=<TERM|KILL> <PID> <START_TICKS>
 
-"""Signal a same-user process or app root while guarding against PID reuse."""
+"""Signal one exact process, with explicit authentication for another owner."""
 
 from __future__ import annotations
 
 import argparse
 from dataclasses import dataclass
 import os
+import math
 import signal
 import sys
+import time
 from pathlib import Path
 
 
@@ -173,7 +175,8 @@ def protected_processes(proc_root: Path) -> set[int]:
 
 
 def reject_unsafe_target(
-    process_stat: ProcessStat, process_status: ProcessStatus, expected_start_ticks: int
+    process_stat: ProcessStat, process_status: ProcessStatus, expected_start_ticks: int,
+    expected_user_ids: tuple[int, int, int, int] | None = None,
 ) -> None:
     if process_stat.start_ticks != expected_start_ticks:
         fail(f"Process {process_stat.pid} changed before it could be signaled")
@@ -184,21 +187,48 @@ def reject_unsafe_target(
     if process_stat.name.lower() in PROTECTED_NAMES:
         fail("Refusing to signal a protected desktop-session process", 77)
 
-    current_uid = os.getuid()
-    if any(user_id != current_uid for user_id in process_status.user_ids):
+    if expected_user_ids is not None:
+        if process_status.user_ids != expected_user_ids:
+            fail("Process ownership changed before it could be signaled", 77)
+    elif any(user_id != os.getuid() for user_id in process_status.user_ids):
         fail("Refusing to signal a process owned by another user", 77)
+
+
+def check_authorization(deadline: float | None) -> None:
+    if (os.getuid() != 0 or os.geteuid() != 0
+            or not os.environ.get("PKEXEC_UID", "").isdecimal()):
+        fail("System authentication is required for another owner's process", 77)
+    if deadline is None or not math.isfinite(deadline) or time.monotonic() >= deadline:
+        fail("Process authorization expired; select the process again", 77)
+
+
+def request_authorization(args: argparse.Namespace, owner: ProcessStatus) -> None:
+    # Capture the checked implementation before authentication. Root never imports
+    # code from the mutable plugin directory. No persistent privileged grant.
+    source = Path(__file__).read_text(encoding="utf-8")
+    deadline = time.monotonic() + 120
+    os.execv("/usr/bin/pkexec", [
+        "pkexec", "--disable-internal-agent", "/usr/bin/timeout", "--kill-after=1s", "5s",
+        "/usr/bin/python3", "-I", "-c", source,
+        args.signal_name, str(args.pid), str(args.start_ticks),
+        "--authorized-owner", *(str(uid) for uid in owner.user_ids),
+        "--authorization-deadline", str(deadline),
+    ])
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
-            "Signal one same-user process if its PID and "
-            "start time still match."
+            "Signal one process if its PID and start time still match. "
+            "Another owner's process requires --authorize and system authentication."
         )
     )
     parser.add_argument("signal_name", choices=("TERM", "KILL"))
     parser.add_argument("pid", type=int)
     parser.add_argument("start_ticks", type=int)
+    parser.add_argument("--authorize", action="store_true")
+    parser.add_argument("--authorized-owner", type=int, nargs=4, help=argparse.SUPPRESS)
+    parser.add_argument("--authorization-deadline", type=float, help=argparse.SUPPRESS)
     return parser.parse_args()
 
 
@@ -211,6 +241,15 @@ def main() -> None:
     protected = protected_processes(PROC_ROOT)
     if args.pid in protected:
         fail("Refusing to signal Activity Monitor or its ancestor chain", 77)
+
+    expected_owner = None
+    if args.authorized_owner is not None:
+        if args.authorize or any(uid < 0 for uid in args.authorized_owner):
+            fail("Invalid authenticated process action", 64)
+        check_authorization(args.authorization_deadline)
+        expected_owner = tuple(args.authorized_owner)
+    elif args.authorization_deadline is not None:
+        fail("Invalid authenticated process action", 64)
 
     try:
         pid_fd = os.pidfd_open(args.pid)
@@ -226,7 +265,15 @@ def main() -> None:
         except InspectionError as error:
             fail(str(error))
 
-        reject_unsafe_target(process_stat, process_status, args.start_ticks)
+        if args.authorize:
+            reject_unsafe_target(process_stat, process_status, args.start_ticks,
+                                 process_status.user_ids)
+            request_authorization(args, process_status)
+            return
+
+        reject_unsafe_target(process_stat, process_status, args.start_ticks, expected_owner)
+        if expected_owner is not None:
+            check_authorization(args.authorization_deadline)
         signal.pidfd_send_signal(pid_fd, getattr(signal, f"SIG{args.signal_name}"))
     except ProcessLookupError:
         fail(f"Process {args.pid} no longer exists")

@@ -1,6 +1,11 @@
 """Bounded local regressions. Run in an isolated PID namespace."""
 import importlib.machinery
 import importlib.util
+from dataclasses import replace
+from argparse import Namespace
+from unittest.mock import patch
+from contextlib import redirect_stderr
+import io
 import os
 from pathlib import Path
 import signal
@@ -15,6 +20,69 @@ spec = importlib.util.spec_from_loader(loader.name, loader)
 helper = importlib.util.module_from_spec(spec)
 sys.modules[spec.name] = helper
 loader.exec_module(helper)
+
+def refused(call, status=77):
+    with redirect_stderr(io.StringIO()):
+        try:
+            call()
+        except SystemExit as error:
+            assert error.code == status, error.code
+        else:
+            raise AssertionError('Unsafe process action was accepted')
+
+stat = helper.ProcessStat(42, b'windows', 'S', 2, 0, 1234)
+owner = helper.ProcessStatus(42, 'S', (0, 0, 0, 0))
+with patch.object(helper.os, 'getuid', return_value=1000):
+    refused(lambda: helper.reject_unsafe_target(stat, owner, 1234))
+    helper.reject_unsafe_target(stat, owner, 1234, owner.user_ids)
+    refused(lambda: helper.reject_unsafe_target(stat, replace(owner, user_ids=(1, 0, 0, 0)),
+                                                1234, owner.user_ids))
+    refused(lambda: helper.check_authorization(time.monotonic()+120))
+for unsafe in [replace(stat, name=b'quickshell'), replace(stat, flags=helper.PF_KTHREAD),
+               replace(stat, state='Z')]:
+    refused(lambda: helper.reject_unsafe_target(unsafe, owner, 1234, owner.user_ids))
+refused(lambda: helper.reject_unsafe_target(replace(stat, start_ticks=1235), owner, 1234,
+                                            owner.user_ids), 1)
+with patch.object(helper.os, 'getuid', return_value=0), \
+     patch.object(helper.os, 'geteuid', return_value=0), \
+     patch.dict(os.environ, {'PKEXEC_UID': '1000'}):
+    helper.check_authorization(time.monotonic()+120)
+    for deadline in [None, time.monotonic()-1, float('nan'), float('inf')]:
+        refused(lambda: helper.check_authorization(deadline))
+with patch.object(helper.os, 'execv') as execute:
+    helper.request_authorization(Namespace(signal_name='TERM', pid=42, start_ticks=1234), owner)
+    command = execute.call_args.args[1]
+    assert command[:6] == ['pkexec', '--disable-internal-agent', '/usr/bin/timeout',
+                           '--kill-after=1s', '5s', '/usr/bin/python3']
+    assert command[6:8] == ['-I', '-c']
+    compile(command[8], '<authenticated-process-signal>', 'exec')
+    assert command[9:17] == ['TERM', '42', '1234', '--authorized-owner', '0', '0', '0', '0']
+    assert time.monotonic()+119 < float(command[-1]) <= time.monotonic()+120
+
+argv = ['process-signal', 'TERM', '42', '1234', '--authorized-owner', '0', '0', '0', '0',
+        '--authorization-deadline', str(time.monotonic()+120)]
+with patch.object(sys, 'argv', argv), \
+     patch.object(helper, 'protected_processes', return_value=set()), \
+     patch.object(helper.os, 'getuid', return_value=0), \
+     patch.object(helper.os, 'geteuid', return_value=0), \
+     patch.dict(os.environ, {'PKEXEC_UID': '1000'}), \
+     patch.object(helper.os, 'pidfd_open', return_value=9), \
+     patch.object(helper.os, 'close'), \
+     patch.object(helper, 'read_process_stat', return_value=stat) as read_stat, \
+     patch.object(helper, 'read_process_status', return_value=owner) as read_status, \
+     patch.object(helper.signal, 'pidfd_send_signal') as send:
+    helper.main()
+    send.assert_called_once_with(9, signal.SIGTERM)
+    send.reset_mock()
+    read_stat.return_value = replace(stat, start_ticks=1235)
+    refused(helper.main, 1); send.assert_not_called()
+    read_stat.return_value = stat
+    read_status.return_value = replace(owner, user_ids=(0, 0, 0, 1))
+    refused(helper.main); send.assert_not_called()
+    read_status.return_value = owner
+    with patch.object(helper.time, 'monotonic', return_value=float(argv[-1])+1):
+        refused(helper.main); send.assert_not_called()
+print('PASS process authentication: explicit boundary, immutable code, deadline, ownership and protection guards')
 
 def invoke(child, name='TERM', delta=0):
     start = helper.read_process_stat(Path('/proc'), child.pid).start_ticks
@@ -33,6 +101,15 @@ for name, ignored in [('тест', False), ('quickshell', False), ('worker', Tru
         assert invoke(child, delta=1).returncode != 0
         assert child.poll() is None
         assert invoke(child, 'APP_TERM').returncode != 0
+        # Internal privileged mode cannot be enabled by argv/environment as a user.
+        start = helper.read_process_stat(Path('/proc'), child.pid).start_ticks
+        forged = subprocess.run([sys.executable, '-I', str(ROOT / 'process-signal'),
+                                 'TERM', str(child.pid), str(start),
+                                 '--authorized-owner', *[str(os.getuid())]*4,
+                                 '--authorization-deadline', str(time.monotonic()+120)],
+                                env=dict(os.environ, PKEXEC_UID='1000' if os.getuid() else ''),
+                                capture_output=True, text=True, timeout=4)
+        assert forged.returncode != 0 and child.poll() is None
         result = invoke(child)
         if name == 'quickshell':
             assert result.returncode != 0 and child.poll() is None

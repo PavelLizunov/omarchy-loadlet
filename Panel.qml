@@ -121,8 +121,8 @@ Panel {
         captureInterval: activity.captureAppliedInterval,
         heatThreshold: activity.heatThreshold,
         productName: "Loadlet",
-        iconRevision: "2.20.0",
-        implementationRevision: "language-keys-recovery-20261031",
+        iconRevision: "2.20.1",
+        implementationRevision: "authenticated-process-actions-20261114",
         memoryWatchEvents: memoryCleanup.watch.events.length,
         memoryWatchNotifications: memoryCleanup.watch.notificationsEnabled,
         memoryWatching: memoryCleanup.watch.running,
@@ -1519,9 +1519,11 @@ Panel {
         opened: processActions.confirmationOpen
         z: 100
         message: processActions.pendingAction
-          ? root.t(processActions.pendingAction.action === "KILL" ? "confirm_kill" : "confirm_terminate",
+          ? root.t(processActions.pendingAction.authorize
+                   ? (processActions.pendingAction.action === "KILL" ? "confirm_kill_authorize" : "confirm_terminate_authorize")
+                   : (processActions.pendingAction.action === "KILL" ? "confirm_kill" : "confirm_terminate"),
                    processActions.pendingAction.name,
-                   String(processActions.pendingAction.pid))
+                   String(processActions.pendingAction.pid), processActions.pendingAction.user)
           : ""
         confirmText: processActions.pendingAction && processActions.pendingAction.action === "KILL"
           ? root.t("btn_kill")

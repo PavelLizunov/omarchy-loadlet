@@ -36,7 +36,7 @@ Item {
   signal refreshRequested()
 
   function blockReason(process) {
-    var reason = Model.processActionBlockReason(process, currentUser)
+    var reason = Model.processActionBlockReason(process, currentUser, true)
     var keys = {
       "Protected system process": "blocked_system",
       "Process identity is unavailable": "blocked_identity",
@@ -68,6 +68,7 @@ Item {
       startTicks: Number(process.startTicks),
       name: String(process.name || "process"),
       user: String(process.user || ""),
+      authorize: String(process.user) !== currentUser,
       action: force === true ? "KILL" : "TERM"
     }
     confirmationRequested()
@@ -90,12 +91,18 @@ Item {
     _pendingAction = null
     _failed = false
     _status = root.t("status_sending", _activeAction.name)
-    signalProc.command = [
+    var command = [
       "/usr/bin/python3", "-I", signalHelperPath,
       _activeAction.action,
       String(_activeAction.pid),
       String(_activeAction.startTicks)
     ]
+    if (_activeAction.authorize) {
+      command.push("--authorize")
+      command = ["/usr/bin/timeout", "--kill-after=2s", "125s"].concat(command)
+    }
+    signalProc.command = command
+    actionDeadline.interval = _activeAction.authorize ? 130000 : 3000
     signalProc.running = true
     actionDeadline.restart()
   }
@@ -112,7 +119,8 @@ Item {
       } else {
         _failed = true
         // Helper stderr remains a machine diagnostic, never bypasses the UI locale.
-        _status = root.t("status_error")
+        _status = root.t(action && action.authorize && (exitCode === 126 || exitCode === 127)
+          ? "status_authorization_denied" : "status_error")
       }
     }
 

@@ -29,7 +29,11 @@ for setting in m['barWidget']['schema']:
         assert setting['min'] <= setting['defaultValue'] <= setting['max'], key
 instructions = (root / 'AGENTS.md').read_text()
 assert instructions.startswith('# Loadlet workspace entry\n')
-assert 8 <= len(instructions.splitlines()) <= 25
+workspace_entry, owner_marker, owner_policy = instructions.partition(
+    '\n<!-- BEGIN OWNER PERMANENT CREDENTIAL RETENTION -->')
+if owner_marker:
+    assert owner_policy.rstrip().endswith('<!-- END OWNER PERMANENT CREDENTIAL RETENTION -->')
+assert 8 <= len(workspace_entry.splitlines()) <= 25
 assert (root / 'docs/agent-contract.md').is_file()
 for name in ['compact.png', 'expanded.png', 'settings.png', 'manifest.json']:
     assert (root / 'docs/images' / name).is_file(), name

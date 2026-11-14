@@ -922,6 +922,35 @@ Item {
       wait(10);compare(pick('handleKey').cancelText,'Отмена')
       keyClick(Qt.Key_Escape);wait(10);compare(pick('confirmationOpen').confirmationOpen,false)
     }
+    function test_process_authorization() {
+      var actions=pick('confirmationOpen')
+      var process={pid:42,startTicks:1234,user:'root',name:'windows',state:'S'}
+      compare(actions.blockReason(process),'')
+      verify(actions.request(process,false));wait(10)
+      compare(actions.pendingAction.authorize,true)
+      var dialog=pick('handleKey')
+      verify(dialog.message.indexOf('root')>=0)
+      verify(dialog.message.indexOf('авторизация')>=0)
+      verify(dialog.message.indexOf('виртуальной машины')>=0)
+      actions.confirm()
+      var sender=nodes(actions).find(function(n){return n.command!==undefined})
+      compare(sender.command.slice(-1)[0],'--authorize')
+      sender.running=false;sender.exited(126)
+      compare(actions.failed,true)
+      compare(actions.status,'Авторизация администратора отменена или отклонена')
+      verify(actions.request(process,true))
+      compare(actions.pendingAction.action,'KILL')
+      actions.cancel()
+      process.name='quickshell'
+      verify(actions.blockReason(process)!=='')
+      verify(!actions.request(process,false))
+      process.name='worker';process.user='demo'
+      verify(actions.request(process,false))
+      compare(actions.pendingAction.authorize,false)
+      actions.confirm()
+      compare(sender.command.indexOf('--authorize'),-1)
+      sender.running=false;sender.exited(0)
+    }
     function test_shortcuts() {
       plugin.hintsVisible=false;pick('moveRequested').forceActiveFocus()
       keyClick(Qt.Key_Question);wait(10);compare(plugin.hintsVisible,true)

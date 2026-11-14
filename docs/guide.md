@@ -325,6 +325,14 @@ work, exact energy use or the physical cause of heat by itself.
 - `h`: toggle Cooling; `/`: search, `j`/`k`: select, `s`: settings.
 - Click a process to select it. Terminate sends SIGTERM to that exact PID and
   sampled start time. Force terminate sends SIGKILL only after a separate confirmation.
+- Processes owned by another user (including root-owned virtual machines) require
+  explicit confirmation followed by system administrator authentication. The helper
+  rechecks PID, start time and all four ownership IDs after authentication; a changed
+  or exited process is never replaced by another target. Authorization expires after
+  two minutes, with a separate five-second root-operation timeout and no saved grant.
+  Canceling authentication sends no signal. Desktop/session guards still apply.
+  Terminating a virtual machine's host process can lose guest data; shut down inside
+  the guest for a normal operating-system shutdown.
 - No automatic escalation or promotion to a same-name parent process.
 - Selection follows PID and sampled start time across updates. When that identity
   disappears from the visible list, action buttons disable until another selection.
@@ -826,8 +834,10 @@ The process view is built in; no external Task Manager is required.
 
 Like other Omarchy shell plugins, this code runs unsandboxed with your user
 permissions inside the shared shell. It reads procfs/sysfs and mount statistics;
-the process helper signals only validated same-user processes. No root privileges,
-extra daemon, runtime network access or remote build is required.
+the process helper signals validated same-user processes without privileges.
+Another owner's process requires explicit one-shot Polkit authentication; no root
+helper installation or persistent grant is added. Monitoring requires no root
+privileges, extra daemon, runtime network access or remote build.
 The packaged executable was rebuilt byte-identically from this fork's current
 source, rather than accepted merely because upstream shipped it. To rebuild it
 for development, run:

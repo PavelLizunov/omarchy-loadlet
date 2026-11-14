@@ -64,8 +64,8 @@ leak fix. [Observation and limits](docs/guide.md#memory-growth-observation).
 
 ## Optional system controls
 
-Monitoring and process actions work without these helpers. CPU/fan control needs
-explicit authenticated installation of root-owned Python helpers, systemd and
+Monitoring needs no root setup; ending another owner's process requires Polkit.
+Optional CPU/fan control needs authenticated root-owned Python helpers, systemd and
 Polkit/sudo. Motherboard output supports only DRFXI/IT8613; optional NVIDIA output
 uses NVML and driver-reported limits. There is no generic PSU fan control.
 
@@ -87,7 +87,7 @@ not uninstall system helpers/services or delete your local history.
 
 ## Development and support
 
-[Build and checks](docs/guide.md#build-and-install) · [2.20.0 scope](docs/release-2.20.0.md) ·
+[Build and checks](docs/guide.md#build-and-install) · [2.20.1 scope](docs/release-2.20.1.md) ·
 [2.16.0 audit evidence and limits](docs/release-2.16.0.md) ·
 [Issues](https://github.com/PavelLizunov/omarchy-loadlet/issues)
 

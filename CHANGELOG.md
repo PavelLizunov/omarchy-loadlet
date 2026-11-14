@@ -1,5 +1,17 @@
 # Changelog
 
+## 2.20.1
+
+- Allow explicit termination of another user's process, including root-owned
+  virtual machines, through system administrator authentication. Keep the exact
+  sampled PID/start time, recheck all ownership IDs after authentication and
+  preserve desktop/session protection and separate force confirmation.
+- Bound authorization to two minutes and the privileged operation to five seconds.
+  Canceling or denying authentication sends no signal; no privileged helper,
+  persistent grant, automatic escalation or same-name fallback is introduced.
+- Explain authentication and virtual-machine data loss in all four existing
+  catalogs. Add helper and native UI regressions; retain ordinary same-user actions.
+
 ## 2.20.0
 
 - Add a temporary pin button beside Close on every page. Keep Loadlet open
