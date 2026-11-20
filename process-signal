@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python3 -I
 
 # omarchy:summary=Safely signal a process selected in Activity Monitor
 # omarchy:group=system
@@ -11,8 +11,8 @@ from __future__ import annotations
 import argparse
 from dataclasses import dataclass
 import os
-import math
 import signal
+import stat
 import sys
 import time
 from pathlib import Path
@@ -35,6 +35,8 @@ PROTECTED_NAMES = frozenset(
     )
 )
 PROC_ROOT = Path("/proc")
+SYSTEM_HELPER = Path("/usr/local/lib/loadlet/process-signal")
+AUTHORIZATION_WINDOW = 120
 
 
 def fail(message: str, status: int = 1) -> None:
@@ -198,18 +200,30 @@ def check_authorization(deadline: float | None) -> None:
     if (os.getuid() != 0 or os.geteuid() != 0
             or not os.environ.get("PKEXEC_UID", "").isdecimal()):
         fail("System authentication is required for another owner's process", 77)
-    if deadline is None or not math.isfinite(deadline) or time.monotonic() >= deadline:
+    if deadline is None or not 0 < deadline - time.monotonic() <= AUTHORIZATION_WINDOW:
         fail("Process authorization expired; select the process again", 77)
 
 
+def system_helper_available() -> bool:
+    try:
+        # Reject symlinks and user-writable components before passing the path to Polkit.
+        for directory in reversed(SYSTEM_HELPER.parents):
+            info = directory.lstat()
+            if not stat.S_ISDIR(info.st_mode) or info.st_uid != 0 or info.st_mode & 0o022:
+                return False
+        info = SYSTEM_HELPER.lstat()
+    except OSError:
+        return False
+    return (stat.S_ISREG(info.st_mode) and info.st_uid == 0
+            and not info.st_mode & 0o022 and bool(info.st_mode & 0o111))
+
+
 def request_authorization(args: argparse.Namespace, owner: ProcessStatus) -> None:
-    # Capture the checked implementation before authentication. Root never imports
-    # code from the mutable plugin directory. No persistent privileged grant.
-    source = Path(__file__).read_text(encoding="utf-8")
-    deadline = time.monotonic() + 120
+    if not system_helper_available():
+        fail(f"Install a root-owned Loadlet process helper at {SYSTEM_HELPER}", 78)
+    deadline = time.monotonic() + AUTHORIZATION_WINDOW
     os.execv("/usr/bin/pkexec", [
-        "pkexec", "--disable-internal-agent", "/usr/bin/timeout", "--kill-after=1s", "5s",
-        "/usr/bin/python3", "-I", "-c", source,
+        "pkexec", "--disable-internal-agent", str(SYSTEM_HELPER),
         args.signal_name, str(args.pid), str(args.start_ticks),
         "--authorized-owner", *(str(uid) for uid in owner.user_ids),
         "--authorization-deadline", str(deadline),
@@ -238,18 +252,20 @@ def main() -> None:
         fail("Refusing to signal a protected system process", 77)
     if args.start_ticks <= 0:
         fail("Process start time must be positive", 64)
-    protected = protected_processes(PROC_ROOT)
-    if args.pid in protected:
-        fail("Refusing to signal Activity Monitor or its ancestor chain", 77)
-
     expected_owner = None
     if args.authorized_owner is not None:
         if args.authorize or any(uid < 0 for uid in args.authorized_owner):
             fail("Invalid authenticated process action", 64)
         check_authorization(args.authorization_deadline)
+        signal.signal(signal.SIGALRM, signal.SIG_DFL)
+        signal.pthread_sigmask(signal.SIG_UNBLOCK, {signal.SIGALRM})
+        signal.alarm(5)
         expected_owner = tuple(args.authorized_owner)
     elif args.authorization_deadline is not None:
         fail("Invalid authenticated process action", 64)
+
+    if args.pid in protected_processes(PROC_ROOT):
+        fail("Refusing to signal Activity Monitor or its ancestor chain", 77)
 
     try:
         pid_fd = os.pidfd_open(args.pid)

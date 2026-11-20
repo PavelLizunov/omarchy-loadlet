@@ -242,6 +242,7 @@
   "confirm_terminate_authorize": "%1 (PID %2), Eigentümer %3, beenden? Administrator-Authentifizierung ist erforderlich. Beim Stoppen einer virtuellen Maschine können ungespeicherte Gastdaten verloren gehen.",
   "confirm_kill_authorize": "%1 (PID %2), Eigentümer %3, sofort beenden? Administrator-Authentifizierung ist erforderlich. Ungespeicherte Daten, auch in virtuellen Maschinen, gehen sofort verloren.",
   "status_authorization_denied": "Administrator-Authentifizierung abgebrochen oder verweigert",
+  "status_authorization_setup": "Loadlet-Systemhelfer erforderlich",
   "status_sending": "Signal wird an %1 gesendet…",
   "status_sent": "Signal an %1 (PID %2) gesendet",
   "status_error": "Signal konnte nicht gesendet werden.",

@@ -242,6 +242,7 @@
   "confirm_terminate_authorize": "终止 %1（PID %2，所有者 %3）？需要管理员身份验证。以此方式停止虚拟机可能导致客户机内未保存的数据丢失。",
   "confirm_kill_authorize": "强制终止 %1（PID %2，所有者 %3）？需要管理员身份验证。未保存的数据（包括虚拟机内的数据）将立即丢失。",
   "status_authorization_denied": "管理员身份验证已取消或被拒绝",
+  "status_authorization_setup": "需要 Loadlet 系统助手",
   "status_sending": "正在向 %1 发送信号…",
   "status_sent": "已发送信号至 %1 (PID %2)",
   "status_error": "无法发送信号。",

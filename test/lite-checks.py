@@ -9,10 +9,12 @@ import io
 import os
 from pathlib import Path
 import signal
+import stat as file_mode
 import subprocess
 import sys
 import tempfile
 import time
+from types import SimpleNamespace
 
 ROOT = Path(__file__).resolve().parents[1]
 loader = importlib.machinery.SourceFileLoader('process_signal', str(ROOT / 'process-signal'))
@@ -47,17 +49,53 @@ with patch.object(helper.os, 'getuid', return_value=0), \
      patch.object(helper.os, 'geteuid', return_value=0), \
      patch.dict(os.environ, {'PKEXEC_UID': '1000'}):
     helper.check_authorization(time.monotonic()+120)
-    for deadline in [None, time.monotonic()-1, float('nan'), float('inf')]:
+    for deadline in [None, time.monotonic()-1, time.monotonic()+121, float('nan'), float('inf')]:
         refused(lambda: helper.check_authorization(deadline))
-with patch.object(helper.os, 'execv') as execute:
-    helper.request_authorization(Namespace(signal_name='TERM', pid=42, start_ticks=1234), owner)
-    command = execute.call_args.args[1]
-    assert command[:6] == ['pkexec', '--disable-internal-agent', '/usr/bin/timeout',
-                           '--kill-after=1s', '5s', '/usr/bin/python3']
-    assert command[6:8] == ['-I', '-c']
-    compile(command[8], '<authenticated-process-signal>', 'exec')
-    assert command[9:17] == ['TERM', '42', '1234', '--authorized-owner', '0', '0', '0', '0']
-    assert time.monotonic()+119 < float(command[-1]) <= time.monotonic()+120
+
+system_path = Path('/usr/local/lib/loadlet/process-signal')
+trusted_directory = SimpleNamespace(st_uid=0, st_mode=file_mode.S_IFDIR | 0o755)
+trusted_program = SimpleNamespace(st_uid=0, st_mode=file_mode.S_IFREG | 0o755)
+path_metadata = dict.fromkeys(system_path.parents, trusted_directory)
+path_metadata[system_path] = trusted_program
+request = Namespace(signal_name='TERM', pid=42, start_ticks=1234)
+
+def read_metadata(path):
+    if path not in path_metadata:
+        raise FileNotFoundError(path)
+    return path_metadata[path]
+
+with patch.object(Path, 'lstat', read_metadata), \
+     patch.object(Path, 'read_text', side_effect=AssertionError('Plugin source reread')), \
+     patch.object(helper.os, 'execv') as execute:
+    helper.request_authorization(request, owner)
+    executable, command = execute.call_args.args
+    assert executable == '/usr/bin/pkexec'
+    assert command[:-1] == [
+        'pkexec', '--disable-internal-agent', str(system_path),
+        'TERM', '42', '1234', '--authorized-owner', '0', '0', '0', '0',
+        '--authorization-deadline',
+    ]
+    assert 0 < float(command[-1]) - time.monotonic() <= 120
+    execute.reset_mock()
+
+    del path_metadata[system_path]
+    refused(lambda: helper.request_authorization(request, owner), 78)
+    execute.assert_not_called()
+    path_metadata[system_path] = trusted_program
+    for path, metadata in [
+        (system_path, SimpleNamespace(st_uid=1000, st_mode=file_mode.S_IFREG | 0o755)),
+        (system_path, SimpleNamespace(st_uid=0, st_mode=file_mode.S_IFREG | 0o775)),
+        (system_path, SimpleNamespace(st_uid=0, st_mode=file_mode.S_IFREG | 0o644)),
+        (system_path, SimpleNamespace(st_uid=0, st_mode=file_mode.S_IFLNK | 0o777)),
+        (system_path.parent, SimpleNamespace(st_uid=1000, st_mode=file_mode.S_IFDIR | 0o755)),
+        (Path('/usr/local'), SimpleNamespace(st_uid=0, st_mode=file_mode.S_IFDIR | 0o757)),
+        (Path('/usr/local'), SimpleNamespace(st_uid=0, st_mode=file_mode.S_IFLNK | 0o777)),
+    ]:
+        original = path_metadata[path]
+        path_metadata[path] = metadata
+        refused(lambda: helper.request_authorization(request, owner), 78)
+        execute.assert_not_called()
+        path_metadata[path] = original
 
 argv = ['process-signal', 'TERM', '42', '1234', '--authorized-owner', '0', '0', '0', '0',
         '--authorization-deadline', str(time.monotonic()+120)]
@@ -68,11 +106,13 @@ with patch.object(sys, 'argv', argv), \
      patch.dict(os.environ, {'PKEXEC_UID': '1000'}), \
      patch.object(helper.os, 'pidfd_open', return_value=9), \
      patch.object(helper.os, 'close'), \
+     patch.object(helper.signal, 'alarm') as alarm, \
      patch.object(helper, 'read_process_stat', return_value=stat) as read_stat, \
      patch.object(helper, 'read_process_status', return_value=owner) as read_status, \
      patch.object(helper.signal, 'pidfd_send_signal') as send:
     helper.main()
     send.assert_called_once_with(9, signal.SIGTERM)
+    alarm.assert_called_once_with(5)
     send.reset_mock()
     read_stat.return_value = replace(stat, start_ticks=1235)
     refused(helper.main, 1); send.assert_not_called()
@@ -82,7 +122,7 @@ with patch.object(sys, 'argv', argv), \
     read_status.return_value = owner
     with patch.object(helper.time, 'monotonic', return_value=float(argv[-1])+1):
         refused(helper.main); send.assert_not_called()
-print('PASS process authentication: explicit boundary, immutable code, deadline, ownership and protection guards')
+print('PASS process authentication: fixed privileged entry point, trusted path, deadlines and target guards')
 
 def invoke(child, name='TERM', delta=0):
     start = helper.read_process_stat(Path('/proc'), child.pid).start_ticks

@@ -242,6 +242,7 @@
   "confirm_terminate_authorize": "End %1 (PID %2), owned by %3? Administrator authentication is required. Stopping a virtual machine this way may lose unsaved guest data.",
   "confirm_kill_authorize": "Force kill %1 (PID %2), owned by %3? Administrator authentication is required. Unsaved data, including virtual machine data, will be lost immediately.",
   "status_authorization_denied": "Administrator authentication was canceled or denied",
+  "status_authorization_setup": "Loadlet system helper required",
   "status_sending": "Sending signal to %1…",
   "status_sent": "Signal sent to %1 (PID %2)",
   "status_error": "Could not signal the process.",

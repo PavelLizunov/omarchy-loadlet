@@ -326,10 +326,11 @@ work, exact energy use or the physical cause of heat by itself.
 - Click a process to select it. Terminate sends SIGTERM to that exact PID and
   sampled start time. Force terminate sends SIGKILL only after a separate confirmation.
 - Processes owned by another user (including root-owned virtual machines) require
-  explicit confirmation followed by system administrator authentication. The helper
-  rechecks PID, start time and all four ownership IDs after authentication; a changed
-  or exited process is never replaced by another target. Authorization expires after
-  two minutes, with a separate five-second root-operation timeout and no saved grant.
+  the [system process helper](#authenticate-process-actions) and explicit confirmation
+  followed by system administrator authentication. The helper rechecks PID, start
+  time and all four ownership IDs after authentication. It refuses a target that
+  changed or exited. Authorization expires after two minutes, with a separate
+  five-second root-operation timeout.
   Canceling authentication sends no signal. Desktop/session guards still apply.
   Terminating a virtual machine's host process can lose guest data; shut down inside
   the guest for a normal operating-system shutdown.
@@ -353,6 +354,24 @@ saved overrides are preserved. Untranslated languages currently fall back to
 English. The [50-locale migration](localization.md) remains incomplete. PID, CPU, VRAM,
 and byte units remain technical identifiers. Helper failures use localized UI
 messages rather than displaying untranslated stderr.
+
+## Authenticate process actions
+
+To end processes owned by another user, install the system helper from the
+reviewed Loadlet source checkout as an administrator.
+
+```sh
+sudo install -D -o root -g root -m 0755 process-signal /usr/local/lib/loadlet/process-signal
+```
+
+Polkit runs only this installed executable for Loadlet process actions. Its
+parent directories and the executable must be root-owned, free of symlinks
+and writable only by root. Loadlet displays a setup message if that check fails.
+Monitoring and same-user actions work with the normal plugin installation.
+
+Repeat the install command from the reviewed checkout when updating this system
+helper. To remove it, run `sudo rm -- /usr/local/lib/loadlet/process-signal`.
+Polkit supplies authorization for each request.
 
 ## Panel geometry
 
@@ -835,9 +854,10 @@ The process view is built in; no external Task Manager is required.
 Like other Omarchy shell plugins, this code runs unsandboxed with your user
 permissions inside the shared shell. It reads procfs/sysfs and mount statistics;
 the process helper signals validated same-user processes without privileges.
-Another owner's process requires explicit one-shot Polkit authentication; no root
-helper installation or persistent grant is added. Monitoring requires no root
-privileges, extra daemon, runtime network access or remote build.
+Another owner's process requires the
+[optional system helper](#authenticate-process-actions) and one-shot Polkit
+authentication. Monitoring requires no root privileges, extra daemon, runtime
+network access or remote build.
 The packaged executable was rebuilt byte-identically from this fork's current
 source, rather than accepted merely because upstream shipped it. To rebuild it
 for development, run:

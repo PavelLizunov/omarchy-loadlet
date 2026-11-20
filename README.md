@@ -64,7 +64,7 @@ leak fix. [Observation and limits](docs/guide.md#memory-growth-observation).
 
 ## Optional system controls
 
-Monitoring needs no root setup; ending another owner's process requires Polkit.
+Ending another owner's process requires Polkit and the optional [root-owned process helper](docs/guide.md#authenticate-process-actions).
 Optional CPU/fan control needs authenticated root-owned Python helpers, systemd and
 Polkit/sudo. Motherboard output supports only DRFXI/IT8613; optional NVIDIA output
 uses NVML and driver-reported limits. There is no generic PSU fan control.

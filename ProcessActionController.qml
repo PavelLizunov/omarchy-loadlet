@@ -119,8 +119,12 @@ Item {
       } else {
         _failed = true
         // Helper stderr remains a machine diagnostic, never bypasses the UI locale.
-        _status = root.t(action && action.authorize && (exitCode === 126 || exitCode === 127)
-          ? "status_authorization_denied" : "status_error")
+        var statusKey = "status_error"
+        if (action.authorize) {
+          if (exitCode === 78) statusKey = "status_authorization_setup"
+          else if (exitCode === 126 || exitCode === 127) statusKey = "status_authorization_denied"
+        }
+        _status = root.t(statusKey)
       }
     }
 

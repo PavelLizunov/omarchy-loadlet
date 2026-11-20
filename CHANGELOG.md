@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.20.2
+
+- Run authenticated process actions through an administrator-installed, root-owned
+  helper. Polkit receives the fixed helper path and process identity arguments.
+  The plugin reports when the helper is missing or its path is unsafe.
+
 ## 2.20.1
 
 - Allow explicit termination of another user's process, including root-owned
