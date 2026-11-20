@@ -358,18 +358,27 @@ messages rather than displaying untranslated stderr.
 ## Authenticate process actions
 
 To end processes owned by another user, install the system helper from the
-reviewed Loadlet source checkout as an administrator.
+reviewed Loadlet source checkout as an administrator. Existing directories
+in the destination path must be root-owned, free of symlinks and writable
+only by root.
 
 ```sh
-sudo install -D -o root -g root -m 0755 process-signal /usr/local/lib/loadlet/process-signal
+(
+  set -eu
+  sudo mkdir -p -m 0755 /usr/local/lib/loadlet
+  staged_helper=$(sudo mktemp /usr/local/lib/loadlet/.process-signal.XXXXXX)
+  trap 'sudo rm -f -- "$staged_helper"' EXIT
+  sudo install -o root -g root -m 0755 process-signal "$staged_helper"
+  sudo mv -fT -- "$staged_helper" /usr/local/lib/loadlet/process-signal
+)
 ```
 
-Polkit runs only this installed executable for Loadlet process actions. Its
-parent directories and the executable must be root-owned, free of symlinks
-and writable only by root. Loadlet displays a setup message if that check fails.
+The rename activates the new helper once the copy completes. Polkit runs this
+installed executable for Loadlet process actions. If Loadlet displays a setup
+message, inspect the path with `namei -l /usr/local/lib/loadlet/process-signal`.
 Monitoring and same-user actions work with the normal plugin installation.
 
-Repeat the install command from the reviewed checkout when updating this system
+Repeat the installation from the reviewed checkout when updating this system
 helper. To remove it, run `sudo rm -- /usr/local/lib/loadlet/process-signal`.
 Polkit supplies authorization for each request.
 

@@ -76,6 +76,12 @@ with patch.object(Path, 'lstat', read_metadata), \
         '--authorization-deadline',
     ]
     assert 0 < float(command[-1]) - time.monotonic() <= 120
+    with patch.object(sys, 'argv', command[2:]):
+        assert helper.parse_args() == Namespace(
+            signal_name=request.signal_name, pid=request.pid, start_ticks=request.start_ticks,
+            authorize=False, authorized_owner=list(owner.user_ids),
+            authorization_deadline=float(command[-1]),
+        )
     execute.reset_mock()
 
     del path_metadata[system_path]
@@ -126,7 +132,7 @@ print('PASS process authentication: fixed privileged entry point, trusted path, 
 
 def invoke(child, name='TERM', delta=0):
     start = helper.read_process_stat(Path('/proc'), child.pid).start_ticks
-    return subprocess.run([sys.executable, '-I', str(ROOT / 'process-signal'), name,
+    return subprocess.run([str(ROOT / 'process-signal'), name,
                            str(child.pid), str(start + delta)], capture_output=True,
                           text=True, timeout=4)
 
