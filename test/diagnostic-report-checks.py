@@ -34,7 +34,7 @@ with tempfile.TemporaryDirectory() as tmp,patch.dict(os.environ,{'XDG_STATE_HOME
     f=directory/'samples-test.jsonl';f.write_text(''.join(json.dumps(r)+'\n' for r in rows));f.chmod(0o600)
     assert len(list(report.records(directory,0,30)))==len(rows)
     assert not list(report.records(directory,0,30,'other'))
-    path=report.export(s,directory,0,30,'')
+    path=report.export(directory,0,30,'')
     assert Path(path,'summary.json').is_file()
     assert len(Path(path,'samples.jsonl').read_text().splitlines())==len(rows)
     with patch.object(report.shutil,'which',return_value='/usr/bin/fixture'),patch.object(report.subprocess,'run') as run:
@@ -59,3 +59,54 @@ with tempfile.TemporaryDirectory(prefix='loadlet-cold-runtime-') as tmp:
         assert {p.name for p in runtime.iterdir()}==set(before),'Helper wrote into watched runtime'
         assert all((runtime/name).read_bytes()==data for name,data in before.items())
 print('PASS diagnostic report: stable sensors, gaps, PID reuse, missing baseline, PSI deltas, selection, export, inert argv and cold-runtime immutability')
+
+bad = [[], row(11, ['tick']), row(11, 'tick', interval_ms='250'), row(11, 'pressure', psi='wrong'),
+       row(11, 'tick', cpu_pct=10**400)]
+rollup = row(15, 'rollup', temperature_min=24, temperature_min_time=9, temperature_max=91, temperature_max_time=14)
+bounded = report.summarize(bad + [rollup], 10, 15)
+assert bounded['invalid_records'] == len(bad)
+extrema = next(s for s in bounded['series'] if s['id'] == 'rollup-temperature')
+assert extrema['count'] == 1 and extrema['min'] == extrema['max'] == 91 and extrema['peak_time'] == 14
+assert report.summarize([row(11, 'context', context=None), row(11, 'processes', processes=None)], 10, 15)['records'] == 2
+
+with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ, {'XDG_STATE_HOME': tmp}):
+    directory = report.state_path()/'diagnostics'
+    with patch.object(report, 'records', return_value=iter(rows)) as source:
+        published = Path(report.export(directory, 0, 30, ''))
+        source.assert_called_once()
+    assert json.loads((published/'summary.json').read_text())['records'] == len(rows)
+    assert [json.loads(line) for line in (published/'samples.jsonl').read_text().splitlines()] == rows
+
+    def broken_rows():
+        yield rows[0]
+        raise OSError('injected read failure')
+
+    with patch.object(report, 'records', side_effect=lambda *args: broken_rows()):
+        try:
+            report.export(directory, 0, 30, '')
+        except OSError:
+            pass
+        else:
+            raise AssertionError('Partial export published')
+    assert list(published.parent.iterdir()) == [published]
+    legacy = report.legacy
+    clean = dict(schema=1, time=10, boot_id='test')
+    malformed = [[], dict(clean, schema=True), dict(clean, time=10**400), dict(clean, event=['collection_error'])]
+    assert legacy.summarize([clean, *malformed])['invalid_records'] == len(malformed)
+    path = published.parent/'legacy-export'
+    with patch.object(legacy, 'records', return_value=iter([clean])) as source:
+        legacy.export(directory, 1, path)
+        source.assert_called_once()
+    assert json.loads((path/'summary.json').read_text())['samples'] == 1
+    assert json.loads((path/'samples.jsonl').read_text()) == clean
+    existing = published.parent/'existing'
+    existing.mkdir()
+    with patch.object(legacy, 'records', return_value=iter([clean])):
+        try:
+            legacy.export(directory, 1, existing)
+        except FileExistsError:
+            pass
+        else:
+            raise AssertionError('Existing empty export overwritten')
+    assert not list(existing.iterdir()) and not list(existing.parent.glob('.loadlet-export-*'))
+print('PASS report validation: malformed records, selected extrema, single-read exports, failed staging and existing destinations')

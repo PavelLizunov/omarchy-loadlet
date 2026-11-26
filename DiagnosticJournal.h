@@ -147,9 +147,9 @@ public:
   void AppendRecord(const std::string &record) {
     if (!enabled) return;
     if (record.size() > 32768) { error="journal_record_capacity"; return; }
-    if (buffer_.size()+record.size()>131072) Flush();
-    buffer_ += record;
-    if (buffer_.size()>=49152 || Clock::now()-last_flush_>=std::chrono::seconds(flush_seconds_)) Flush();
+    const auto now = Clock::now();
+    if (BufferRecord(record) &&
+        (buffer_.size() >= 49152 || now - last_flush_ >= std::chrono::seconds(flush_seconds_))) Flush();
   }
   void FlushPending() { if (enabled) Flush(); }
   void Disable() {
@@ -161,11 +161,12 @@ public:
     file_ = lock_ = dir_ = -1;
     buffer_.clear();
     previous_total_=previous_idle_=0;previous_cpu_sample_=0;
-    cpu_window_=cpu_=memory_=temperature_=processes_=context_="null";
+    cpu_window_=cpu_=memory_=temperature_=context_="null";
     collection_error_.clear(); last_sensor_write_ = Clock::time_point{};
-    previous_processes_.clear();
-    process_sample_="null";processes_truncated_=false;
-    resource_at_=thermal_at_=process_at_=context_at_=sample_at_=Clock::time_point{};
+    ResetProcesses();
+    resource_at_=thermal_at_=context_at_=sample_at_=Clock::time_point{};
+    retry_flush_at_ = {};
+    flush_failures_ = 0;
   }
 
   void Observe(const std::string &kind, const std::string &frame) {
@@ -175,7 +176,7 @@ public:
       collection_error_="capacity_or_invalid_collection";
       const auto stamp=std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count();
       const auto event="{\"schema\":1,\"time\":"+std::to_string(stamp)+",\"boot_id\":"+JsonString(boot_)+",\"event\":\"collection_error\",\"kind\":"+JsonString(kind)+"}\n";
-      if(buffer_.size()+event.size()<=131072) buffer_+=event;
+      if (event.size() <= kBufferLimit - buffer_.size()) buffer_ += event;
     }
     else if(kind=="glance" || kind=="resources") collection_error_.clear();
     if (kind == "glance" || kind == "resources") {
@@ -186,9 +187,10 @@ public:
       if(frame.find("schema\tactivity-thermals\t1\n")!=0) {temperature_="null";thermal_at_={};return;}
       ParseThermal(frame);
     }
-    if (kind == "processes" && (process_at_ == Clock::time_point{} || now - process_at_ >= std::chrono::seconds(30))) {
-    if(frame.find("schema\tactivity-processes\t1\n")!=0) {processes_="null";process_at_={};previous_processes_.clear();return;}
-      ParseProcesses(frame); process_at_ = now;
+    if (kind == "processes") {
+      if (!IsProcessFrame(frame)) ResetProcesses();
+      else if (process_at_ == Clock::time_point{} || now - process_at_ >= std::chrono::seconds(30))
+        ParseProcesses(frame);
     }
   }
   void SaveSensors(const std::string &frame) {
@@ -202,10 +204,8 @@ public:
     if (record.size() > 32768) {
       error = "sensor_record_capacity"; return;
     }
-    if (buffer_.size() + record.size() > 131072) Flush();
-    buffer_ += record;
     if (error == "sensor_record_capacity") error.clear();
-    if (Clock::now() - last_flush_ >= std::chrono::seconds(60)) Flush();
+    if (BufferRecord(record) && now - last_flush_ >= std::chrono::seconds(flush_seconds_)) Flush();
   }
 
   std::string Context() {
@@ -236,10 +236,7 @@ public:
       << ",\"process_sample_uptime\":" << process_sample_ << ",\"processes_truncated\":" << (processes_truncated_?"true":"false")
       << ",\"processes\":" << (valid(process_at_,65) ? processes_ : "null")
       << ",\"context\":" << (valid(context_at_,125) ? context_ : "null") << "}\n";
-    if (record.str().size() > 32768) { error = "journal_record_capacity"; return; }
-    if (buffer_.size() + record.str().size() > 131072) Flush();
-    buffer_ += record.str();
-    if (now - last_flush_ >= std::chrono::seconds(60) || buffer_.size() >= 49152) Flush();
+    AppendRecord(record.str());
   }
 
 private:
@@ -252,7 +249,10 @@ private:
   Clock::time_point last_sensor_write_{};
   std::string boot_, buffer_, file_name_, collection_error_, cpu_window_="null", memory_ = "null", cpu_ = "null", temperature_ = "null", processes_ = "null", context_ = "null";
   int dir_ = -1, lock_ = -1, file_ = -1;
+  static constexpr std::size_t kBufferLimit = 131072;
   std::size_t file_size_ = 0;
+  unsigned int flush_failures_ = 0;
+  Clock::time_point retry_flush_at_{};
   Clock::time_point file_at_{}, last_flush_{}, sample_at_{}, resource_at_{}, thermal_at_{}, process_at_{}, context_at_{};
   std::uint64_t previous_total_ = 0, previous_idle_ = 0;
   double previous_cpu_sample_ = 0;
@@ -299,7 +299,13 @@ private:
     if (!directory) {close(directory_fd);return false;}
     rewinddir(directory);
     unsigned int seen=0;
-    while (auto *entry=readdir(directory)) {
+    for (;;) {
+      errno = 0;
+      const auto *entry = readdir(directory);
+      if (!entry) {
+        if (errno != 0) { closedir(directory); return false; }
+        break;
+      }
       if (++seen>4096) { closedir(directory); return false; }
       std::string name(entry->d_name);
       if (!StartsWith(name,"samples-") || !EndsWith(name,".jsonl")) continue;
@@ -321,31 +327,56 @@ private:
     }
     return total+upcoming<=byte_limit_;
   }
+  bool BufferRecord(const std::string &record) {
+    if (record.size() > kBufferLimit - buffer_.size()) Flush();
+    if (record.size() > kBufferLimit - buffer_.size()) return false;
+    buffer_ += record;
+    return true;
+  }
+  void FlushFailed(const char *message) {
+    error = message;
+    const auto delay = flush_failures_ == 0 ? 0U : std::min(60U, 1U << (flush_failures_ - 1));
+    flush_failures_ = std::min(7U, flush_failures_ + 1U);
+    retry_flush_at_ = Clock::now() + std::chrono::seconds(delay);
+  }
   void Flush() {
-    if (buffer_.empty()) return;
+    if (buffer_.empty() || Clock::now() < retry_flush_at_) return;
     if (file_ >= 0 && (file_size_ + buffer_.size() > 1024*1024 || Clock::now()-file_at_>=std::chrono::hours(1))) { close(file_); file_=-1; }
-    if (!Prune(buffer_.size())) { error="journal_retention_failed"; buffer_.clear(); return; }
+    if (!Prune(buffer_.size())) { FlushFailed("journal_retention_failed"); return; }
     if (file_<0) {
       const auto ns=std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
       file_name_="samples-"+std::to_string(ns)+"-"+std::to_string(getpid())+".jsonl";
       file_=openat(dir_,file_name_.c_str(),O_WRONLY|O_CREAT|O_EXCL|O_NOFOLLOW|O_CLOEXEC,0600); file_size_=0;file_at_=Clock::now();
     }
-    if (file_<0 || !OwnedFile(file_)) { error="journal_open_failed"; buffer_.clear(); return; }
+    if (file_ < 0 || !OwnedFile(file_)) {
+      if (file_ >= 0) { close(file_); file_ = -1; }
+      FlushFailed("journal_open_failed");
+      return;
+    }
     std::size_t done=0;
     while (done<buffer_.size()) {
       const auto n=write(file_,buffer_.data()+done,buffer_.size()-done);
       if (n<0 && errno==EINTR) continue;
-      if (n<=0) { error="journal_write_failed"; break; }
+      if (n<=0) break;
       done+=static_cast<std::size_t>(n);
     }
-    if(done!=buffer_.size()) {
-      // Discard an incomplete batch so a truncated JSON line cannot corrupt the
-      // next append. Original completed records are retained.
-      if(ftruncate(file_,static_cast<off_t>(file_size_))!=0) { close(file_);file_=-1; }
-      else lseek(file_,static_cast<off_t>(file_size_),SEEK_SET);
-    } else file_size_+=done;
-    if (done==buffer_.size()) error.clear();
-    buffer_.clear(); last_flush_=Clock::now();
+    if (done != buffer_.size()) {
+      if (done && (ftruncate(file_, static_cast<off_t>(file_size_)) != 0 ||
+                   lseek(file_, static_cast<off_t>(file_size_), SEEK_SET) < 0)) {
+        // Retrying an uncertain partial write could duplicate completed records.
+        close(file_);
+        file_ = -1;
+        buffer_.clear();
+      }
+      FlushFailed("journal_write_failed");
+      return;
+    }
+    file_size_ += done;
+    error.clear();
+    flush_failures_ = 0;
+    retry_flush_at_ = {};
+    buffer_.clear();
+    last_flush_ = Clock::now();
   }
   void ParseResources(const std::string &frame) {
     std::istringstream stream(frame); std::string line; double sample=0;
@@ -381,6 +412,21 @@ private:
       if (value && *value>0 && *value<150000) temperature_=std::to_string(static_cast<double>(*value)/1000);
     }
     thermal_at_=Clock::now();
+  }
+  static bool IsProcessFrame(const std::string &frame) {
+    constexpr std::string_view prefix = "schema\tactivity-processes\t1\nsample\t";
+    if (!StartsWith(frame, prefix)) return false;
+    const auto end = frame.find('\n', prefix.size());
+    if (end == std::string::npos) return false;
+    const auto fields = SplitWhitespace(frame.substr(prefix.size(), end - prefix.size()));
+    return fields.size() >= 2 && ParseDouble(fields[0]).value_or(0) > 0 &&
+           ParseUnsigned(fields[1]).value_or(0) > 0;
+  }
+  void ResetProcesses() {
+    processes_ = process_sample_ = "null";
+    process_at_ = {};
+    processes_truncated_ = false;
+    previous_processes_.clear();
   }
   void ParseProcesses(const std::string &frame) {
     std::istringstream stream(frame); std::string line; double sample=0,ticks=100;
@@ -419,7 +465,9 @@ private:
         add(p); if(++count>=static_cast<unsigned int>(sort<2?10:5)) break;
       }
     }
-    process_sample_=sample>0 ? std::to_string(sample) : "null";
+    if (sample <= 0 || ticks <= 0) { ResetProcesses(); return; }
+    process_sample_ = std::to_string(sample);
+    process_at_ = Clock::now();
     processes_truncated_=false;
     std::string out="[";bool first=true;
     for(const auto *p:selected) {

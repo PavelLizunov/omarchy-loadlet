@@ -2,10 +2,14 @@
 """Bounded local history export. Never invokes an agent or changes power settings."""
 import argparse
 from collections import defaultdict
+from contextlib import contextmanager
+import ctypes
+import fcntl
 from datetime import datetime, timezone
 import json
 import os
 from pathlib import Path
+import secrets
 import stat
 import time
 import math
@@ -67,6 +71,51 @@ def open_directory(path, create=False):
         raise
 
 
+def number(value, minimum=-1e100):
+    # Bound integers before using float arithmetic and reject NaN and infinity.
+    return type(value) in (int, float) and minimum <= value <= 1e100
+
+
+@contextmanager
+def staged_export(output):
+    parent = open_directory(output.parent, create=True)
+    try:
+        fcntl.flock(parent, fcntl.LOCK_EX)
+        if len(os.listdir(parent)) >= 10:
+            raise ValueError('Export directory has 10 entries; move or remove an old export first')
+        name = '.loadlet-export-' + secrets.token_hex(12)
+        os.mkdir(name, 0o700, dir_fd=parent)
+        fd = os.open(name, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=parent)
+        try:
+            yield fd
+            rename = ctypes.CDLL(None, use_errno=True).renameat2
+            rename.argtypes = [ctypes.c_int, ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p, ctypes.c_uint]
+            rename.restype = ctypes.c_int
+            # RENAME_NOREPLACE also rejects an existing empty destination.
+            if rename(parent, os.fsencode(name), parent, os.fsencode(output.name), 1) != 0:
+                error = ctypes.get_errno()
+                raise OSError(error, os.strerror(error), output)
+        except BaseException:
+            # Re-open the staging directory so tmpfs/btrfs directory cursors see newly created files.
+            cleanup = os.open(name, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=parent)
+            try:
+                for child in os.listdir(cleanup):
+                    os.unlink(child, dir_fd=cleanup)
+            finally:
+                os.close(cleanup)
+            os.rmdir(name, dir_fd=parent)
+            raise
+        finally:
+            os.close(fd)
+    finally:
+        os.close(parent)
+
+
+def export_file(fd, name):
+    dest = os.open(name, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600, dir_fd=fd)
+    return os.fdopen(dest, 'w', encoding='utf-8')
+
+
 def records(directory, start, end):
     fd = open_directory(directory)
     try:
@@ -101,23 +150,24 @@ def records(directory, start, end):
                         yield {'invalid_record': True}
                         continue
                     stamp = item.get('time') if isinstance(item, dict) else None
-                    if isinstance(stamp, (int, float)) and math.isfinite(stamp) and not start <= stamp <= end:
+                    if number(stamp, 0) and not start <= stamp <= end:
                         continue
                     if not valid_record(item):
                         yield {'invalid_record': True}
-                    elif isinstance(stamp, (int, float)) and start <= stamp <= end and item.get('schema') == 1:
+                    else:
                         yield item
     finally:
         os.close(fd)
 
 
 def valid_record(r):
-    def number(n, minimum=0):
-        return not isinstance(n, bool) and isinstance(n, (int, float)) and math.isfinite(n) and n >= minimum
-    if not isinstance(r, dict) or r.get('schema') != 1 or not number(r.get('time')) or not isinstance(r.get('boot_id'), str):
+    if (not isinstance(r, dict) or type(r.get('schema')) is not int or r['schema'] != 1
+            or not number(r.get('time'), 0) or not isinstance(r.get('boot_id'), str)):
+        return False
+    if any(r.get(k) is not None and not isinstance(r[k], str) for k in ('event', 'sensors_tsv')):
         return False
     for key in ('cpu_pct', 'temperature_c', 'process_sample_uptime', 'process_age_ms', 'resource_age_ms', 'thermal_age_ms', 'context_age_ms'):
-        if r.get(key) is not None and not number(r[key]):
+        if r.get(key) is not None and not number(r[key], 0):
             return False
     if r.get('cpu_pct') is not None and r['cpu_pct'] > 100:
         return False
@@ -128,15 +178,15 @@ def valid_record(r):
         if not isinstance(ps, list) or len(ps) > 30:
             return False
         for p in ps:
-            if not isinstance(p, dict) or not all(number(p.get(k), 1) for k in ('pid', 'start_ticks')):
+            if not isinstance(p, dict) or not all(type(p.get(k)) is int and 1 <= p[k] <= 2**64 - 1 for k in ('pid', 'start_ticks')):
                 return False
             if not isinstance(p.get('name_bytes'), str) or len(p['name_bytes']) > 96 or p.get('state') not in ('R','S','D','Z','T','t','X','I','W','P'):
                 return False
             for key in ('cpu_pct_one_core','rss_kib','state_observed_seconds'):
-                if p.get(key) is not None and not number(p[key]):
+                if p.get(key) is not None and not number(p[key], 0):
                     return False
             growth=p.get('rss_delta_kib')
-            if growth is not None and not (not isinstance(growth,bool) and isinstance(growth,(int,float)) and math.isfinite(growth)):
+            if growth is not None and not number(growth):
                 return False
     ctx=r.get('context')
     if ctx is None:
@@ -144,21 +194,28 @@ def valid_record(r):
     if not isinstance(ctx,dict):
         return False
     for key in ('sample_uptime','page_size_bytes','boost'):
-        if ctx.get(key) is not None and not number(ctx[key]):
+        if ctx.get(key) is not None and not number(ctx[key], 0):
             return False
     for key in ('psi','vmstat'):
         if ctx.get(key) is not None and not isinstance(ctx[key],dict):
             return False
     if not all(v is None or isinstance(v,str) for v in (ctx.get('psi') or {}).values()):
         return False
-    if not all(v is None or number(v) for v in (ctx.get('vmstat') or {}).values()):
+    if not all(v is None or number(v, 0) for v in (ctx.get('vmstat') or {}).values()):
         return False
     return True
 
 
 def summarize(items):
-    events=[r for r in items if r.get('event')]
-    rows = [r for r in items if not r.get('invalid_record') and not r.get('event')]
+    events, rows = [], []
+    invalid = 0
+    for row in items:
+        if not valid_record(row):
+            invalid += 1
+        elif row.get('event'):
+            events.append(row)
+        else:
+            rows.append(row)
     rows.sort(key=lambda r: (r.get('time', 0), r.get('boot_id', '')))
     processes = defaultdict(lambda: {'observations': 0, 'cpu_peak_one_core': 0, 'rss_peak_kib': 0, 'positive_rss_delta_peak_kib': 0, 'states': {}})
     coverage = {k: 0 for k in ('cpu', 'temperature', 'processes', 'context')}
@@ -255,7 +312,7 @@ def summarize(items):
     memory = sorted(processes.items(), key=lambda x: x[1]['rss_peak_kib'], reverse=True)
     def top(values):
         return [dict(identity=dict(zip(('boot_id', 'pid', 'start_ticks'), k)), **v) for k, v in values[:30]]
-    return {'schema': 1, 'samples': len(rows), 'invalid_records': sum(bool(r.get('invalid_record')) for r in items),
+    return {'schema': 1, 'samples': len(rows), 'invalid_records': invalid,
             'events':events[:200],
             'candidate_observations_omitted_by_capacity':omitted_identities,
             'range': [rows[0]['time'], rows[-1]['time']] if rows else None,
@@ -278,26 +335,15 @@ def export(directory, hours, output):
     if not any(not x.get('invalid_record') for x in items):
         raise ValueError('No history records in the selected period')
     output = Path(output)
-    parent = open_directory(output.parent, create=True)
-    try:
-        # Explicit exports are separate from automatic journal retention. Bound
-        # their count rather than deleting a report the user may be keeping.
-        if len(os.listdir(parent))>=10:
-            raise ValueError('Export directory has 10 entries; move or remove an old export first')
-        os.mkdir(output.name, 0o700, dir_fd=parent)  # New export only; never overwrite.
-        fd = os.open(output.name, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=parent)
-        try:
-            content = {'samples.jsonl': ''.join(json.dumps(x, ensure_ascii=True)+'\n' for x in items),
-                       'summary.json': json.dumps(summarize(items), ensure_ascii=True, indent=2)+'\n',
-                       'AGENT-PROMPT.md': PROMPT}
-            for name, text in content.items():
-                dest = os.open(name, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600, dir_fd=fd)
-                with os.fdopen(dest, 'w', encoding='utf-8') as stream:
-                    stream.write(text)
-        finally:
-            os.close(fd)
-    finally:
-        os.close(parent)
+    with staged_export(output) as fd:
+        with export_file(fd, 'samples.jsonl') as stream:
+            for item in items:
+                stream.write(json.dumps(item, ensure_ascii=True) + '\n')
+        with export_file(fd, 'summary.json') as stream:
+            json.dump(summarize(items), stream, ensure_ascii=True, indent=2)
+            stream.write('\n')
+        with export_file(fd, 'AGENT-PROMPT.md') as stream:
+            stream.write(PROMPT)
     return output
 
 

@@ -1,5 +1,19 @@
 # Changelog
 
+## 2.21.0
+
+- Control NVIDIA GPU fans directly through NVML and AMD GPU fans through
+  `amdgpu` in Fans and Profiles. Discover motherboard, AIO and laptop fans
+  and sensors through Linux hwmon, with output limits from the driver.
+- Raise managed fan output at 80 °C and resume the requested output after
+  three consecutive readings below 75 °C.
+- Expand CPU governor choices and support per-policy boost and ACPI
+  `platform_profile`. Restore each handler's saved choice when the original
+  aggregate profile was `custom`.
+- Fix issues found in the C++ sampler, Python helpers and QML frontend during
+  the codebase review. Render plugin text as plain text and neutralize markup
+  and directional controls in dynamic control labels, tooltips and notifications.
+
 ## 2.20.2
 
 - Run authenticated process actions through an administrator-installed, root-owned

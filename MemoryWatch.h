@@ -16,7 +16,7 @@ public:
            << '\t' << uptime.value_or(0) << '\t' << Sanitize(boot.value_or("")) << '\n';
     for (const auto *key : {"MemTotal", "MemAvailable", "Cached", "SReclaimable", "AnonPages",
                             "Shmem", "SUnreclaim", "SwapTotal", "SwapFree"})
-      output << "memory\t" << key << '\t' << Get(system, key) << '\n';
+      output << "memory\t" << key << '\t' << Get(system, std::string_view(key) == "MemAvailable" && !system.count(key) ? "MemFree" : key) << '\n';
     const auto pressure = ReadText(Join(paths_.proc, "pressure/memory"));
     if (pressure) {
       std::istringstream lines(*pressure); std::string line;
@@ -111,10 +111,10 @@ private:
     return found == values.end() ? -1 : found->second;
   }
   static std::optional<IdentityRow> Identity(const std::string &path) {
-    const auto raw = ReadLine(Join(path, "stat"));
+    const auto raw = ReadRecord(Join(path, "stat"), 8191);
     if (!raw) return std::nullopt;
-    const auto begin = raw->find('('), end = raw->rfind(") ");
-    if (begin == std::string::npos || end == std::string::npos || begin >= end) return std::nullopt;
+    const auto begin = raw->find('('), end = raw->rfind(')');
+    if (begin == std::string::npos || end == std::string::npos || begin >= end || end + 1 >= raw->size() || (*raw)[end + 1] != ' ') return std::nullopt;
     const auto fields = SplitWhitespace(raw->substr(end + 2));
     if (fields.size() < 20 || !ParseUnsigned(fields[19]) || !ParseUnsigned(fields[6])) return std::nullopt;
     return IdentityRow{fields[19], Sanitize(raw->substr(begin + 1, end - begin - 1)).substr(0, 64),

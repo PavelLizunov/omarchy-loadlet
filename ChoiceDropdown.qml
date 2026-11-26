@@ -4,6 +4,7 @@ import QtQuick.Controls
 import qs.Ui
 import qs.Commons
 import qs.Commons as Commons
+import "Model.js" as Model
 
 // Themed single-select dropdown. Trigger row paints with the kit's focus
 // chrome; the popup anchors below and uses Commons.Color.popups.background +
@@ -58,13 +59,13 @@ Item {
     return (o && typeof o === "object") ? String(o.value) : String(o)
   }
   function optionLabel(o) {
-    return (o && typeof o === "object") ? String(o.label) : String(o)
+    return Model.neutralDisplayText(o && typeof o === "object" ? o.label : o)
   }
   function currentLabel() {
     for (var i = 0; i < options.length; i++) {
       if (optionValue(options[i]) === value) return optionLabel(options[i])
     }
-    return value
+    return Model.neutralDisplayText(value)
   }
 
   implicitWidth: Style.spacing.dropdownWidth
@@ -77,7 +78,7 @@ Item {
     Text {
       textFormat: Text.PlainText
       visible: root.showLabel && root.label !== ""
-      text: root.label
+      text: Model.neutralDisplayText(root.label)
       color: Qt.darker(root.foreground, 1.4)
       font.family: root.fontFamily
       font.pixelSize: Style.font.caption
@@ -130,6 +131,7 @@ Item {
 
       Text {
         id: chevron
+        textFormat: Text.PlainText
         anchors.right: parent.right
         anchors.verticalCenter: parent.verticalCenter
         anchors.rightMargin: trigger.borderRight + Style.spacing.controlGap

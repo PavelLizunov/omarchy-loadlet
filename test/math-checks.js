@@ -23,6 +23,51 @@ assert.equal(value.cpu,200);assert.equal(value.memory,25);assert.equal(value.rss
 next.processes=[p(124,8000,2048)];assert.equal(M.nextProcesses(before,next,8192)[0].cpu,0);
 next.sample=100;assert.equal(M.nextProcesses(before,next,8192)[0].cpu,0);
 assert.deepEqual(M.appendHistory([1,2,3],4,3),[2,3,4]);
+const fanChannel = (...fields) => ['fan-channel', ...fields].join('\t');
+const nvFan = fanChannel('nv.0000_01_00_0.fan0', 'nvidia', 'nvidia', 'RTX 5060 Ti',
+  'fan1', '0000:01:00.0', '125', 'auto', '', '30', '100', '1', '', 'gpu-fan');
+const amdFan = fanChannel('amd.0000_03_00_0.pwm1', 'amdgpu', 'amdgpu', 'Radeon', 'fan1',
+  '0000:03:00.0', '', 'manual', '1700', '20', '90', '1', '', 'amd-fan');
+const boardFan = fanChannel('hw.nct6799.isa_0290.pwm16', 'hwmon', 'nct6799', 'Motherboard',
+  'Case fan', 'isa-0290', '55', 'full', '0', '0', '100', '0', '', '');
+const itFan = fanChannel('pwm2', 'it8613', 'it8613', 'ITE IT8613E', 'fan2', 'isa0a30',
+  '16', 'auto', '', '0', '100', '1', 'pwm2', 'it-fan');
+const snapshot = M.parseSensorSnapshot([
+  'schema\tactivity-sensors\t1', 'sample\t100',
+  'control\tpwm2\t40\t2\t', 'control\tpwm3\t41\t2', 'control\tpwm3\t70\t2\t880',
+  'control\tpwm4\t256\t1\t0', 'control\tpwm4\t\t1\t0', 'control\tpwm4\t10\t\t0',
+  'control\tpwm5\t50\t3\t0', 'control\tpwm5\t50\t1\t-20', 'control\tpwm5\t50',
+  nvFan, nvFan, amdFan, boardFan, itFan,
+  nvFan.replace('.fan0', '.fan8'), nvFan.replace('.fan0', '.fan2').replace('\t125\t', '\t151\t'),
+  nvFan.replace('.fan0', '.fan2').replace('\t30\t100\t', '\t101\t100\t'),
+  nvFan.replace('.fan0', '.fan2').replace('\tauto\t', '\tother\t'),
+  'fan\tgpu-fan\tnvidia\tfan1\t150\tpercent\tgpu',
+  'fan\tx\tnvidia\tfan2\t151\tpercent\tgpu',
+  'temperature\tpsu\tpmbus\tIntake probe\t-8000\tpsu',
+  'temperature\tbattery\tbattery\tCell probe\t22000\tbattery',
+  'temperature\taio\tliquidctl\tCoolant\t15000\taio',
+].join('\n'));
+assert.equal(snapshot.controls.length, 5);
+const [nvidia, amd, hwmon, it, oldIt] = snapshot.controls;
+assert.deepEqual(nvidia, {id:'nv.0000_01_00_0.fan0', legacyId:'', backend:'nvidia', driver:'nvidia',
+  owner:'RTX 5060 Ti', label:'fan1', location:'0000:01:00.0', duty:255, percent:125, mode:2,
+  modeName:'auto', rpm:-1, minPercent:30, maxPercent:100, controllable:true, sensorId:'gpu-fan'});
+assert.equal(amd.percent, -1);
+assert.equal(amd.duty, -1);
+assert.equal(amd.rpm, 1700);
+assert.equal(amd.modeName, 'manual');
+assert.equal(hwmon.rpm, 0);
+assert.equal(hwmon.controllable, false);
+assert.equal(it.duty, 40);
+assert.equal(it.sensorId, 'it-fan');
+assert.equal(oldIt.duty, 41);
+assert.equal(oldIt.rpm, -1);
+assert.deepEqual(snapshot.fans.map(fan => fan.value), [150]);
+assert.deepEqual(snapshot.temperatures.map(sensor => sensor.category), ['battery', 'psu', 'aio']);
+assert.equal(snapshot.temperatures[1].label, 'Intake probe');
+const processSamples = [{pid:1,cpu:0,cpuMeasured:false}, {pid:2,cpu:0}, {pid:3,cpu:25,cpuMeasured:true}];
+assert.deepEqual(M.filterAndSortProcesses(processSamples, '', 'cpu', true).map(p => p.pid), [2,3,1]);
+assert.deepEqual(M.filterAndSortProcesses(processSamples, '', 'cpu', false).map(p => p.pid), [3,2,1]);
 let sensorHistory=M.nextSensorHistory({}, {sample:100,temperatures:[{id:'cpu',value:50}],fans:[]},240,15);
 assert.equal(sensorHistory.cpu[0].breakBefore,undefined,'The first live sample must not declare saved-to-live continuity');
 sensorHistory=M.nextSensorHistory(sensorHistory,{sample:103,temperatures:[{id:'cpu',value:55}],fans:[]},240,15);

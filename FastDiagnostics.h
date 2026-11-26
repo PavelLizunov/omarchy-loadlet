@@ -69,7 +69,7 @@ public:
     if (last_wall_ && (std::llabs((wall-last_wall_)-(mono-last_mono_))>2000 ||
                        std::llabs((boot-last_boot_)-(mono-last_mono_))>2000 || mono-last_mono_>5000)) {
       Record("gap", "\"reason\":\"clock_suspend_or_collection_gap\"", began);
-      journal_.previous_cpu_sample_=0; journal_.previous_processes_.clear(); cache_.clear();
+      journal_.previous_cpu_sample_=0; journal_.ResetProcesses(); cache_.clear();
     }
     last_wall_=wall; last_mono_=mono; last_boot_=boot;
     auto resource = Collect([&](std::ostream &out){ resources_.Glance(out); });
@@ -92,14 +92,15 @@ public:
     if (Due(next_process_, 1000)) {
       const auto at=Clock::now();
       auto frame=Collect([&](std::ostream &out){processes_.Collect(out);});
-      if (StartsWith(frame,"error\t")) {
-        journal_.previous_processes_.clear(); journal_.processes_="null";
-      } else journal_.ParseProcesses(frame);
-      cache_["processes"]={frame,Clock::now()};
+      if (journal_.IsProcessFrame(frame)) journal_.ParseProcesses(frame);
+      else journal_.ResetProcesses();
+      const bool valid = journal_.process_at_ != Clock::time_point{};
+      if (valid) cache_["processes"] = {frame, journal_.process_at_};
+      else cache_.erase("processes");
       Record("processes", "\"process_sample_uptime\":"+journal_.process_sample_+
         ",\"processes\":"+journal_.processes_+",\"eligible_count\":"+std::to_string(journal_.previous_processes_.size())+
         ",\"selection\":\"top30_cpu_rss_growth_wait; not all processes\",\"collection_error\":"+
-        JsonString(StartsWith(frame,"error\t") ? "capacity_or_read_error" : ""),at);
+        JsonString(valid ? "" : "capacity_or_read_error"),at);
       const auto context_at=Clock::now();
       Record("pressure", Pressure(), context_at);
     }

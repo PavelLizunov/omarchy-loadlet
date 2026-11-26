@@ -59,6 +59,12 @@ protected:
     data.append(text, static_cast<std::size_t>(count));
     return count;
   }
+  pos_type seekoff(off_type offset, std::ios_base::seekdir direction,
+                   std::ios_base::openmode mode) override {
+    if (offset == 0 && direction == std::ios_base::cur && (mode & std::ios_base::out))
+      return static_cast<off_type>(data.size());
+    return pos_type(off_type(-1));
+  }
   int_type overflow(int_type ch) override {
     if (traits_type::eq_int_type(ch, traits_type::eof())) return traits_type::not_eof(ch);
     const char value = traits_type::to_char_type(ch);
@@ -156,6 +162,17 @@ std::optional<std::string> ReadText(const std::string &path) {
     output.append(chunk.data(), count);
   }
   return output;
+}
+
+// Reject a record that extends past its own budget without overflowing the frame.
+std::optional<std::string> ReadRecord(const std::string &path, std::size_t limit) {
+  std::ifstream stream(path, std::ios::binary);
+  if (!stream) return std::nullopt;
+  std::string record(limit + 1, '\0');
+  stream.read(record.data(), record.size());
+  if (stream.bad() || !stream.eof()) return std::nullopt;
+  record.resize(static_cast<std::size_t>(stream.gcount()));
+  return record;
 }
 
 std::optional<std::string> ReadLine(const std::string &path) {
@@ -279,6 +296,66 @@ std::string BaseName(const std::string &path) {
   return slash == std::string::npos ? path : path.substr(slash + 1);
 }
 
+std::string PciBus(std::string bus) {
+  bus = Lowercase(std::move(bus));
+  if (bus.size() == 16 && StartsWith(bus, "0000")) bus.erase(0, 4);
+  if (bus.size() != 12 || bus[4] != ':' || bus[7] != ':' || bus[10] != '.' ||
+      bus[11] < '0' || bus[11] > '7') return "";
+  for (std::size_t i : {0U, 1U, 2U, 3U, 5U, 6U, 8U, 9U}) {
+    if (!std::isxdigit(static_cast<unsigned char>(bus[i]))) return "";
+  }
+  return bus;
+}
+
+std::string ChannelBus(std::string bus) {
+  std::replace(bus.begin(), bus.end(), ':', '_');
+  std::replace(bus.begin(), bus.end(), '.', '_');
+  return bus;
+}
+
+std::string ChannelSlug(const std::string &value, const char *fallback) {
+  std::string slug;
+  for (unsigned char ch : Lowercase(value)) {
+    if ((ch < 'a' || ch > 'z') && (ch < '0' || ch > '9') && ch != '-') ch = '_';
+    if (ch == '_' && (slug.empty() || slug.back() == '_')) continue;
+    slug += static_cast<char>(ch);
+  }
+  if (!slug.empty() && slug.back() == '_') slug.pop_back();
+  return slug.empty() ? fallback : slug.substr(0, 32);
+}
+
+std::string DriverPath(const std::string &device) {
+  return device.empty() ? "" : RealPath(Join(device, "driver"));
+}
+
+bool RuntimeReadable(const std::string &device, bool nvidia = false) {
+  if (device.empty()) return !nvidia;
+  const auto power = ReadLine(Join(device, "power/runtime_status"));
+  return nvidia ? power == "active" : !power || *power == "active" || *power == "unsupported";
+}
+
+template<class T> std::string OptionalNumber(const std::optional<T> &value) {
+  return value ? std::to_string(*value) : "";
+}
+
+struct FanChannel {
+  std::string id, backend, driver, owner, label, location;
+  std::optional<unsigned int> duty;
+  std::string mode = "unknown";
+  std::optional<std::uint64_t> rpm;
+  unsigned int minimum = 0, maximum = 100;
+  bool controllable = false;
+  std::string legacy, sensor;
+
+  void Emit(std::ostream &out) const {
+    out << "fan-channel\t" << id << '\t' << backend << '\t' << Sanitize(driver) << '\t'
+        << Sanitize(owner) << '\t' << Sanitize(label) << '\t' << Sanitize(location)
+        << '\t' << OptionalNumber(duty) << '\t' << mode << '\t' << OptionalNumber(rpm)
+        << '\t' << minimum << '\t' << maximum << '\t' << controllable << '\t' << legacy
+        << '\t' << sensor << '\n';
+  }
+};
+
 std::vector<std::string> SplitWhitespace(const std::string &value) {
   std::istringstream stream(value);
   std::vector<std::string> fields;
@@ -385,7 +462,7 @@ public:
 
     auto memory = MemoryValues();
     const auto total = memory["MemTotal"];
-    const auto available = memory["MemAvailable"];
+    const auto available = memory.count("MemAvailable") ? memory["MemAvailable"] : memory["MemFree"];
     if (total > 0) {
       const double percent =
           static_cast<double>(total - std::min(total, available)) /
@@ -677,7 +754,7 @@ private:
       const auto found = values.find(key);
       return found == values.end() ? std::uint64_t{0} : found->second;
     };
-    output << "memory\t" << get("MemTotal") << '\t' << get("MemAvailable")
+    output << "memory\t" << get("MemTotal") << '\t' << get(values.count("MemAvailable") ? "MemAvailable" : "MemFree")
            << '\t' << get("SwapTotal") << '\t' << get("SwapFree") << '\t'
            << get("Cached") + get("SReclaimable") << '\n';
   }
@@ -1012,230 +1089,335 @@ public:
   explicit ThermalCollector(Paths paths) : paths_(std::move(paths)) {}
 
   void Collect(std::ostream &output) {
-    output << "schema\tactivity-thermals\t1\n";
-    output << "sample\t" << UptimeSample(paths_) << '\n';
+    output << "schema\tactivity-thermals\t1\nsample\t" << UptimeSample(paths_) << '\n';
     auto value = CachedValue();
-    if (!value) {
-      if (Clock::now() >= next_discovery_) {
-        Invalidate();
-        Discover();
-        value = CachedValue();
-      }
+    if (!value && Clock::now() >= next_discovery_) {
+      cached_.reset();
+      Discover();
+      value = CachedValue();
     }
-    if (cached_path_.empty() || !value)
-      return;
-    output << "temperature\t" << cached_id_ << '\t' << Sanitize(cached_chip_)
-           << '\t' << Sanitize(cached_label_) << '\t' << *value << '\n';
+    if (value)
+      output << "temperature\t" << cached_->id << '\t' << Sanitize(cached_chip_.name)
+             << '\t' << Sanitize(cached_->label) << '\t' << *value << '\n';
   }
 
   void CollectSensors(std::ostream &output, bool cpu_only = false, bool evidence = false) {
-    output << "schema\tactivity-sensors\t1\n";
-    output << "sample\t" << UptimeSample(paths_) << '\n';
-    if (Clock::now() >= next_sensor_discovery_) {
-      sensors_.clear();
-      std::string cpu_model;
-      std::ifstream cpuinfo(Join(paths_.proc, "cpuinfo"));
-      std::string line;
-      while (std::getline(cpuinfo, line)) {
-        if (StartsWith(line, "model name")) {
-          const auto colon = line.find(':');
-          if (colon != std::string::npos) cpu_model = Trim(line.substr(colon + 1));
-          break;
+    output << "schema\tactivity-sensors\t1\nsample\t" << UptimeSample(paths_) << '\n';
+    if (Clock::now() >= next_sensor_discovery_) DiscoverSensors();
+    const auto board = cpu_only ? "" : ReadLine(Join(paths_.sys, "class/dmi/id/board_name")).value_or("");
+    std::unordered_set<std::string> channels;
+    for (const auto &chip : chips_) {
+      if (cpu_only && chip.category != "cpu") continue;
+      const bool current = chip.Current();
+      if (!current) next_sensor_discovery_ = {};
+      const bool readable = current && chip.Readable();
+      std::unordered_set<std::string> emitted_fans;
+      for (const auto &sensor : chip.sensors) {
+        if (!output) return;
+        if (!readable) {
+          if (evidence) output << "sensor-missing\t" << sensor.id << '\t'
+                               << (current ? "asleep_or_power_unknown" : "unavailable") << '\n';
+          continue;
         }
-      }
-      const std::string root = Join(paths_.sys, "class/hwmon");
-      for (const auto &hwmon : DirectoryNames(root)) {
-        const std::string path = Join(root, hwmon);
-        const std::string chip = ReadLine(Join(path, "name")).value_or(hwmon);
-        const auto power_path = Join(path, "device/power/runtime_status");
-        const auto power = ReadLine(power_path);
-        if ((chip == "nvidia" && power.value_or("") != "active") ||
-            (power && *power != "active" && *power != "unsupported")) continue;
-        std::string category = "unknown", owner;
-        const auto device = RealPath(Join(path, "device"));
-        const auto location = BaseName(device.empty() ? RealPath(path) : device);
-        if (chip == "k10temp" || chip == "coretemp" || chip == "zenpower") {
-          category = "cpu";
-          owner = cpu_model;
-        } else if (chip == "amdgpu" || chip == "nouveau" || chip == "nvidia" || chip == "i915" || chip == "xe") {
-          category = "gpu";
-          auto vendor = Lowercase(ReadLine(Join(path, "device/vendor")).value_or(""));
-          auto product = Lowercase(ReadLine(Join(path, "device/device")).value_or(""));
-          if (StartsWith(vendor, "0x")) vendor.erase(0, 2);
-          if (StartsWith(product, "0x")) product.erase(0, 2);
-          owner = PciDeviceName(vendor, product);
-        } else if (chip == "nvme" || chip == "drivetemp") {
-          category = "storage";
-          owner = ReadLine(Join(path, "device/model")).value_or("");
-        } else if (chip == "it8613") {
-          category = "motherboard";
-          owner = "ITE IT8613E";
-        } else if (chip == "spd5118" || chip == "jc42") {
-          category = "memory";
-        } else if (StartsWith(chip, "iwlwifi")) {
-          category = "wifi";
-        } else if (StartsWith(chip, "r8169") || StartsWith(chip, "r8125")) {
-          category = "ethernet";
+        if (sensor.kind == "power" && (!evidence || cpu_only)) continue;
+        if (evidence && !cpu_only)
+          output << "sensor-source\t" << sensor.id << '\t' << Sanitize(chip.name) << '\t'
+                 << Sanitize(chip.location) << '\t'
+                 << ReadLine(Join(chip.path, "update_interval")).value_or("unknown") << '\n';
+        errno = 0;
+        const auto raw = ReadLine(Join(chip.path, sensor.file));
+        const auto read_error = errno;
+        if (!raw && evidence)
+          output << "sensor-missing\t" << sensor.id << '\t'
+                 << (read_error == EACCES || read_error == EPERM ? "permission_denied" : "unavailable") << '\n';
+        const auto value = raw ? ParseDouble(*raw) : std::nullopt;
+        if (!value || (sensor.kind == "temperature" ? (*value < -40000 || *value >= 150000)
+                       : (*value < 0 || (sensor.kind == "fan" && *value > 100000)))) continue;
+        output << sensor.kind << '\t' << sensor.id << '\t' << Sanitize(chip.name) << '\t'
+               << Sanitize(sensor.label) << '\t' << *value;
+        if (sensor.kind == "fan") {
+          output << "\trpm";
+          emitted_fans.insert(sensor.id);
+        } else if (sensor.kind == "power") {
+          output << "\tmicrowatt";
         }
-        for (const auto &name : DirectoryNames(path)) {
-          const bool temperature = StartsWith(name, "temp");
-          if ((!temperature && !StartsWith(name, "fan")) || !EndsWith(name, "_input"))
-            continue;
-          if (sensors_.size() >= 128) break;
-          const auto sensor = name.substr(0, name.size() - 6);
-          sensors_.push_back({Join(path, name), hwmon + "/" + sensor, chip,
-            ReadLine(Join(path, sensor + "_label")).value_or(sensor),
-            power_path, category, Sanitize(owner), Sanitize(location), temperature});
-        }
+        output << '\t' << chip.category << '\t' << Sanitize(chip.owner)
+               << '\t' << Sanitize(chip.location) << '\n';
       }
-      next_sensor_discovery_ = Clock::now() + std::chrono::seconds(30);
-    }
-    for (const auto &sensor : sensors_) {
-      if (cpu_only && sensor.category != "cpu") continue;
-      const auto power = ReadLine(sensor.power_path);
-      if ((sensor.chip == "nvidia" && power.value_or("") != "active") ||
-          (power && *power != "active" && *power != "unsupported")) {
-        if(evidence) output << "sensor-missing\t" << sensor.id << "\tasleep_or_power_unknown\n";
-        continue;
-      }
-      if(evidence && !cpu_only) {
-        const auto interval=ReadLine(Join(sensor.path.substr(0,sensor.path.rfind('/')),"update_interval"));
-        output << "sensor-source\t" << sensor.id << '\t' << sensor.chip << '\t' << sensor.location
-               << '\t' << interval.value_or("unknown") << '\n';
-      }
-      errno=0;
-      const auto raw = ReadLine(sensor.path);
-      const auto read_error=errno;
-      if(!raw && evidence) output << "sensor-missing\t" << sensor.id << '\t'
-          << (read_error==EACCES || read_error==EPERM ? "permission_denied" : "unavailable") << '\n';
-      const auto value = raw ? ParseDouble(*raw) : std::nullopt;
-      if (!value || !std::isfinite(*value) ||
-          (sensor.temperature ? (*value < -40000 || *value >= 150000)
-                              : (*value < 0 || *value > 100000))) continue;
-      output << (sensor.temperature ? "temperature" : "fan") << '\t'
-             << sensor.id << '\t' << Sanitize(sensor.chip) << '\t'
-             << Sanitize(sensor.label) << '\t' << *value;
-      if (!sensor.temperature) output << "\trpm";
-      output << '\t' << sensor.category << '\t' << sensor.owner << '\t'
-             << sensor.location << '\n';
-    }
-    if (cpu_only) return;
-    const auto board = ReadLine(Join(paths_.sys, "class/dmi/id/board_name")).value_or("");
-    if (board == "DRFXI") {
-      for (const auto &hwmon : DirectoryNames(Join(paths_.sys, "class/hwmon"))) {
-        const auto path = Join(Join(paths_.sys, "class/hwmon"), hwmon);
-        if (ReadLine(Join(path, "name")).value_or("") != "it8613") continue;
-        for (int channel = 2; channel <= 5; ++channel) {
-          const auto name = "pwm" + std::to_string(channel);
-          const auto duty = ReadUnsigned(Join(path, name));
-          const auto mode = ReadUnsigned(Join(path, name + "_enable"));
-          if (!duty || !mode) continue;
-          output << "control\t" << name << '\t' << *duty << '\t' << *mode
-                 << '\t' << ReadUnsigned(Join(path, "fan" + std::to_string(channel) + "_input")).value_or(0) << '\n';
-        }
-      }
+      if (!cpu_only && readable) EmitChannels(output, chip, board, emitted_fans, channels);
     }
   }
 
 private:
   struct Sensor {
-    std::string path, id, chip, label, power_path, category, owner, location;
-    bool temperature;
+    std::string file, id, label, kind;
   };
-  std::vector<Sensor> sensors_;
+  struct Hwmon {
+    std::string alias, path, device, driver, name, location, category, owner;
+    dev_t filesystem = 0;
+    ino_t inode = 0;
+    std::vector<Sensor> sensors;
+    std::vector<unsigned int> pwms;
+    bool Current() const {
+      struct stat status{};
+      return RealPath(alias) == path && stat(path.c_str(), &status) == 0 &&
+             status.st_dev == filesystem && status.st_ino == inode &&
+             RealPath(Join(path, "device")) == device && DriverPath(device) == driver &&
+             ReadLine(Join(path, "name")).value_or("") == name;
+    }
+    bool Readable() const {
+      const bool nvidia = BaseName(driver) == "nvidia";
+      return (Lowercase(name) != "nvidia" || nvidia) && RuntimeReadable(device, nvidia);
+    }
+  };
+
+  std::vector<Hwmon> chips_;
   Clock::time_point next_sensor_discovery_{};
   Paths paths_;
-  std::string cached_path_;
-  std::string cached_id_;
-  std::string cached_chip_;
-  std::string cached_label_;
-  std::string cached_power_path_;
+  Hwmon cached_chip_;
+  std::optional<Sensor> cached_;
+  bool cached_zone_ = false;
   Clock::time_point next_discovery_{};
 
+  static bool CpuChip(const std::string &chip) {
+    return chip == "k10temp" || chip == "coretemp" || StartsWith(chip, "zenpower");
+  }
+
+  static bool MotherboardChip(const std::string &chip) {
+    for (const auto *prefix : {"it87", "it86", "nct67", "nct6683", "nct6687", "f718", "w83627"}) {
+      if (StartsWith(chip, prefix)) return true;
+    }
+    return false;
+  }
+
+  static std::string Category(const std::string &chip) {
+    if (CpuChip(chip) || chip == "acpitz") return "cpu";
+    if (chip == "amdgpu" || chip == "radeon" || chip == "nouveau" ||
+        chip == "nvidia" || chip == "i915" || chip == "xe") return "gpu";
+    if (chip == "nvme" || chip == "drivetemp") return "storage";
+    if (chip == "spd5118" || chip == "jc42") return "memory";
+    for (const auto *prefix : {"iwlwifi", "mt7921", "ath11k", "ath12k"}) {
+      if (StartsWith(chip, prefix)) return "wifi";
+    }
+    for (const auto *prefix : {"r8169", "r8125", "igc", "igb", "e1000e"}) {
+      if (StartsWith(chip, prefix)) return "ethernet";
+    }
+    if (chip == "battery" || StartsWith(chip, "bat") ||
+        StartsWith(chip, "ucsi_source_psy") || chip == "corsairpsu") return "power";
+    if (MotherboardChip(chip)) return "motherboard";
+    for (const auto *prefix : {"asus-ec-sensors", "asus_wmi_sensors", "gigabyte_wmi", "msi-ec",
+                              "thinkpad", "dell_smm", "hp-wmi", "acer-wmi", "asus-nb-wmi",
+                              "apple-smc", "macsmc", "corsaircpro", "nzxt-kraken", "nzxt-smart2",
+                              "aquacomputer_", "gigabyte_waterforce"}) {
+      if (StartsWith(chip, prefix)) return "motherboard";
+    }
+    return "unknown";
+  }
+
+  Hwmon ResolveHwmon(const std::string &alias) const {
+    Hwmon chip;
+    chip.alias = alias;
+    chip.path = RealPath(alias);
+    struct stat status{};
+    if (chip.path.empty() || stat(chip.path.c_str(), &status) != 0) {
+      chip.path.clear();
+      return chip;
+    }
+    chip.filesystem = status.st_dev;
+    chip.inode = status.st_ino;
+    chip.name = ReadLine(Join(chip.path, "name")).value_or("");
+    chip.device = RealPath(Join(chip.path, "device"));
+    chip.driver = DriverPath(chip.device);
+    chip.location = BaseName(chip.device.empty() ? chip.path : chip.device);
+    return chip;
+  }
+
+  void DiscoverSensors() {
+    chips_.clear();
+    const auto root = Join(paths_.sys, "class/hwmon");
+    std::string cpu_model;
+    std::ifstream cpuinfo(Join(paths_.proc, "cpuinfo"));
+    std::string line;
+    while (std::getline(cpuinfo, line)) {
+      if (!StartsWith(line, "model name")) continue;
+      const auto colon = line.find(':');
+      if (colon != std::string::npos) cpu_model = Trim(line.substr(colon + 1));
+      break;
+    }
+    std::size_t sensor_count = 0;
+    for (const auto &entry : DirectoryNames(root)) {
+      auto chip = ResolveHwmon(Join(root, entry));
+      if (chip.path.empty()) continue;
+      chip.category = Category(Lowercase(chip.name));
+      if (chip.category == "cpu") chip.owner = cpu_model;
+      if (chip.category == "gpu" && !chip.device.empty()) {
+        auto vendor = Lowercase(ReadLine(Join(chip.device, "vendor")).value_or(""));
+        auto product = Lowercase(ReadLine(Join(chip.device, "device")).value_or(""));
+        if (StartsWith(vendor, "0x")) vendor.erase(0, 2);
+        if (StartsWith(product, "0x")) product.erase(0, 2);
+        chip.owner = PciDeviceName(vendor, product);
+      }
+      if (chip.category == "storage" && !chip.device.empty())
+        chip.owner = ReadLine(Join(chip.device, "model")).value_or("");
+      if (chip.name == "it8613") chip.owner = "ITE IT8613E";
+      for (const auto &file : DirectoryNames(chip.path)) {
+        if (StartsWith(file, "pwm") && IsDigits(std::string_view(file).substr(3))) {
+          const auto number = ParseUnsigned(std::string_view(file).substr(3));
+          if (number && *number >= 1 && *number <= 16 && file == "pwm" + std::to_string(*number))
+            chip.pwms.push_back(static_cast<unsigned int>(*number));
+        }
+        if (sensor_count >= 128) continue;
+        std::string kind;
+        if (StartsWith(file, "temp") && EndsWith(file, "_input")) kind = "temperature";
+        if (StartsWith(file, "fan") && EndsWith(file, "_input")) kind = "fan";
+        if (chip.category == "gpu" && StartsWith(file, "power") &&
+            (EndsWith(file, "_input") || EndsWith(file, "_average"))) kind = "power";
+        if (kind.empty()) continue;
+        const auto stem = file.substr(0, file.rfind('_'));
+        const auto label = ReadLine(Join(chip.path, stem + "_label")).value_or(stem);
+        const auto id = entry + "/" + (kind == "power" ? file : stem);
+        chip.sensors.push_back({file, id, label, kind});
+        ++sensor_count;
+      }
+      if (!chip.sensors.empty() || !chip.pwms.empty()) chips_.push_back(std::move(chip));
+    }
+    next_sensor_discovery_ = Clock::now() + std::chrono::seconds(30);
+  }
+
+  static bool WritableAttribute(const std::string &path) {
+    struct stat status{};
+    return stat(path.c_str(), &status) == 0 && S_ISREG(status.st_mode) && (status.st_mode & 0222);
+  }
+
+  static std::optional<unsigned int> PwmPercent(const std::optional<std::uint64_t> &pwm) {
+    if (!pwm || *pwm > 255) return std::nullopt;
+    return static_cast<unsigned int>((*pwm * 100 + 127) / 255);
+  }
+
+  static void EmitChannels(std::ostream &output, const Hwmon &chip, const std::string &board,
+                           const std::unordered_set<std::string> &fans,
+                           std::unordered_set<std::string> &emitted) {
+    const auto bus = PciBus(BaseName(chip.device));
+    const auto driver = Lowercase(chip.name);
+    for (const auto number : chip.pwms) {
+      if (!output) break;
+      const auto index = std::to_string(number);
+      const auto pwm = "pwm" + index;
+      const auto path = Join(chip.path, pwm);
+      const auto enable = path + "_enable";
+      FanChannel row;
+      row.driver = chip.name.empty() ? "unknown" : chip.name;
+      row.owner = chip.owner;
+      row.location = chip.location;
+      if (board == "DRFXI" && driver == "it8613" && number >= 2 && number <= 5) {
+        row.id = row.legacy = pwm;
+        row.backend = "it8613";
+      } else if (driver == "amdgpu" && !bus.empty() && number <= 8) {
+        row.id = "amd." + ChannelBus(bus) + "." + pwm;
+        row.backend = "amdgpu";
+      } else {
+        row.id = "hw." + ChannelSlug(driver, "unknown") + "." +
+                 ChannelSlug(chip.location, "hwmon") + "." + pwm;
+        row.backend = "hwmon";
+      }
+      if (!emitted.insert(row.id).second) continue;
+      const auto fan = "fan" + index;
+      const auto fan_id = BaseName(chip.alias) + "/" + fan;
+      if (fans.count(fan_id)) row.sensor = fan_id;
+      row.label = ReadLine(Join(chip.path, fan + "_label")).value_or(fan);
+      if (Sanitize(row.label).empty()) row.label = fan;
+      row.rpm = ReadUnsigned(Join(chip.path, fan + "_input"));
+      const auto duty = ReadUnsigned(path);
+      const auto mode = ReadUnsigned(enable);
+      row.duty = PwmPercent(duty);
+      if (mode) row.mode = *mode == 0 ? "full" : *mode == 1 ? "manual" : "auto";
+      row.minimum = PwmPercent(ReadUnsigned(path + "_min")).value_or(0);
+      row.maximum = PwmPercent(ReadUnsigned(path + "_max")).value_or(100);
+      if (row.minimum > row.maximum) {
+        row.minimum = 0;
+        row.maximum = 100;
+      }
+      const bool known = row.backend != "hwmon" || MotherboardChip(driver);
+      const bool read_only = driver == "asus-ec-sensors" || driver == "asus_wmi_sensors";
+      row.controllable = !read_only && Exists(path) && Exists(enable) &&
+                         (known || (WritableAttribute(path) && WritableAttribute(enable)));
+      if (!row.legacy.empty() && duty && mode)
+        output << "control\t" << pwm << '\t' << *duty << '\t' << *mode << '\t'
+               << OptionalNumber(row.rpm) << '\n';
+      row.Emit(output);
+    }
+  }
+
   static int Rank(const std::string &chip, const std::string &label) {
-    std::string chip_lower = chip;
-    std::string label_lower = label;
-    chip_lower = Lowercase(std::move(chip_lower));
-    label_lower = Lowercase(std::move(label_lower));
-    if (chip_lower == "coretemp" &&
-        label_lower.find("package id") != std::string::npos)
-      return 0;
-    if (chip_lower == "k10temp" && label_lower == "tctl")
-      return 1;
-    if (label_lower.find("cpu") != std::string::npos ||
-        label_lower.find("package") != std::string::npos ||
-        label_lower == "tctl")
-      return 2;
-    if (chip_lower == "coretemp" || chip_lower == "k10temp")
-      return 3;
-    return 100;
+    const auto lower = Lowercase(label);
+    if (chip == "coretemp" && StartsWith(lower, "package id")) return 0;
+    if (lower == "tctl") return 1;
+    if (lower == "tdie" || lower.find("package") != std::string::npos) return 2;
+    return 3;
   }
 
   std::optional<std::uint64_t> CachedValue() const {
-    if (cached_path_.empty())
-      return std::nullopt;
-    const auto power = ReadLine(cached_power_path_);
-    if ((cached_chip_ == "nvidia" && power.value_or("") != "active") ||
-        (power && *power != "active" && *power != "unsupported"))
-      return std::nullopt;
-    const auto value = ReadUnsigned(cached_path_);
-    if (value && *value > 0 && *value < 150000)
-      return value;
-    return std::nullopt;
-  }
-
-  void Invalidate() {
-    cached_path_.clear();
-    cached_id_.clear();
-    cached_chip_.clear();
-    cached_label_.clear();
-    cached_power_path_.clear();
+    if (!cached_) return std::nullopt;
+    if (cached_zone_) {
+      if (RealPath(cached_chip_.alias) != cached_chip_.path ||
+          ReadLine(Join(cached_chip_.path, "type")) != cached_chip_.name) return std::nullopt;
+    } else if (!cached_chip_.Current() || !cached_chip_.Readable()) return std::nullopt;
+    const auto value = ReadUnsigned(Join(cached_chip_.path, cached_->file));
+    return value && *value > 0 && *value < 150000 ? value : std::nullopt;
   }
 
   void Discover() {
-    if (Clock::now() < next_discovery_)
-      return;
-    const std::string root = Join(paths_.sys, "class/hwmon");
+    cached_zone_ = false;
+    const auto root = Join(paths_.sys, "class/hwmon");
     int best_rank = 100;
     std::uint64_t best_value = 0;
-    for (const auto &hwmon : DirectoryNames(root)) {
-      if (!StartsWith(hwmon, "hwmon"))
-        continue;
-      const std::string hwmon_path = Join(root, hwmon);
-      const std::string chip =
-          ReadLine(Join(hwmon_path, "name")).value_or("unknown");
-      const auto power_path = Join(hwmon_path, "device/power/runtime_status");
-      const auto power = ReadLine(power_path);
-      if ((chip == "nvidia" && power.value_or("") != "active") ||
-          (power && *power != "active" && *power != "unsupported"))
-        continue;
-      for (const auto &name : DirectoryNames(hwmon_path)) {
-        if (!StartsWith(name, "temp") || !EndsWith(name, "_input"))
-          continue;
-        const std::string sensor = name.substr(0, name.size() - 6);
-        const std::string label =
-            ReadLine(Join(hwmon_path, sensor + "_label")).value_or(chip);
-        const int rank = Rank(chip, label);
-        if (rank >= 100 || rank > best_rank)
-          continue;
-        const auto value = ReadUnsigned(Join(hwmon_path, name));
-        if (!value || *value == 0 || *value >= 150000)
-          continue;
-        if (rank == best_rank && *value <= best_value)
-          continue;
+    for (const auto &entry : DirectoryNames(root)) {
+      const auto chip = ResolveHwmon(Join(root, entry));
+      if (chip.path.empty() || !CpuChip(Lowercase(chip.name)) || !chip.Readable()) continue;
+      for (const auto &file : DirectoryNames(chip.path)) {
+        if (!StartsWith(file, "temp") || !EndsWith(file, "_input")) continue;
+        const auto stem = file.substr(0, file.size() - 6);
+        const auto label = ReadLine(Join(chip.path, stem + "_label")).value_or(chip.name);
+        const int rank = Rank(Lowercase(chip.name), label);
+        if (rank > best_rank) continue;
+        const auto value = ReadUnsigned(Join(chip.path, file));
+        if (!value || *value == 0 || *value >= 150000 || (rank == best_rank && *value <= best_value)) continue;
         best_rank = rank;
         best_value = *value;
-        cached_path_ = Join(hwmon_path, name);
-        cached_id_ = hwmon + "/" + sensor;
         cached_chip_ = chip;
-        cached_label_ = label;
-        cached_power_path_ = power_path;
+        cached_ = Sensor{file, entry + "/" + stem, label, "temperature"};
       }
     }
-    if (cached_path_.empty()) {
-      next_discovery_ = Clock::now() + std::chrono::seconds(30);
-    } else {
-      next_discovery_ = Clock::time_point{};
+    if (!cached_) DiscoverZone();
+    next_discovery_ = cached_ ? Clock::time_point{} : Clock::now() + std::chrono::seconds(30);
+  }
+
+  void DiscoverZone() {
+    const auto root = Join(paths_.sys, "class/thermal");
+    int best_rank = 3;
+    std::uint64_t best_value = 0;
+    for (const auto &entry : DirectoryNames(root)) {
+      if (!StartsWith(entry, "thermal_zone")) continue;
+      const auto alias = Join(root, entry);
+      const auto path = RealPath(alias);
+      if (path.empty()) continue;
+      const auto type = ReadLine(Join(path, "type")).value_or("");
+      const auto lower = Lowercase(type);
+      int rank = 3;
+      if (lower == "x86_pkg_temp" || lower == "cpu-thermal") rank = 0;
+      if (lower == "tcpu") rank = 1;
+      if (lower == "acpitz") rank = 2;
+      if (rank >= 3 || rank > best_rank) continue;
+      const auto value = ReadUnsigned(Join(path, "temp"));
+      if (!value || *value == 0 || *value >= 150000 || (rank == best_rank && *value <= best_value)) continue;
+      best_rank = rank;
+      best_value = *value;
+      cached_chip_ = Hwmon{};
+      cached_chip_.alias = alias;
+      cached_chip_.path = path;
+      cached_chip_.name = type;
+      cached_zone_ = true;
+      cached_ = Sensor{"temp", entry + "/temp", type, "temperature"};
     }
   }
 };
@@ -1461,7 +1643,11 @@ std::optional<std::uint64_t> MaxFrequency(
 
 struct FanReading {
   unsigned int index;
-  unsigned int percent;
+  std::optional<unsigned int> percent, target;
+  std::optional<std::uint64_t> rpm;
+  std::string mode = "unknown";
+  unsigned int minimum = 0, maximum = 100;
+  bool controllable = false;
 };
 
 struct GpuAdapter {
@@ -1471,7 +1657,9 @@ struct GpuAdapter {
   std::string driver;
   std::string name;
   std::string card_path;
-  std::string device_path;
+  std::string device_alias, device_path, driver_path;
+  dev_t device_fs = 0;
+  ino_t device_inode = 0;
   double utilization = -1;
   std::int64_t memory_used = -1;
   std::int64_t memory_total = -1;
@@ -1519,9 +1707,8 @@ public:
 
   std::vector<NvidiaReading> Read(const std::vector<std::string> &active_ids,
                                   bool sensors = false, bool diagnostic = false) {
-    if (!fixture_.empty())
-      return ReadFixture();
     if (active_ids.empty()) return {};
+    if (!fixture_.empty()) return ReadFixture();
     if (!Initialize())
       return {};
 
@@ -1531,7 +1718,7 @@ public:
       if (get_handle_(id.c_str(), &device) != 0 || !device)
         continue;
       NvidiaReading reading;
-      reading.id = NormalizeBus(id);
+      reading.id = id;
 
       std::array<char, 128> name{};
       if (get_name_(device, name.data(), name.size()) == 0)
@@ -1555,18 +1742,7 @@ public:
         unsigned int temperature = 0;
         if (get_temperature_ && get_temperature_(device, 0, &temperature) == 0 && temperature < 150)
           reading.temperature = temperature;
-        unsigned int count = 0;
-        if (get_num_fans_ && get_fan_speed_v2_ && get_num_fans_(device, &count) == 0) {
-          for (unsigned int fan = 0; fan < std::min(count, 8U); ++fan) {
-            unsigned int speed = 0;
-            if (get_fan_speed_v2_(device, fan, &speed) == 0 && speed <= 100)
-              reading.fans.push_back({fan, speed});
-          }
-        } else if (get_fan_speed_) {
-          unsigned int speed = 0;
-          if (get_fan_speed_(device, &speed) == 0 && speed <= 100)
-            reading.fans.push_back({0, speed});
-        }
+        ReadFans(device, reading);
       }
       if (!sensors && get_process_utilization_) {
         const auto now = static_cast<unsigned long long>(
@@ -1618,6 +1794,10 @@ private:
     unsigned long long used;
   };
 
+  struct NvmlFanSpeedInfo {
+    unsigned int version, fan, speed;
+  };
+
   using Init = int (*)(unsigned int);
   using Shutdown = int (*)();
   using GetHandle = int (*)(const char *, void **);
@@ -1643,6 +1823,47 @@ private:
   GetClock get_fan_speed_v2_ = nullptr;
   GetValue get_num_fans_ = nullptr;
   GetValue get_fan_speed_ = nullptr;
+  GetClock get_fan_policy_ = nullptr, get_target_fan_speed_ = nullptr;
+  int (*get_fan_limits_)(void *, unsigned int *, unsigned int *) = nullptr;
+  int (*get_fan_rpm_)(void *, NvmlFanSpeedInfo *) = nullptr;
+
+  void ReadFans(void *device, NvidiaReading &reading) const {
+    unsigned int count = 0, minimum = 0, maximum = 0;
+    if (get_num_fans_ && get_num_fans_(device, &count) == 0) {
+      const bool limits = count > 0 && get_fan_limits_ &&
+          get_fan_limits_(device, &minimum, &maximum) == 0 && minimum <= maximum &&
+          maximum <= 100 && count <= 8;
+      for (unsigned int index = 0; index < std::min(count, 8U); ++index) {
+        FanReading fan{};
+        fan.index = index;
+        fan.controllable = limits;
+        if (limits) {
+          fan.minimum = minimum;
+          fan.maximum = maximum;
+        }
+        unsigned int value = 0;
+        if (get_fan_speed_v2_ && get_fan_speed_v2_(device, index, &value) == 0 && value <= 150)
+          fan.percent = value;
+        else if (!get_fan_speed_v2_ && count == 1 && get_fan_speed_ &&
+                 get_fan_speed_(device, &value) == 0 && value <= 150)
+          fan.percent = value;
+        if (get_fan_policy_ && get_fan_policy_(device, index, &value) == 0 && value <= 1)
+          fan.mode = value == 0 ? "auto" : "manual";
+        if (get_target_fan_speed_ && get_target_fan_speed_(device, index, &value) == 0 && value <= 150)
+          fan.target = value;
+        NvmlFanSpeedInfo rpm{(1U << 24) | sizeof(NvmlFanSpeedInfo), index, 0};
+        if (get_fan_rpm_ && get_fan_rpm_(device, &rpm) == 0) fan.rpm = rpm.speed;
+        reading.fans.push_back(std::move(fan));
+      }
+    } else if (get_fan_speed_) {
+      unsigned int speed = 0;
+      if (get_fan_speed_(device, &speed) == 0 && speed <= 150) {
+        FanReading fan{};
+        fan.percent = speed;
+        reading.fans.push_back(fan);
+      }
+    }
+  }
 
   template <typename Function> Function Symbol(const char *name) {
     return reinterpret_cast<Function>(dlsym(library_, name));
@@ -1668,6 +1889,10 @@ private:
     get_fan_speed_v2_ = Symbol<GetClock>("nvmlDeviceGetFanSpeed_v2");
     get_num_fans_ = Symbol<GetValue>("nvmlDeviceGetNumFans");
     get_fan_speed_ = Symbol<GetValue>("nvmlDeviceGetFanSpeed");
+    get_fan_policy_ = Symbol<GetClock>("nvmlDeviceGetFanControlPolicy_v2");
+    get_target_fan_speed_ = Symbol<GetClock>("nvmlDeviceGetTargetFanSpeed");
+    get_fan_limits_ = Symbol<decltype(get_fan_limits_)>("nvmlDeviceGetMinMaxFanSpeed");
+    get_fan_rpm_ = Symbol<decltype(get_fan_rpm_)>("nvmlDeviceGetFanSpeedRPM");
     if (!init || !shutdown_ || !get_handle_ ||
         !get_name_ || !get_utilization_ || !get_memory_ || !get_clock_) {
       Close();
@@ -1677,15 +1902,6 @@ private:
     initialized_ = init(0U) == 0;
     if (!initialized_) Close();
     return initialized_;
-  }
-
-  static std::string NormalizeBus(std::string bus) {
-    bus = Trim(std::move(bus));
-    bus = Lowercase(std::move(bus));
-    const auto first_colon = bus.find(':');
-    if (first_colon == 8 && bus.size() >= 12)
-      bus.erase(0, 4);
-    return bus;
   }
 
   std::vector<NvidiaReading> ReadFixture() const {
@@ -1706,7 +1922,7 @@ private:
       if (fields.size() < 6)
         continue;
       NvidiaReading reading;
-      reading.id = NormalizeBus(fields[0]);
+      reading.id = PciBus(Trim(fields[0]));
       reading.name = Sanitize(fields[1]);
       reading.utilization = ParseDouble(fields[2]).value_or(-1);
       reading.memory_used =
@@ -1781,20 +1997,44 @@ public:
 
   void Collect(std::ostream &output, bool sensors = false, bool diagnostic = false) {
     DiscoverAdapters();
+    RevalidateAdapters();
     if (!sensors) RefreshDynamicValues();
     ApplyNvidia(sensors, diagnostic);
     if (sensors) {
       for (const auto &gpu : adapters_) {
-        if (gpu.vendor_hex != "10de") continue;
+        if (gpu.driver != "nvidia") continue;
         if (gpu.temperature >= 0)
           output << "temperature\tnvidia/" << gpu.id << "\tNVIDIA\t"
                  << Sanitize(gpu.name) << '\t' << gpu.temperature * 1000
                  << "\tgpu\t" << Sanitize(gpu.name) << '\t' << gpu.id << '\n';
-        for (const auto &fan : gpu.fans)
-          output << "fan\tnvidia/" << gpu.id << "/fan" << fan.index
-                 << "\t" << Sanitize(gpu.name) << "\tfan" << fan.index + 1
-                 << '\t' << fan.percent << "\tpercent\tgpu\t"
-                 << Sanitize(gpu.name) << '\t' << gpu.id << '\n';
+        for (const auto &fan : gpu.fans) {
+          if (!output) return;
+          FanChannel row;
+          row.id = "nv." + ChannelBus(gpu.id) + ".fan" + std::to_string(fan.index);
+          row.backend = row.driver = "nvidia";
+          row.owner = gpu.name;
+          row.label = "fan" + std::to_string(fan.index + 1);
+          row.location = gpu.id;
+          row.duty = fan.percent;
+          row.mode = fan.mode;
+          row.rpm = fan.rpm;
+          row.minimum = fan.minimum;
+          row.maximum = fan.maximum;
+          row.controllable = fan.controllable;
+          const auto fan_id = "nvidia/" + gpu.id + "/fan" + std::to_string(fan.index);
+          if (fan.percent) {
+            row.sensor = fan_id;
+            output << "fan\t" << fan_id << '\t' << Sanitize(gpu.name) << '\t' << row.label
+                   << '\t' << *fan.percent << "\tpercent\tgpu\t" << Sanitize(gpu.name)
+                   << '\t' << gpu.id << '\n';
+          } else if (fan.rpm) {
+            row.sensor = fan_id;
+            output << "fan\t" << fan_id << '\t' << Sanitize(gpu.name) << '\t' << row.label
+                   << '\t' << *fan.rpm << "\trpm\tgpu\t" << Sanitize(gpu.name)
+                   << '\t' << gpu.id << '\n';
+          }
+          row.Emit(output);
+        }
       }
       return;
     }
@@ -1816,8 +2056,10 @@ public:
                << ReadLine(Join(gpu.device_path,"power/runtime_status")).value_or("unknown") << '\n';
         if (gpu.temperature >= 0)
           output << "gpu-temperature\t" << gpu.id << '\t' << gpu.temperature << '\n';
-        for (const auto &fan : gpu.fans)
-          output << "gpu-fan\t" << gpu.id << '\t' << fan.index << '\t' << fan.percent << '\n';
+        for (const auto &fan : gpu.fans) {
+          if (fan.percent) output << "gpu-fan\t" << gpu.id << '\t' << fan.index << '\t' << *fan.percent << '\n';
+          if (fan.target) output << "gpu-fan-target\t" << gpu.id << '\t' << fan.index << '\t' << *fan.target << '\n';
+        }
       }
     }
     const auto now = std::chrono::duration<double>(
@@ -1828,10 +2070,11 @@ public:
       const auto start = ProcessStart(process.pid);
       if (!start) continue;
       if (uptime <= 0 || process.timestamp / 1000000.0 < now - uptime + *start / static_cast<double>(ticks)) continue;
-      output << "process-gpu\t" << gpu << '\t' << process.pid << '\t' << *start
-             << '\t' << process.utilization;
-      if (diagnostic) output << '\t' << process.timestamp;
-      output << '\n';
+      std::ostringstream row;
+      row << "process-gpu\t" << gpu << '\t' << process.pid << '\t' << *start
+          << '\t' << process.utilization;
+      if (diagnostic) row << '\t' << process.timestamp;
+      if (!EmitBoundedRow(output, row.str())) return;
     }
     if (!diagnostic || Clock::now() >= next_diagnostic_drm_) {
       EmitDrmClients(output);
@@ -1841,43 +2084,52 @@ public:
 
 private:
   struct EngineValue {
-    double busy = 0;
-    double total = -1;
-    double capacity = 1;
-    std::string kind;
+    std::string name, kind;
+    std::uint64_t busy;
+    std::optional<std::uint64_t> total;
+    std::uint64_t capacity;
   };
-
   struct ClientSample {
-    std::string client;
-    std::string pdev;
-    std::unordered_map<std::string, double> resident;
-    std::unordered_map<std::string, EngineValue> engines;
+    std::string client, pdev, driver;
+    std::unordered_map<std::string, std::uint64_t> resident;
+    std::vector<EngineValue> engines;
   };
-
-  struct EngineRow {
-    std::string pdev;
-    std::string client;
-    std::string name;
-    EngineValue value;
+  struct FdBatch {
+    unsigned int pid;
+    std::uint64_t start;
+    std::vector<std::string> paths;
   };
+  static constexpr std::size_t kFdVisitLimit = 16384, kFdPathLimit = 512;
+  static constexpr std::size_t kFdinfoLimit = 8191, kFdinfoRowLimit = 128, kDrmRowLimit = 2048;
+  static constexpr auto kDrmBudget = std::chrono::milliseconds(150);
 
   Paths paths_;
   NvidiaProvider nvidia_;
   bool adapters_discovered_ = false;
   Clock::time_point next_adapter_discovery_{};
-  bool nvidia_present_ = false;
   std::vector<GpuAdapter> adapters_;
-  std::vector<std::string> fdinfo_paths_;
+  std::vector<FdBatch> fdinfo_paths_;
   std::vector<std::pair<std::string, GpuProcessReading>> nvidia_processes_;
 
   std::optional<std::uint64_t> ProcessStart(unsigned int pid) const {
-    const auto raw = ReadText(Join(Join(paths_.proc, std::to_string(pid)), "stat"));
+    const auto raw = ReadRecord(Join(Join(paths_.proc, std::to_string(pid)), "stat"), 8191);
     if (!raw) return std::nullopt;
-    const auto end = raw->rfind(") ");
-    if (end == std::string::npos) return std::nullopt;
+    const auto begin = raw->find('('), end = raw->rfind(')');
+    if (begin == std::string::npos || end == std::string::npos || begin >= end ||
+        end + 1 >= raw->size() || (*raw)[end + 1] != ' ' ||
+        ParseUnsigned(Trim(raw->substr(0, begin))) != pid) return std::nullopt;
     const auto fields = SplitWhitespace(raw->substr(end + 2));
-    return fields.size() > 19 ? ParseUnsigned(fields[19]) : std::nullopt;
+    const auto start = fields.size() > 19 ? ParseUnsigned(fields[19]) : std::nullopt;
+    return start && *start > 0 ? start : std::nullopt;
   }
+
+  static bool EmitBoundedRow(std::ostream &output, const std::string &row) {
+    const auto used = output.tellp();
+    if (used < 0 || row.size() + 1 > kFrameLimit - static_cast<std::size_t>(used)) return false;
+    output << row << '\n';
+    return output.good();
+  }
+
   Clock::time_point next_fd_discovery_{};
   Clock::time_point next_diagnostic_drm_{};
   std::chrono::milliseconds discovery_interval_;
@@ -1894,55 +2146,96 @@ private:
   }
 
   void DiscoverAdapters() {
-    if (adapters_discovered_ && Clock::now() < next_adapter_discovery_)
-      return;
+    if (adapters_discovered_ && Clock::now() < next_adapter_discovery_) return;
     adapters_discovered_ = true;
     next_adapter_discovery_ = Clock::now() + std::chrono::seconds(30);
+    auto previous = std::move(adapters_);
     adapters_.clear();
-    nvidia_present_ = false;
-    const std::string drm_root = Join(paths_.sys, "class/drm");
     std::unordered_set<std::string> seen;
-    for (const auto &name : DirectoryNames(drm_root)) {
-      if (!StartsWith(name, "card") ||
-          !IsDigits(std::string_view(name).substr(4)))
-        continue;
-      const std::string card_path = Join(drm_root, name);
-      const std::string device_path = Join(card_path, "device");
-      if (!Exists(device_path))
-        continue;
-      const std::string real_device = RealPath(device_path);
-      std::string id =
-          BaseName(real_device.empty() ? device_path : real_device);
-      if (id.find(':') == std::string::npos)
-        id = name;
-      id = Lowercase(std::move(id));
-      if (!seen.insert(id).second)
-        continue;
+    const auto add = [&](const std::string &alias, const std::string &card, bool headless) {
+      const auto device = RealPath(alias);
+      struct stat identity{};
+      if (device.empty() || stat(device.c_str(), &identity) != 0) return;
+      const auto bus = PciBus(BaseName(device));
+      const auto driver = DriverPath(device);
+      if (headless && (bus.empty() || BaseName(driver) != "nvidia")) return;
+      const auto id = bus.empty() ? BaseName(card) : bus;
+      if (id.empty() || !seen.insert(id).second) return;
 
       GpuAdapter gpu;
       gpu.id = id;
-      gpu.card_path = card_path;
-      gpu.device_path = device_path;
-      gpu.vendor_hex =
-          NormalizeHex(ReadLine(Join(device_path, "vendor")).value_or(""));
-      if (gpu.vendor_hex == "10de")
-        nvidia_present_ = true;
-      gpu.vendor = GpuVendor(gpu.vendor_hex);
-      const std::string driver_path = RealPath(Join(device_path, "driver"));
-      gpu.driver = driver_path.empty() ? "unknown" : BaseName(driver_path);
-      gpu.name = ReadLine(Join(device_path, "product_name")).value_or("");
+      gpu.card_path = card.empty() ? "" : RealPath(card);
+      gpu.device_alias = alias;
+      gpu.device_path = device;
+      gpu.driver_path = driver;
+      gpu.device_fs = identity.st_dev;
+      gpu.device_inode = identity.st_ino;
+      gpu.vendor_hex = NormalizeHex(ReadLine(Join(device, "vendor")).value_or(""));
+      gpu.driver = driver.empty() ? "unknown" : BaseName(driver);
+      gpu.vendor = gpu.driver == "nvidia" ? "NVIDIA" : GpuVendor(gpu.vendor_hex);
+      gpu.name = ReadLine(Join(device, "product_name")).value_or("");
       if (gpu.name.empty()) {
-        const std::string device_hex =
-            NormalizeHex(ReadLine(Join(device_path, "device")).value_or(""));
-        gpu.name = PciDeviceName(gpu.vendor_hex, device_hex);
+        const auto product = NormalizeHex(ReadLine(Join(device, "device")).value_or(""));
+        gpu.name = PciDeviceName(gpu.vendor_hex, product);
       }
-      if (gpu.name.empty())
-        gpu.name = gpu.vendor + " GPU";
+      if (gpu.name.empty()) gpu.name = gpu.vendor + " GPU";
+      const auto old = std::find_if(previous.begin(), previous.end(),
+                                    [&](const auto &entry) { return entry.id == id; });
+      if (old != previous.end() && !SameDevice(*old, gpu)) {
+        InvalidateDiscovery();
+        return;
+      }
       adapters_.push_back(std::move(gpu));
+    };
+
+    const auto drm = Join(paths_.sys, "class/drm");
+    for (const auto &name : DirectoryNames(drm)) {
+      if (!StartsWith(name, "card") || !IsDigits(std::string_view(name).substr(4))) continue;
+      const auto card = Join(drm, name);
+      add(Join(card, "device"), card, false);
     }
-    if (!nvidia_present_)
-      nvidia_present_ =
-          !DirectoryNames(Join(paths_.proc, "driver/nvidia/gpus")).empty();
+    const auto pci = Join(paths_.sys, "bus/pci/devices");
+    const auto nvidia_proc = Join(paths_.proc, "driver/nvidia/gpus");
+    for (const auto &name : DirectoryNames(nvidia_proc)) {
+      const auto bus = PciBus(name);
+      if (!bus.empty() && !seen.count(bus)) add(Join(pci, bus), "", true);
+    }
+    const auto nvidia_pci = Join(paths_.sys, "bus/pci/drivers/nvidia");
+    for (const auto &name : DirectoryNames(nvidia_pci)) {
+      const auto bus = PciBus(name);
+      if (!bus.empty() && !seen.count(bus)) add(Join(nvidia_pci, name), "", true);
+    }
+    for (const auto &name : DirectoryNames(pci)) {
+      const auto bus = PciBus(name);
+      if (!bus.empty() && !seen.count(bus)) add(Join(pci, name), "", true);
+    }
+  }
+
+  static bool SameDevice(const GpuAdapter &old, const GpuAdapter &current) {
+    return old.device_path == current.device_path && old.driver_path == current.driver_path &&
+           old.device_fs == current.device_fs && old.device_inode == current.device_inode &&
+           old.vendor_hex == current.vendor_hex;
+  }
+
+  void InvalidateDiscovery() {
+    next_adapter_discovery_ = {};
+    next_fd_discovery_ = {};
+    fdinfo_paths_.clear();
+  }
+
+  void RevalidateAdapters() {
+    const auto invalid = std::remove_if(adapters_.begin(), adapters_.end(), [](const GpuAdapter &gpu) {
+      struct stat identity{};
+      const auto device = RealPath(gpu.device_alias);
+      return device != gpu.device_path || DriverPath(device) != gpu.driver_path ||
+             stat(device.c_str(), &identity) != 0 || identity.st_dev != gpu.device_fs ||
+             identity.st_ino != gpu.device_inode;
+    });
+    // Omit the old identity for this sample so consumers drop its counter baselines.
+    if (invalid != adapters_.end()) {
+      adapters_.erase(invalid, adapters_.end());
+      InvalidateDiscovery();
+    }
   }
 
   void RefreshDynamicValues() {
@@ -1954,9 +2247,7 @@ private:
       gpu.frequency_mhz = -1;
 
       // Do not reset an autosuspend timer by reading telemetry on a sleeping dGPU.
-      const auto power = ReadLine(Join(gpu.device_path, "power/runtime_status"));
-      if (power && *power != "active" && *power != "unsupported") continue;
-      if (gpu.vendor_hex == "10de") continue;
+      if (gpu.driver == "nvidia" || !RuntimeReadable(gpu.device_path)) continue;
 
       if (gpu.vendor_hex == "1002") {
         const auto busy = ReadLine(Join(gpu.device_path, "gpu_busy_percent"));
@@ -1974,6 +2265,7 @@ private:
           if (used && total && *total > 0) {
             gpu.memory_used =
                 static_cast<std::int64_t>(std::min(*used, *total));
+            gpu.memory_total = static_cast<std::int64_t>(*total);
             gpu.memory_kind = "shared";
           }
         }
@@ -2018,32 +2310,20 @@ private:
   void ApplyNvidia(bool sensors, bool diagnostic = false) {
     nvidia_processes_.clear();
     for (auto &gpu : adapters_) { gpu.temperature = -1; gpu.fans.clear(); }
-    if (!nvidia_present_ && paths_.nvidia_fixture.empty())
-      return;
     std::vector<std::string> active_ids;
     for (const auto &gpu : adapters_) {
-      if (gpu.vendor_hex == "10de" &&
-          ReadLine(Join(gpu.device_path, "power/runtime_status")).value_or("") == "active")
+      if (gpu.driver == "nvidia" && !PciBus(gpu.id).empty() &&
+          RuntimeReadable(gpu.device_path, true))
         active_ids.push_back(gpu.id);
     }
     for (const auto &reading : nvidia_.Read(active_ids, sensors, diagnostic)) {
       auto found =
           std::find_if(adapters_.begin(), adapters_.end(),
                        [&](const auto &gpu) { return gpu.id == reading.id; });
-      if (found == adapters_.end()) {
-        GpuAdapter gpu;
-        gpu.id = reading.id;
-        gpu.vendor_hex = "10de";
-        gpu.vendor = "NVIDIA";
-        gpu.driver = "nvidia";
-        gpu.name = reading.name.empty() ? "NVIDIA GPU" : reading.name;
-        adapters_.push_back(std::move(gpu));
-        found = std::prev(adapters_.end());
-      }
+      if (found == adapters_.end() ||
+          std::find(active_ids.begin(), active_ids.end(), reading.id) == active_ids.end()) continue;
       for (const auto &process : reading.processes)
         nvidia_processes_.emplace_back(reading.id, process);
-      found->vendor = "NVIDIA";
-      found->driver = "nvidia";
       if (!reading.name.empty())
         found->name = reading.name;
       found->utilization = reading.utilization;
@@ -2059,177 +2339,213 @@ private:
     }
   }
 
-  void DiscoverFdinfoPaths() {
-    std::vector<std::string> discovered;
-    for (const auto &pid : DirectoryNames(paths_.proc)) {
-      if (!IsDigits(pid) || ParseUnsigned(pid).value_or(0) ==
-                                static_cast<std::uint64_t>(getpid()))
-        continue;
-      const std::string fd_root = Join(Join(paths_.proc, pid), "fd");
+  void DiscoverFdinfoPaths(Clock::time_point deadline) {
+    fdinfo_paths_.clear();
+    next_fd_discovery_ = Clock::now() + discovery_interval_;
+    DIR *proc = opendir(paths_.proc.c_str());
+    if (!proc) return;
+    std::size_t pids_visited = 0, fds_visited = 0, retained = 0;
+    const auto has_budget = [&] {
+      return fds_visited < kFdVisitLimit && retained < kFdPathLimit && Clock::now() < deadline;
+    };
+    while (pids_visited++ < 8192 && has_budget()) {
+      const auto *entry = readdir(proc);
+      if (!entry) break;
+      const auto pid = ParseUnsigned(entry->d_name);
+      if (!pid || *pid == 0 || *pid == static_cast<std::uint64_t>(getpid()) || *pid > UINT_MAX) continue;
+      const auto process = Join(paths_.proc, entry->d_name);
+      const auto fd_root = Join(process, "fd");
+      const auto info_root = Join(process, "fdinfo");
       DIR *directory = opendir(fd_root.c_str());
-      if (!directory)
-        continue;
-      while (dirent *entry = readdir(directory)) {
-        const std::string fd(entry->d_name);
-        if (!IsDigits(fd))
-          continue;
-        const std::string link_path = Join(fd_root, fd);
+      if (!directory) continue;
+      std::optional<std::uint64_t> start;
+      std::vector<std::string> paths;
+      while (has_budget()) {
+        const auto *fd = readdir(directory);
+        if (!fd) break;
+        ++fds_visited;
+        if (!IsDigits(fd->d_name)) continue;
+        const auto link = Join(fd_root, fd->d_name);
         std::array<char, PATH_MAX> target{};
-        const ssize_t length =
-            readlink(link_path.c_str(), target.data(), target.size() - 1);
-        if (length <= 0)
+        const auto length = readlink(link.c_str(), target.data(), target.size());
+        if (length <= 0 || !StartsWith(std::string_view(target.data(), static_cast<std::size_t>(length)), "/dev/dri/"))
           continue;
-        target[static_cast<std::size_t>(length)] = '\0';
-        if (!StartsWith(target.data(), "/dev/dri/"))
-          continue;
-        const std::string fdinfo =
-            Join(Join(Join(paths_.proc, pid), "fdinfo"), fd);
-        if (Exists(fdinfo))
-          discovered.push_back(fdinfo);
+        if (paths.empty()) {
+          start = ProcessStart(static_cast<unsigned int>(*pid));
+          if (!start) break;
+        }
+        paths.push_back(Join(info_root, fd->d_name));
+        ++retained;
       }
       closedir(directory);
+      if (!paths.empty() && ProcessStart(static_cast<unsigned int>(*pid)) == start)
+        fdinfo_paths_.push_back({static_cast<unsigned int>(*pid), *start, std::move(paths)});
     }
-    std::sort(discovered.begin(), discovered.end());
-    discovered.erase(std::unique(discovered.begin(), discovered.end()),
-                     discovered.end());
-    fdinfo_paths_ = std::move(discovered);
-    next_fd_discovery_ = Clock::now() + discovery_interval_;
+    closedir(proc);
   }
 
-  static double ByteValue(double amount, const std::string &unit) {
-    if (unit == "KiB")
-      return amount * 1024.0;
-    if (unit == "MiB")
-      return amount * 1024.0 * 1024.0;
-    if (unit == "GiB")
-      return amount * 1024.0 * 1024.0 * 1024.0;
-    return amount;
+  static std::optional<std::uint64_t> ScaledCounter(std::uint64_t amount, std::uint64_t scale) {
+    if (amount > UINT64_MAX / scale) return std::nullopt;
+    return amount * scale;
+  }
+
+  static std::optional<std::uint64_t> MemoryCounter(std::uint64_t amount, const std::string &unit) {
+    if (unit == "KiB") return ScaledCounter(amount, 1024);
+    if (unit == "MiB") return ScaledCounter(amount, 1024 * 1024);
+    if (unit == "GiB") return ScaledCounter(amount, 1024 * 1024 * 1024);
+    return unit.empty() || unit == "B" ? std::optional<std::uint64_t>(amount) : std::nullopt;
   }
 
   static std::optional<ClientSample> ParseFdinfo(const std::string &path) {
-    std::ifstream stream(path);
-    if (!stream)
-      return std::nullopt;
+    const auto raw = ReadRecord(path, kFdinfoLimit);
+    if (!raw) return std::nullopt;
+    struct Counters {
+      std::optional<std::uint64_t> time, cycles, total, frequency;
+      std::uint64_t capacity = 1;
+    };
     ClientSample sample;
-    std::unordered_map<std::string, double> busy;
-    std::unordered_map<std::string, double> totals;
-    std::unordered_map<std::string, double> capacities;
-    std::unordered_map<std::string, std::string> kinds;
+    std::unordered_map<std::string, Counters> engines;
+    std::istringstream stream(*raw);
     std::string line;
+    std::size_t rows = 0;
     while (std::getline(stream, line)) {
-      auto fields = SplitWhitespace(line);
-      if (fields.empty())
+      if (++rows > kFdinfoRowLimit) return std::nullopt;
+      const auto colon = line.find(':');
+      if (colon == std::string::npos || colon > 96) continue;
+      const std::string_view key(line.data(), colon);
+      if (!StartsWith(key, "drm-") ||
+          std::any_of(key.begin(), key.end(), [](unsigned char ch) { return ch <= ' ' || ch == 127; }))
         continue;
-      std::string key = fields[0];
-      if (!key.empty() && key.back() == ':')
-        key.pop_back();
-      if (key == "drm-client-id" && fields.size() > 1)
-        sample.client = fields[1];
-      else if (key == "drm-pdev" && fields.size() > 1) {
-        sample.pdev = fields[1];
-        sample.pdev = Lowercase(std::move(sample.pdev));
-      } else if (StartsWith(key, "drm-resident-") && fields.size() > 1) {
-        const std::string region = key.substr(std::strlen("drm-resident-"));
-        const double amount = ParseDouble(fields[1]).value_or(0);
-        sample.resident[region] =
-            ByteValue(amount, fields.size() > 2 ? fields[2] : "");
-      } else if (StartsWith(key, "drm-engine-capacity-") && fields.size() > 1) {
-        capacities[key.substr(std::strlen("drm-engine-capacity-"))] =
-            ParseDouble(fields[1]).value_or(1);
-      } else if (StartsWith(key, "drm-total-cycles-") && fields.size() > 1) {
-        totals[key.substr(std::strlen("drm-total-cycles-"))] =
-            ParseDouble(fields[1]).value_or(-1);
-      } else if (StartsWith(key, "drm-cycles-") && fields.size() > 1) {
-        const std::string engine = key.substr(std::strlen("drm-cycles-"));
-        busy[engine] = ParseDouble(fields[1]).value_or(0);
-        kinds[engine] = "cycles";
-      } else if (StartsWith(key, "drm-engine-") && fields.size() > 1) {
-        const std::string engine = key.substr(std::strlen("drm-engine-"));
-        busy[engine] = ByteValue(ParseDouble(fields[1]).value_or(0),
-                                 fields.size() > 2 ? fields[2] : "");
-        kinds[engine] = "time";
+      const auto fields = SplitWhitespace(line.substr(colon + 1));
+      if (fields.empty() || fields.size() > 2) continue;
+      const auto value = ParseUnsigned(fields[0]);
+      const auto unit = fields.size() > 1 ? fields[1] : "";
+      if (key == "drm-client-id" && value && unit.empty()) {
+        sample.client = std::to_string(*value);
+      } else if (key == "drm-pdev" && unit.empty()) {
+        sample.pdev = PciBus(fields[0]);
+      } else if (key == "drm-driver" && unit.empty() && fields[0].size() <= 64) {
+        sample.driver = fields[0];
+      } else if (value) {
+        constexpr std::string_view resident = "drm-resident-", memory = "drm-memory-";
+        if (StartsWith(key, resident) || StartsWith(key, memory)) {
+          const bool modern = StartsWith(key, resident);
+          const auto region = std::string(key.substr(modern ? resident.size() : memory.size()));
+          const auto bytes = MemoryCounter(*value, unit);
+          if (bytes && !region.empty()) {
+            if (modern) sample.resident[region] = *bytes;
+            else sample.resident.emplace(region, *bytes);
+          }
+          continue;
+        }
+        auto counter = [&](std::string_view prefix) -> Counters * {
+          if (!StartsWith(key, prefix) || key.size() == prefix.size()) return nullptr;
+          return &engines[std::string(key.substr(prefix.size()))];
+        };
+        if (auto *engine = counter("drm-engine-capacity-")) {
+          if (unit.empty() && *value > 0) engine->capacity = *value;
+        } else if (auto *engine = counter("drm-total-cycles-")) {
+          if (unit.empty()) engine->total = value;
+        } else if (auto *engine = counter("drm-cycles-")) {
+          if (unit.empty()) engine->cycles = value;
+        } else if (auto *engine = counter("drm-maxfreq-")) {
+          if (unit == "Hz" || unit.empty()) engine->frequency = value;
+          else if (unit == "KHz" || unit == "kHz") engine->frequency = ScaledCounter(*value, 1000);
+          else if (unit == "MHz") engine->frequency = ScaledCounter(*value, 1000000);
+        } else if (auto *engine = counter("drm-engine-")) {
+          if (unit == "ns" || unit.empty()) engine->time = value;
+        }
       }
     }
-    if (sample.client.empty() || sample.pdev.empty())
-      return std::nullopt;
-    for (const auto &[name, value] : busy) {
-      if (kinds[name] == "cycles" && !totals.count(name))
-        continue;
-      sample.engines[name] = {
-          value,
-          totals.count(name) ? totals[name] : -1,
-          capacities.count(name) && capacities[name] > 0 ? capacities[name] : 1,
-          kinds[name],
-      };
+    if (sample.client.empty() || sample.pdev.empty()) return std::nullopt;
+    for (const auto &[name, engine] : engines) {
+      std::optional<EngineValue> cycles;
+      if (engine.cycles && engine.total)
+        cycles = EngineValue{name, "cycles", *engine.cycles, engine.total, engine.capacity};
+      else if (engine.cycles && engine.frequency && *engine.frequency > 0) {
+        // Normalize to nanoseconds at maximum frequency for the v1 time formula.
+        const long double ns = *engine.cycles * 1e9L / *engine.frequency;
+        if (ns < static_cast<long double>(UINT64_MAX))
+          cycles = EngineValue{name, "maxfreq", static_cast<std::uint64_t>(ns), std::nullopt, engine.capacity};
+      }
+      // Distinct names keep the consumer from summing two readings of the same engine.
+      if (engine.time)
+        sample.engines.push_back({cycles ? name + "/time" : name, "time", *engine.time,
+                                  std::nullopt, engine.capacity});
+      if (cycles) sample.engines.push_back(std::move(*cycles));
     }
     return sample;
   }
 
   void EmitDrmClients(std::ostream &output) {
-    if (adapters_.empty())
-      return;
-    if (Clock::now() >= next_fd_discovery_)
-      DiscoverFdinfoPaths();
+    if (adapters_.empty()) return;
+    const auto begin = Clock::now(), deadline = begin + kDrmBudget;
+    std::unordered_map<std::string, std::string> known;
+    for (const auto &gpu : adapters_) {
+      if (RuntimeReadable(gpu.device_path, gpu.driver == "nvidia"))
+        known.emplace(gpu.id, gpu.driver);
+    }
+    if (known.empty()) return;
+    if (begin >= next_fd_discovery_) DiscoverFdinfoPaths(begin + kDrmBudget / 2);
 
-    std::unordered_set<std::string> known;
-    for (const auto &gpu : adapters_)
-      known.insert(gpu.id);
     std::unordered_set<std::string> clients;
-    std::unordered_set<std::string> process_clients;
-    std::unordered_map<std::string, double> dedicated;
-    std::unordered_map<std::string, double> shared;
-    std::vector<EngineRow> engines;
-    std::vector<std::string> retained;
-    std::unordered_map<std::string, std::optional<std::uint64_t>> starts;
+    std::unordered_map<std::string, std::uint64_t> dedicated, shared;
+    std::size_t rows = 0;
+    const auto emit = [&](const std::string &row) {
+      return rows++ < kDrmRowLimit && Clock::now() < deadline && EmitBoundedRow(output, row);
+    };
 
-    for (const auto &path : fdinfo_paths_) {
-      const auto sample = ParseFdinfo(path);
-      if (!sample)
+    for (const auto &batch : fdinfo_paths_) {
+      if (Clock::now() >= deadline) break;
+      const auto start = ProcessStart(batch.pid);
+      if (start != batch.start) {
+        next_fd_discovery_ = {};
         continue;
-      retained.push_back(path);
-      if (!known.count(sample->pdev))
-        continue;
-      const std::string client_key = sample->pdev + "\t" + sample->client;
-      const auto pid_name = BaseName(path.substr(0, path.rfind("/fdinfo/")));
-      const auto pid = ParseUnsigned(pid_name);
-      const auto cached = starts.find(pid_name);
-      const auto start = cached != starts.end() ? cached->second
-          : starts.emplace(pid_name, pid ? ProcessStart(static_cast<unsigned int>(*pid)) : std::nullopt).first->second;
-      if (start && process_clients.insert(pid_name + "\t" + client_key).second) {
-        for (const auto &[name, value] : sample->engines)
-          output << "process-engine\t" << sample->pdev << '\t' << sample->client << '\t'
-                 << name << '\t' << std::llround(value.busy) << '\t'
-                 << std::llround(value.total) << '\t' << std::llround(value.capacity)
-                 << '\t' << value.kind << '\t' << *pid << '\t' << *start << '\n';
       }
-      if (!clients.insert(client_key).second)
-        continue;
-      for (const auto &[region, bytes] : sample->resident) {
-        if (region.find("vram") != std::string::npos ||
-            region.find("local") != std::string::npos)
-          dedicated[sample->pdev] += bytes;
-        else
-          shared[sample->pdev] += bytes;
+      std::vector<ClientSample> samples;
+      for (const auto &path : batch.paths) {
+        if (Clock::now() >= deadline) break;
+        auto sample = ParseFdinfo(path);
+        if (!sample) continue;
+        const auto gpu = known.find(sample->pdev);
+        if (gpu != known.end() && (sample->driver.empty() || gpu->second == sample->driver))
+          samples.push_back(std::move(*sample));
       }
-      for (const auto &[name, value] : sample->engines)
-        engines.push_back({sample->pdev, sample->client, name, value});
+      if (ProcessStart(batch.pid) != start) {
+        next_fd_discovery_ = {};
+        continue;
+      }
+      std::unordered_set<std::string> process_clients;
+      for (const auto &sample : samples) {
+        const auto client = sample.pdev + "\t" + sample.client;
+        if (!process_clients.insert(client).second) continue;
+        const bool first = clients.insert(client).second;
+        for (const auto &engine : sample.engines) {
+          const auto fields = "\t" + client + "\t" + engine.name + "\t" +
+              std::to_string(engine.busy) + "\t" +
+              (engine.total ? std::to_string(*engine.total) : "-1") + "\t" +
+              std::to_string(engine.capacity) + "\t" + engine.kind;
+          if (first && !emit("engine" + fields)) return;
+          if (!emit("process-engine" + fields + "\t" + std::to_string(batch.pid) +
+                    "\t" + std::to_string(*start))) return;
+        }
+        if (!first) continue;
+        for (const auto &[region, bytes] : sample.resident) {
+          const bool local = region.find("vram") != std::string::npos || region.find("local") != std::string::npos;
+          auto &total = (local ? dedicated : shared)[sample.pdev];
+          total += std::min(bytes, UINT64_MAX - total);
+        }
+      }
     }
-    fdinfo_paths_ = std::move(retained);
 
-    for (const auto &engine : engines) {
-      output << "engine\t" << engine.pdev << '\t' << engine.client << '\t'
-             << engine.name << '\t' << std::llround(engine.value.busy) << '\t'
-             << std::llround(engine.value.total) << '\t'
-             << std::llround(engine.value.capacity) << '\t' << engine.value.kind
-             << '\n';
+    for (const auto &[id, bytes] : dedicated) {
+      if (!emit("gpu-memory\t" + id + "\tvram\t" + std::to_string(bytes))) return;
     }
-    for (const auto &[id, bytes] : dedicated)
-      output << "gpu-memory\t" << id << "\tvram\t" << std::llround(bytes)
-             << '\n';
-    for (const auto &[id, bytes] : shared)
-      output << "gpu-memory\t" << id << "\tshared\t" << std::llround(bytes)
-             << '\n';
+    for (const auto &[id, bytes] : shared) {
+      if (!emit("gpu-memory\t" + id + "\tshared\t" + std::to_string(bytes))) return;
+    }
   }
+
 };
 
 #include "FastDiagnostics.h"
@@ -2298,7 +2614,10 @@ public:
     journal_.Observe(kind,frame.data);
     if (kind == "sensors") {
       sensor_journal_.SaveSensors(frame.data);
-      if (!sensor_journal_.error.empty()) frame.data += "recording-error\t" + sensor_journal_.error + "\n";
+      if (!sensor_journal_.error.empty()) {
+        const auto error = "recording-error\t" + sensor_journal_.error + "\n";
+        if (error.size() <= kFrameLimit - frame.data.size()) frame.data += error;
+      }
     }
     destination << frame.data;
   }

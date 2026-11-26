@@ -17,6 +17,8 @@ Item {
   }
   property bool active: false
   property bool memoryWatchEnabled: false
+  property int memoryWatchGeneration: 0
+  property int pendingMemoryWatchGeneration: -1
   property double memoryWatchDue: 0
   signal memoryObserved(string frame)
   signal memoryInterrupted()
@@ -38,7 +40,10 @@ Item {
   property double captureMissed: 0
   property double captureDuration: 0
   property string captureAction: ""
-  signal captureFlushed()
+  property int captureFlushSerial: 0
+  property int queuedCaptureFlush: 0
+  property int pendingCaptureFlush: 0
+  signal captureFlushed(int requestId, string error)
   readonly property bool collectionEnabled: active || backgroundEnabled || journalEnabled || sensorRecording || captureWanted || captureEnabled || memoryWatchEnabled
   property bool journalWriterEnabled: false
   property string journalError: ""
@@ -151,8 +156,9 @@ Item {
       glanceCpu = Math.max(0, Math.min(100, (total - (next.cpu.idle - before.cpu.idle)) / total * 100))
     } else glanceCpu = -1
     glanceMemoryTotal = next.memory.total
-    glanceMemoryUsed = Math.max(0, next.memory.total - next.memory.available)
-    glanceMemory = glanceMemoryUsed / glanceMemoryTotal * 100
+    var memoryAvailable = glanceMemoryTotal > 0 && next.memory.available >= 0
+    glanceMemoryUsed = memoryAvailable ? Math.max(0, glanceMemoryTotal - next.memory.available) : 0
+    glanceMemory = memoryAvailable ? glanceMemoryUsed / glanceMemoryTotal * 100 : -1
     if (glanceMemory >= 85) memoryAlert = true
     else if (glanceMemory < 80) memoryAlert = false
     glancePrevious = next
@@ -195,6 +201,8 @@ Item {
 
   function stop() {
     scheduler.stop(); retry.stop(); watchdog.stop(); warmup.stop(); processWarmup.stop()
+    captureAction = ""
+    cancelCaptureFlush("capture_unavailable")
     pending = ""; buffer = []; bufferSize = 0; journalWriterEnabled = false
     resetData()
     if (reader.running || state === "starting") {
@@ -253,9 +261,24 @@ Item {
   onSavedCaptureIntervalChanged: configureCapture(savedCapture, savedCaptureInterval)
 
   function requestCaptureAction(action) {
-    if (!captureEnabled || (action !== "marker" && action !== "flush")) return
-    captureAction = "capture-" + action
+    if (!captureEnabled) return 0
+    if (action === "flush") {
+      if (queuedCaptureFlush || pendingCaptureFlush) return 0
+      queuedCaptureFlush = ++captureFlushSerial
+      dispatch()
+      return captureFlushSerial
+    }
+    if (action !== "marker") return 0
+    captureAction = "capture-marker"
     dispatch()
+    return 0
+  }
+
+  function cancelCaptureFlush(error) {
+    var request = pendingCaptureFlush || queuedCaptureFlush
+    queuedCaptureFlush = 0
+    pendingCaptureFlush = 0
+    if (request) captureFlushed(request, error)
   }
 
   function dispatch() {
@@ -277,6 +300,12 @@ Item {
     }
     if (captureAction && captureEnabled) {
       pending = captureAction; captureAction = ""
+      buffer = []; bufferSize = 0; watchdog.restart(); reader.write(pending + "\n")
+      return
+    }
+    if (queuedCaptureFlush && captureEnabled) {
+      pending = "capture-flush"
+      pendingCaptureFlush = queuedCaptureFlush; queuedCaptureFlush = 0
       buffer = []; bufferSize = 0; watchdog.restart(); reader.write(pending + "\n")
       return
     }
@@ -320,6 +349,7 @@ Item {
       var kind = kinds[i]
       if ((kind === "memory-watch" ? memoryWatchDue : (due[kind] || 0)) > now) continue
       pending = kind
+      if (kind === "memory-watch") pendingMemoryWatchGeneration = memoryWatchGeneration
       buffer = []; bufferSize = 0
       watchdog.restart()
       reader.write(kind + "\n")
@@ -338,6 +368,8 @@ Item {
     }
     if (value !== "snapshot-end\t" + pending) { fail(); return }
     var kind = pending
+    var sameMemorySession = memoryWatchEnabled && pendingMemoryWatchGeneration === memoryWatchGeneration
+    var firstProcessFrame = active && kind === "processes" && !_processMetricsReady
     var raw = buffer.join("\n")
     pending = ""; buffer = []; bufferSize = 0
     watchdog.stop()
@@ -350,17 +382,18 @@ Item {
       : kind === "sensors" ? (sensorRecording ? 15000 : 3000)
       : kind === "journal" ? 15000 : kind === "diagnostics" ? 60000
       : kind === "processes" && !active ? 30000
-      : kind === "glance" || !active ? backgroundInterval : kind === "processes" && !_processMetricsReady ? 600
+      : kind === "glance" || !active ? backgroundInterval : firstProcessFrame ? 600
       : (kind === "resources" ? profile.resources : profile[kind])
-    if (kind === "memory-watch") memoryWatchDue = Date.now() + interval
-    else due[kind] = Date.now() + interval
-    if (active && kind === "processes" && !_processMetricsReady) processWarmup.restart()
+    if (kind === "memory-watch") {
+      if (sameMemorySession) memoryWatchDue = Date.now() + interval
+    } else due[kind] = Date.now() + interval
+    if (firstProcessFrame) processWarmup.restart()
     Qt.callLater(dispatch)
   }
 
   function accept(kind, raw) {
     if (kind === "memory-watch") {
-      if (memoryWatchEnabled) memoryObserved(raw)
+      if (memoryWatchEnabled && pendingMemoryWatchGeneration === memoryWatchGeneration) memoryObserved(raw)
       return true
     }
     if (kind.indexOf("capture-") === 0) {
@@ -376,7 +409,11 @@ Item {
       captureMissed = Number(status.missed) || 0
       captureDuration = Number(status["duration-ms"]) || 0
       if (captureWanted !== captureEnabled) due["capture-config"] = Date.now() + 30000
-      if (kind === "capture-flush") captureFlushed()
+      if (kind === "capture-flush") {
+        var request = pendingCaptureFlush
+        pendingCaptureFlush = 0
+        if (request) captureFlushed(request, captureError || (captureEnabled ? "" : "capture_unavailable"))
+      } else if (!captureEnabled) cancelCaptureFlush(captureError || "capture_unavailable")
       if (!captureWanted && !active && !backgroundEnabled && !journalEnabled && !sensorRecording && !memoryWatchEnabled) stop()
       return true
     }
@@ -397,8 +434,9 @@ Item {
     } else if (kind === "processes") {
       var ps = Model.parseProcessSnapshot(raw)
       if (ps.schema !== 1 || ps.sample <= 0) return false
-      if (active && previousProcesses.sample > 0) {
-        _processes = Model.nextProcesses(previousProcesses, ps, snapshot.memory.total)
+      if (active) {
+        var baseline = _processMetricsReady ? previousProcesses : Model.emptyProcessSnapshot()
+        _processes = Model.nextProcesses(baseline, ps, snapshot.memory.total)
         _processMetricsReady = true
       }
       previousProcesses = ps
@@ -471,6 +509,7 @@ Item {
     }
   }
   onMemoryWatchEnabledChanged: {
+    memoryWatchGeneration++
     memoryWatchDue = 0
     if (memoryWatchEnabled) { start(); dispatch() }
     else if (!collectionEnabled) stop()
@@ -545,6 +584,7 @@ Item {
       root.captureEnabled = false
       root.captureAppliedInterval = 0
       root.captureAction = ""
+      root.cancelCaptureFlush("capture_unavailable")
       var expected = root.state === "stopping"
       shutdown.stop(); scheduler.stop(); watchdog.stop(); warmup.stop(); processWarmup.stop()
       root.pending = ""; root.buffer = []; root.bufferSize = 0

@@ -250,6 +250,8 @@ def main() -> None:
     args = parse_args()
     if args.pid <= 1:
         fail("Refusing to signal a protected system process", 77)
+    if args.pid > 2**31 - 1:
+        fail("Process ID is out of range", 64)
     if args.start_ticks <= 0:
         fail("Process start time must be positive", 64)
     expected_owner = None
@@ -269,6 +271,8 @@ def main() -> None:
 
     try:
         pid_fd = os.pidfd_open(args.pid)
+    except OverflowError:
+        fail("Process ID is out of range", 64)
     except ProcessLookupError:
         fail(f"Process {args.pid} no longer exists")
     except OSError as error:
@@ -290,7 +294,12 @@ def main() -> None:
         reject_unsafe_target(process_stat, process_status, args.start_ticks, expected_owner)
         if expected_owner is not None:
             check_authorization(args.authorization_deadline)
+        process_stat = read_process_stat(PROC_ROOT, args.pid)
+        process_status = read_process_status(PROC_ROOT, args.pid)
+        reject_unsafe_target(process_stat, process_status, args.start_ticks, expected_owner)
         signal.pidfd_send_signal(pid_fd, getattr(signal, f"SIG{args.signal_name}"))
+    except InspectionError as error:
+        fail(str(error))
     except ProcessLookupError:
         fail(f"Process {args.pid} no longer exists")
     except PermissionError:

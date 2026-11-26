@@ -13,7 +13,6 @@ Item {
   objectName: "memoryCleanup"
   property var locale: null
   property alias watch: memoryWatch
-  property bool cleanupExpanded: false
   property bool active: false
   property var memory: ({})
   property bool memoryReady: false
@@ -58,10 +57,11 @@ Item {
   }
   onActiveChanged: if (!active) confirming = false
   onConfirmingChanged: Qt.callLater(function() {
-    if (root.active && root.cleanupExpanded) {
+    if (!root.active) return
+    if (root.confirming) viewport.contentY = 0
+    var window = viewport.Window.window
+    if (!window || window.active)
       (root.confirming ? cancelButton : cleanButton).forceActiveFocus()
-      if (root.confirming) viewport.contentY = Math.max(0, viewport.contentHeight - viewport.height)
-    }
   })
   Keys.onEscapePressed: function(event) {
     if (confirming) confirming = false
@@ -121,6 +121,9 @@ Item {
     }
     Connections {
       target: viewport.Window.window
+      function onActiveChanged() {
+        if (target && !target.active) root.confirming = false
+      }
       function onActiveFocusItemChanged() {
         var window = viewport.Window.window
         if (!window || !root.active) return
@@ -137,24 +140,6 @@ Item {
       id: body
       width: viewport.width
       spacing: Style.spacing.sm
-      MemoryWatch { id: memoryWatch; width: parent.width; locale: root.locale }
-      Button {
-        width: parent.width
-        text: root.t("memory_watch_cache_tools")
-        foreground: Host.Color.popups.text; accent: Host.Color.accent; focusable: true
-        onClicked: { root.cleanupExpanded = !root.cleanupExpanded; root.confirming = false }
-      }
-      Column {
-        width: parent.width; spacing: Style.spacing.sm; visible: root.cleanupExpanded
-      Row {
-        width: parent.width; spacing: Style.spacing.sm
-        SvgIcon { name: "ram"; tint: Host.Color.popups.text }
-        Text {
-          width: parent.width - Style.space(16) - parent.spacing
-          text: root.t("memory_clean_title"); textFormat: Text.PlainText; wrapMode: Text.Wrap
-          color: Host.Color.popups.text; font.family: Style.font.family; font.pixelSize: Style.font.heading
-        }
-      }
       Text {
         width: parent.width
         text: root.t("memory_clean_stats", root.bytes(root.memoryReady ? root.memory.available : null),
@@ -163,6 +148,15 @@ Item {
         color: Host.Color.popups.text; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall
       }
       Text {
+        objectName: "memoryCleanupPrompt"
+        visible: root.confirming
+        width: parent.width
+        text: root.t("memory_clean_confirm")
+        textFormat: Text.PlainText; wrapMode: Text.Wrap
+        color: Host.Color.popups.text; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall
+      }
+      Text {
+        visible: root.confirming
         width: parent.width
         text: root.t("memory_clean_hint")
         textFormat: Text.PlainText; wrapMode: Text.Wrap
@@ -170,20 +164,13 @@ Item {
       }
       Text {
         objectName: "memoryCleanupStatus"
-        visible: root.statusKey !== ""
+        visible: !root.confirming && root.statusKey !== ""
         width: parent.width
         text: root.t(root.statusKey)
           + (root.finishedAt > 0 && !root.running && root.locale ? " · " + root.locale.dateTime(root.finishedAt, true, false) : "")
         textFormat: Text.PlainText; wrapMode: Text.Wrap
         color: ["memory_clean_failed", "memory_clean_unknown"].indexOf(root.statusKey) >= 0 ? Host.Color.urgent : Host.Color.popups.text
         font.family: Style.font.family; font.pixelSize: Style.font.bodySmall
-      }
-      Text {
-        visible: root.confirming
-        width: parent.width
-        text: root.t("memory_clean_confirm")
-        textFormat: Text.PlainText; wrapMode: Text.Wrap
-        color: Host.Color.popups.text; font.family: Style.font.family; font.pixelSize: Style.font.caption
       }
       Text {
         objectName: "memoryCleanupResult"
@@ -195,6 +182,11 @@ Item {
         textFormat: Text.PlainText; wrapMode: Text.Wrap
         color: Host.Color.popups.text; font.family: Style.font.family; font.pixelSize: Style.font.caption
       }
+      MemoryWatch {
+        id: memoryWatch
+        width: parent.width
+        locale: root.locale
+        visible: !root.confirming
       }
     }
   }
@@ -203,6 +195,7 @@ Item {
     anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom
     spacing: Style.spacing.sm
     Row {
+      visible: !root.confirming
       width: parent.width; spacing: Style.spacing.sm
       Button {
         objectName: "memoryWatchStart"
@@ -225,18 +218,20 @@ Item {
         onClicked: memoryWatch.copyReport()
       }
     }
-    Button {
-      objectName: "memoryProcesses"
-      width: parent.width
-      text: root.t("memory_processes")
-      foreground: Host.Color.popups.text; accent: Host.Color.accent
-      bordered: true; focusable: true
-      Accessible.role: Accessible.Button; Accessible.name: text
-      onClicked: root.processesRequested()
-    }
     Row {
-      visible: root.cleanupExpanded
       width: parent.width; spacing: Style.spacing.sm
+      // Keep repeated clicks on the original location away from authorization.
+      layoutDirection: root.confirming ? Qt.RightToLeft : Qt.LeftToRight
+      Button {
+        objectName: "memoryProcesses"
+        visible: !root.confirming
+        width: (parent.width - parent.spacing) / 2
+        text: root.t("memory_processes")
+        foreground: Host.Color.popups.text; accent: Host.Color.accent
+        bordered: true; focusable: true
+        Accessible.role: Accessible.Button; Accessible.name: text
+        onClicked: root.processesRequested()
+      }
       Button {
         id: cancelButton
         objectName: "memoryCleanupCancel"
@@ -251,7 +246,7 @@ Item {
       Button {
         id: cleanButton
         objectName: "memoryCleanupRun"
-        width: root.confirming ? (parent.width - parent.spacing) / 2 : parent.width
+        width: (parent.width - parent.spacing) / 2
         text: root.t(root.confirming ? "memory_clean_authorize" : "memory_clean_action")
         foreground: Host.Color.popups.text; accent: Host.Color.accent
         bordered: true; focusable: true

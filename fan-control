@@ -1,6 +1,7 @@
 #!/usr/bin/python3 -I
-"""Authenticated IT8613 profiles and timed trials with thermal fallback."""
-from contextlib import contextmanager
+"""Authenticated fan profiles and timed trials with thermal fallback."""
+from contextlib import contextmanager, nullcontext
+import ctypes
 import json
 import fcntl
 import os
@@ -9,6 +10,7 @@ from pathlib import Path
 import re
 import signal
 import socket
+import stat
 import subprocess
 import sys
 import time
@@ -16,12 +18,33 @@ import time
 SELF = '/usr/local/lib/loadlet/fan-control'
 STATE = Path('/run/loadlet-fans')
 PROFILES = Path('/var/lib/loadlet-fans')
+POWER_STORE = Path('/var/lib/loadlet-power')
 PROFILE_UNIT = 'loadlet-fan-profile@{}.service'
+HWMON = Path('/sys/class/hwmon')
+PCI = Path('/sys/bus/pci/devices')
+THERMAL = Path('/sys/class/thermal')
+BUS = r'[0-9a-f]{4}_[0-9a-f]{2}_[0-9a-f]{2}_[0-7]'
+LEGACY = r'pwm[2-5]'
+NVIDIA = rf'nv[.]{BUS}([.]fan[0-7])?'
+AMD = rf'amd[.]{BUS}[.]pwm[1-8]'
+HARDWARE = r'hw[.][a-z0-9_-]{1,32}[.][a-z0-9_-]{1,32}[.]pwm([1-9]|1[0-6])'
+CHANNEL = rf'({LEGACY}|{NVIDIA}|{AMD}|{HARDWARE})'
+THERMAL_TRIGGER_MC = 80000
+THERMAL_RELEASE_MC = 75000
+
+
+def check_channel(channel):
+    if not re.fullmatch(CHANNEL, channel):
+        raise ValueError('Invalid fan channel')
+
+
+def bus_address(bus):
+    domain, slot, device, function = bus.split('_')
+    return f'{domain}:{slot}:{device}.{function}'
 
 
 def profile_path(channel):
-    if not re.fullmatch(r'pwm[2-5]', channel):
-        raise ValueError('Invalid IT8613 channel')
+    check_channel(channel)
     return PROFILES/(channel+'.json')
 
 
@@ -58,32 +81,38 @@ def save_profile(channel, percent):
     os.replace(temporary, file)
 
 
-def switching_path(channel):
-    if not re.fullmatch(r'pwm[2-5]', channel):
-        raise ValueError('Invalid IT8613 channel')
-    return STATE / ('.' + channel + '.switching')
-
-
 @contextmanager
-def switching(channel):
-    state_path(channel)
-    marker = switching_path(channel)
-    lock = os.open(STATE/('.'+channel+'.lock'), os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
+def file_lock(path, flags):
+    fd = os.open(path, os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
     try:
-        fcntl.flock(lock, fcntl.LOCK_EX)
-        fd = os.open(marker, os.O_CREAT | os.O_WRONLY | os.O_TRUNC | os.O_NOFOLLOW, 0o600)
-        os.close(fd)
-        try:
-            yield
-        finally:
-            marker.unlink(missing_ok=True)
+        fcntl.flock(fd, flags)
+        yield
     finally:
-        os.close(lock)
+        os.close(fd)
 
 
-def resume_profile(channel):
+def switching(channel, nonblocking=False):
+    state = state_path(channel)
+    flags = fcntl.LOCK_EX | (fcntl.LOCK_NB if nonblocking else 0)
+    return file_lock(state.with_name('.'+channel+'.lock'), flags)
+
+
+def power_profile_lock():
+    if os.environ.get('LOADLET_PROFILE_LOCK_OWNER') == str(os.getppid()):
+        return nullcontext()
+    try:
+        st = POWER_STORE.lstat()
+    except FileNotFoundError:
+        return nullcontext()
+    if stat.S_ISDIR(st.st_mode) and st.st_uid == 0 and stat.S_IMODE(st.st_mode) == 0o700:
+        return file_lock(POWER_STORE/'.apply.lock', fcntl.LOCK_EX)
+    return nullcontext()
+
+
+def resume_profile(channel, asynchronous=False):
     if profile_path(channel).exists():
-        subprocess.run(['/usr/bin/systemctl', 'start', PROFILE_UNIT.format(channel)],
+        flags = ['--no-block'] if asynchronous else []
+        subprocess.run(['/usr/bin/systemctl', *flags, 'start', PROFILE_UNIT.format(channel)],
                        check=True, timeout=15)
 
 
@@ -111,7 +140,7 @@ def install_profile_unit():
 def controller():
     if Path('/sys/class/dmi/id/board_name').read_text().strip() != 'DRFXI':
         raise ValueError('This installed adapter supports DRFXI / IT8613 only')
-    for path in Path('/sys/class/hwmon').glob('hwmon*'):
+    for path in HWMON.glob('hwmon*'):
         try:
             if (path/'name').read_text().strip() == 'it8613':
                 return path.resolve()
@@ -120,136 +149,444 @@ def controller():
     raise ValueError('IT8613 driver is not loaded')
 
 
+def slug(value, fallback):
+    return re.sub(r'_+', '_', re.sub(r'[^a-z0-9_-]', '_', value.lower())).strip('_')[:32] or fallback
+
+
+def named_hwmon(paths):
+    for path in paths:
+        try:
+            yield path, (path/'name').read_text().strip()
+        except OSError:
+            continue
+
+
+def amd_hwmon(bus):
+    return [path for path, driver in named_hwmon((PCI/bus/'hwmon').glob('hwmon*'))
+            if driver == 'amdgpu']
+
+
 def channel_files(channel):
-    if not re.fullmatch(r'pwm[2-5]', channel):
-        raise ValueError('Invalid IT8613 channel')
-    path = controller()
-    pwm, mode = path/channel, path/(channel+'_enable')
-    if not pwm.is_file() or not mode.is_file():
-        raise ValueError('Channel is unavailable')
-    return pwm, mode
+    check_channel(channel)
+    if re.fullmatch(LEGACY, channel):
+        paths, name = [controller()], channel
+    else:
+        family, identity, *suffix = channel.split('.')
+        if family == 'nv':
+            raise ValueError('NVIDIA fans do not use hwmon PWM')
+        if family == 'amd':
+            paths, name = amd_hwmon(bus_address(identity)), suffix[0]
+        else:
+            location, name = suffix
+            if identity == 'asus-ec-sensors':
+                raise ValueError('This hwmon driver is read-only')
+            if identity == 'amdgpu':
+                raise ValueError('AMD GPU fans must use canonical amd.<bus>.pwmN channel IDs')
+            paths = []
+            for path, driver in named_hwmon(HWMON.glob('hwmon*')):
+                device = path/'device'
+                loc = device.resolve().name if device.exists() else path.resolve().name
+                if slug(driver, 'unknown') == identity and slug(loc, 'hwmon') == location:
+                    paths.append(path)
+    matches = [(path/name, path/(name+'_enable')) for path in paths
+               if (path/name).is_file() and (path/(name+'_enable')).is_file()]
+    if len(matches) != 1:
+        raise ValueError('Fan channel is unavailable or ambiguous')
+    return matches[0]
 
 
-def state_path(channel):
-    channel_files(channel)
+def state_path(channel, scope=''):
+    check_channel(channel)
     STATE.mkdir(mode=0o700, exist_ok=True)
     st = STATE.lstat()
     if STATE.is_symlink() or st.st_uid != 0 or st.st_mode & 0o077:
         raise ValueError('Unsafe controller state directory')
-    return STATE/(channel+'.json')
+    return STATE/(scope+channel+'.json')
 
 
-def restore(channel):
-    file = state_path(channel)
-    if not file.exists():
+def temperatures(paths, *, require_all=False):
+    readings = []
+    for path in paths:
+        try:
+            value = int(path.read_text())
+            if value > 0:
+                readings.append(value)
+                continue
+        except (OSError, ValueError):
+            pass
+        if require_all:
+            return []
+    return readings
+
+
+def cpu_temperature_paths():
+    dedicated = [path for path, name in named_hwmon(HWMON.glob('hwmon*'))
+                 if name in ('k10temp', 'coretemp', 'zenpower', 'zenpower3', 'zenpower5')]
+    if dedicated:
+        for chip in dedicated:
+            yield from chip.glob('temp*_input')
         return
-    saved = json.loads(file.read_text())
-    pwm, mode = channel_files(channel)
-    value, original_mode = int(saved['pwm']), int(saved['mode'])
-    if not 0 <= value <= 255 or original_mode not in (0, 1, 2):
-        raise ValueError('Invalid saved controller state')
-    # IT8613 rejects duty writes in automatic mode. Go through full speed.
-    mode.write_text('0')
-    mode.write_text('1')
-    pwm.write_text(str(value))
-    mode.write_text(str(original_mode))
-    file.unlink()
+    for path in THERMAL.glob('thermal_zone*'):
+        try:
+            if (path/'type').read_text().strip() in ('x86_pkg_temp', 'TCPU', 'cpu-thermal', 'acpitz'):
+                yield path/'temp'
+        except OSError:
+            continue
 
 
 def cooling_floor(target):
-    """Use full duty on missing CPU telemetry or a hot CPU, rather than a low hold."""
-    cpu = []
-    for path in Path('/sys/class/hwmon').glob('hwmon*'):
+    cpu = temperatures(cpu_temperature_paths())
+    return 255 if not cpu or max(cpu) >= THERMAL_TRIGGER_MC else target
+
+
+class ThermalFallback:
+    """Track consecutive cool samples while a hold is forcing maximum output."""
+
+    def __init__(self):
+        self.cool_samples = None
+
+    def target(self, temperature, requested, maximum, identify):
+        unsafe = temperature is None or temperature >= THERMAL_TRIGGER_MC
+        if identify:
+            if unsafe:
+                raise ValueError('Identification unavailable: temperature is high or telemetry is missing')
+            return requested
+        if unsafe:
+            self.cool_samples = 0
+        elif self.cool_samples is not None:
+            self.cool_samples = self.cool_samples + 1 if temperature < THERMAL_RELEASE_MC else 0
+            if self.cool_samples == 3:
+                self.cool_samples = None
+        return maximum if self.cool_samples is not None else requested
+
+
+class PwmFan:
+    def __init__(self, channel):
+        self.pwm, self.mode = channel_files(channel)
+        self.thermal = ThermalFallback()
         try:
-            if (path/'name').read_text().strip() not in ('k10temp', 'coretemp', 'zenpower'):
-                continue
-            for sensor in path.glob('temp*_input'):
-                value = int(sensor.read_text())
-                if 0 < value < 150000:
-                    cpu.append(value)
-        except (OSError, ValueError):
+            driver_name = (self.pwm.parent/'name').read_text().strip()
+        except OSError:
+            driver_name = ''
+        self.amd = channel.startswith('amd.') or driver_name == 'amdgpu'
+        self.full_speed_transition = bool(re.match(r'(pwm[2-5]$|hw[.]it(87|86))', channel))
+        self.minimum, self.maximum = 0, 255
+        if re.fullmatch(LEGACY, channel):
+            return
+        if not all(path.stat().st_mode & 0o222 for path in (self.pwm, self.mode)):
+            raise ValueError('This hwmon channel is read-only')
+        for attr, suffix in [('minimum', '_min'), ('maximum', '_max')]:
+            try:
+                setattr(self, attr, int(self.pwm.with_name(self.pwm.name+suffix).read_text()))
+            except FileNotFoundError:
+                pass
+        if not 0 <= self.minimum <= self.maximum <= 255:
+            raise ValueError('Invalid PWM driver limits')
+
+    def target(self, percent):
+        return min(self.maximum, max(self.minimum, round(percent * 255 / 100)))
+
+    def snapshot(self):
+        duty, mode = int(self.pwm.read_text()), int(self.mode.read_text())
+        if not 0 <= duty <= 255 or not 0 <= mode <= 255:
+            raise ValueError('Invalid original PWM state')
+        return {'pwm': duty, 'mode': mode}
+
+    def boost_target(self, target, previous, saved):
+        if saved is not None:
+            target = max(target, self.target(saved))
+        if previous['mode'] == 0 and self.full_speed_transition:
+            return self.maximum
+        return min(self.maximum, max(target, previous['pwm']))
+
+    def safe_target(self, target, identify):
+        paths = self.pwm.parent.glob('temp*_input') if self.amd else cpu_temperature_paths()
+        temperature = max(temperatures(paths, require_all=True), default=None)
+        return self.thermal.target(temperature, target, self.maximum, identify)
+
+    def takeover(self):
+        if self.full_speed_transition:
+            self.mode.write_text('0')
+        self.mode.write_text('1')
+
+    def write(self, target):
+        self.pwm.write_text(str(target))
+
+    def restore(self, saved):
+        duty, mode = int(saved['pwm']), int(saved['mode'])
+        if not 0 <= duty <= 255 or not 0 <= mode <= 255:
+            raise ValueError('Invalid saved controller state')
+        errors = []
+        for name, action in [('manual mode', self.takeover), ('PWM duty', lambda: self.write(duty)),
+                             ('original mode', lambda: self.mode.write_text(str(mode)))]:
+            try:
+                action()
+                if name == 'PWM duty' and int(self.pwm.read_text()) != duty:
+                    errors.append('PWM duty readback mismatch')
+                if name == 'original mode' and int(self.mode.read_text()) != mode:
+                    errors.append('Fan mode readback mismatch')
+            except (OSError, ValueError) as error:
+                errors.append(f'{name}: {error}')
+        if errors:
+            raise ValueError('Fan restoration incomplete: ' + '; '.join(errors))
+
+
+def nvml_library():
+    lib = ctypes.CDLL('libnvidia-ml.so.1')
+    device, uint = ctypes.c_void_p, ctypes.c_uint
+    pointer = ctypes.POINTER(uint)
+    required = {
+        'nvmlInit_v2': [], 'nvmlShutdown': [],
+        'nvmlDeviceGetHandleByPciBusId_v2': [ctypes.c_char_p, ctypes.POINTER(device)],
+        'nvmlDeviceGetNumFans': [device, pointer],
+        'nvmlDeviceGetMinMaxFanSpeed': [device, pointer, pointer],
+        'nvmlDeviceGetTemperature': [device, ctypes.c_int, pointer],
+        'nvmlDeviceSetFanSpeed_v2': [device, uint, uint],
+        'nvmlDeviceSetDefaultFanSpeed_v2': [device, uint],
+    }
+    optional = {'nvmlDeviceGetFanControlPolicy_v2': [device, uint, ctypes.POINTER(ctypes.c_int)],
+                'nvmlDeviceGetTargetFanSpeed': [device, uint, pointer],
+                'nvmlDeviceGetFanSpeed_v2': [device, uint, pointer]}
+    for name, args in (required | optional).items():
+        method = getattr(lib, name, None)
+        if method is None:
+            if name in required:
+                raise ValueError(f'NVIDIA fan API unavailable: {name}')
             continue
-    return 255 if not cpu or max(cpu) >= 80000 else target
+        method.argtypes = args
+        method.restype = ctypes.c_int
+    return lib
 
 
-def worker(channel, percent, minutes, identify=False, persistent=False):
-    if identify and cooling_floor(0) != 0:
-        raise ValueError("Identification unavailable: CPU is hot or telemetry is missing")
-    pwm, mode = channel_files(channel)
-    state = state_path(channel)
-    if state.exists():
-        raise ValueError('A previous override has not been restored')
-    identification_lock = None
-    if identify:
-        identification_lock = os.open(STATE/".identify.lock", os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
-        fcntl.flock(identification_lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-    previous = dict(pwm=int(pwm.read_text()), mode=int(mode.read_text()))
+class NvidiaFan:
+    def __init__(self, lib, channel):
+        _, bus, *selected = channel.split('.')
+        self.lib = lib
+        self.thermal = ThermalFallback()
+        self.device = ctypes.c_void_p()
+        if lib.nvmlDeviceGetHandleByPciBusId_v2(bus_address(bus).encode(), ctypes.byref(self.device)):
+            raise ValueError('GPU unavailable')
+        count = ctypes.c_uint()
+        if lib.nvmlDeviceGetNumFans(self.device, ctypes.byref(count)) or not 0 < count.value <= 8:
+            raise ValueError('GPU fans unavailable')
+        self.indices = [int(selected[0][3:])] if selected else list(range(count.value))
+        if self.indices[-1] >= count.value:
+            raise ValueError('GPU fan index unavailable')
+
+    def target(self, percent):
+        low, high = ctypes.c_uint(), ctypes.c_uint()
+        if (self.lib.nvmlDeviceGetMinMaxFanSpeed(self.device, ctypes.byref(low), ctypes.byref(high))
+                or low.value > high.value):
+            raise ValueError('GPU fan limits unavailable')
+        self.minimum, self.maximum = low.value, high.value
+        if not self.minimum <= percent <= self.maximum:
+            raise ValueError(f'GPU fan output outside driver limits ({self.minimum}-{self.maximum}%)')
+        return percent
+
+    def snapshot(self):
+        prior = {}
+        policy_query = getattr(self.lib, 'nvmlDeviceGetFanControlPolicy_v2', None)
+        target_query = getattr(self.lib, 'nvmlDeviceGetTargetFanSpeed', None)
+        speed_query = getattr(self.lib, 'nvmlDeviceGetFanSpeed_v2', None)
+        if policy_query is not None:
+            for index in self.indices:
+                policy = ctypes.c_int(-1)
+                if policy_query(self.device, index, ctypes.byref(policy)) == 0 and policy.value in (0, 1):
+                    entry = {'policy': policy.value}
+                    if policy.value == 1:
+                        value = ctypes.c_uint()
+                        if target_query is not None and target_query(self.device, index, ctypes.byref(value)) == 0:
+                            entry['target'] = int(value.value)
+                        elif speed_query is not None and speed_query(self.device, index, ctypes.byref(value)) == 0:
+                            entry['target'] = int(value.value)
+                        else:
+                            raise ValueError(f'GPU fan {index} manual target is unreadable')
+                    prior[str(index)] = entry
+        return {'fans': self.indices, 'prior': prior} if prior else {'fans': self.indices}
+
+    def boost_target(self, target, previous, saved):
+        speed = ctypes.c_uint()
+        query = getattr(self.lib, 'nvmlDeviceGetFanSpeed_v2', None)
+        for index in previous['fans']:
+            if query is None or query(self.device, index, ctypes.byref(speed)):
+                return self.maximum
+            target = max(target, speed.value)
+        return min(self.maximum, max(self.minimum, target, saved or 0))
+
+    def safe_target(self, target, identify):
+        temperature = ctypes.c_uint()
+        result = self.lib.nvmlDeviceGetTemperature(self.device, 0, ctypes.byref(temperature))
+        return self.thermal.target(None if result else temperature.value * 1000, target, self.maximum, identify)
+
+    def takeover(self):
+        pass
+
+    def write(self, target):
+        for index in self.indices:
+            if self.lib.nvmlDeviceSetFanSpeed_v2(self.device, index, target):
+                raise ValueError(f'GPU fan {index} rejected manual output')
+
+    def restore(self, saved, force_auto=False):
+        indices = saved['fans']
+        if not isinstance(indices, list) or not indices or any(type(i) is not int or not 0 <= i <= 7 for i in indices):
+            raise ValueError('Invalid saved GPU fan state')
+        prior = saved.get('prior') if isinstance(saved.get('prior'), dict) and not force_auto else {}
+        errors = []
+        query = getattr(self.lib, 'nvmlDeviceGetFanControlPolicy_v2', None)
+        for index in indices:
+            previous = prior.get(str(index)) if isinstance(prior.get(str(index)), dict) else {}
+            if previous.get('policy') == 1 and type(previous.get('target')) is int:
+                result = self.lib.nvmlDeviceSetFanSpeed_v2(self.device, index, previous['target'])
+                if result:
+                    errors.append(f'fan {index} manual restore returned {result}')
+                if query is not None:
+                    policy = ctypes.c_int(-1)
+                    result = query(self.device, index, ctypes.byref(policy))
+                    if result or policy.value != 1:
+                        errors.append(f'fan {index} manual policy unverified (status {result}, policy {policy.value})')
+                continue
+            result = self.lib.nvmlDeviceSetDefaultFanSpeed_v2(self.device, index)
+            if result:
+                errors.append(f'fan {index} reset returned {result}')
+            if query is not None:
+                policy = ctypes.c_int(-1)
+                result = query(self.device, index, ctypes.byref(policy))
+                if result or policy.value != 0:
+                    errors.append(f'fan {index} automatic policy unverified (status {result}, policy {policy.value})')
+        if errors:
+            raise ValueError('GPU automatic fan restore failed: ' + '; '.join(errors))
+
+
+@contextmanager
+def backend(channel):
+    if channel.startswith('nv.'):
+        lib = nvml_library()
+        if lib.nvmlInit_v2():
+            raise ValueError('NVIDIA fan API unavailable')
+        try:
+            yield NvidiaFan(lib, channel)
+        finally:
+            lib.nvmlShutdown()
+    else:
+        yield PwmFan(channel)
+
+
+@contextmanager
+def hardware_lock(channel, state, fan):
+    # Whole-device NVML jobs exclude every per-fan job. Distinct indices can coexist.
+    with file_lock(state.with_name('.'+channel+'.worker'), fcntl.LOCK_EX | fcntl.LOCK_NB):
+        if channel.startswith('nv.'):
+            gpu = '.'.join(channel.split('.')[:2])
+            flags = fcntl.LOCK_EX if gpu == channel else fcntl.LOCK_SH
+            with file_lock(state.with_name('.'+gpu+'.device'), flags | fcntl.LOCK_NB):
+                yield
+        else:
+            # Legacy and dynamic IDs can resolve to the same sysfs files.
+            resolved = fan.pwm.resolve().stat()
+            name = f'.pwm-{resolved.st_dev}-{resolved.st_ino}.device'
+            with file_lock(state.with_name(name), fcntl.LOCK_EX | fcntl.LOCK_NB):
+                yield
+
+
+def restore_saved(state, fan, force_auto=False):
+    saved = json.loads(state.read_text())
+    if force_auto and isinstance(fan, NvidiaFan):
+        fan.restore(saved, force_auto=True)
+    else:
+        fan.restore(saved)
+    state.unlink()
+
+
+def restore(channel, reset=False, scope=''):
+    state = state_path(channel, scope) if scope else state_path(channel)
+    if not reset and not state.exists():
+        return
+    with backend(channel) as fan, hardware_lock(channel, state, fan):
+        if state.exists():
+            restore_saved(state, fan, force_auto=reset)
+        elif reset and channel.startswith('nv.'):
+            write_snapshot(state, {'fans': fan.indices})
+            restore_saved(state, fan, force_auto=True)
+
+
+def notify_ready():
+    address = os.environ.get('NOTIFY_SOCKET')
+    if address:
+        with socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM) as notifier:
+            notifier.connect('\0'+address[1:] if address.startswith('@') else address)
+            notifier.sendall(b'READY=1')
+
+
+def write_snapshot(state, value):
     temporary = state.with_name(f'.{state.name}.{os.getpid()}.tmp')
     try:
         with temporary.open('w') as stream:
             os.fchmod(stream.fileno(), 0o600)
-            json.dump(previous, stream)
+            json.dump(value, stream)
             stream.flush()
             os.fsync(stream.fileno())
-        try:
-            os.link(temporary, state)
-        except FileExistsError:
-            raise ValueError('A previous override has not been restored')
+        os.link(temporary, state)
     finally:
-        if temporary.exists():
-            temporary.unlink()
+        temporary.unlink(missing_ok=True)
+
+
+def worker(channel, percent, minutes, identify=False, persistent=False, scope=''):
+    if identify and re.fullmatch(LEGACY, channel) and cooling_floor(0) != 0:
+        raise ValueError('Identification unavailable: CPU is hot or telemetry is missing')
+    state = state_path(channel, scope) if scope else state_path(channel)
+    with backend(channel) as fan, hardware_lock(channel, state, fan):
+        if identify:
+            with file_lock(state.with_name('.identify.lock'), fcntl.LOCK_EX | fcntl.LOCK_NB):
+                run_worker(channel, state, fan, percent, minutes, identify, persistent)
+        else:
+            run_worker(channel, state, fan, percent, minutes, identify, persistent)
+
+
+def run_worker(channel, state, fan, percent, minutes, identify, persistent):
+    if state.exists():
+        raise ValueError('A previous override has not been restored')
+    target = fan.target(percent)
+    previous = fan.snapshot()
+    if not identify and not persistent:
+        target = fan.boost_target(target, previous, read_profile(channel))
     stopped = False
 
-    def stop(signum, frame):
+    def stop(*_):
         nonlocal stopped
         stopped = True
 
     signal.signal(signal.SIGTERM, stop)
     signal.signal(signal.SIGINT, stop)
+    value = fan.safe_target(target, identify)
+    write_snapshot(state, previous)
     try:
-        target = round(percent * 255 / 100)
-        # Full speed during takeover avoids the driver's automatic-mode EBUSY.
-        mode.write_text('0')
-        mode.write_text('1')
-        if not identify and not persistent:
-            saved = read_profile(channel)
-            if saved is not None:
-                target = max(target, round(saved * 255 / 100))
-            target = 255 if previous['mode'] == 0 else max(previous['pwm'], target)
-        pwm.write_text(str(cooling_floor(target)))
-        if persistent and os.environ.get('NOTIFY_SOCKET'):
-            address = os.environ['NOTIFY_SOCKET']
-            with socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM) as notifier:
-                notifier.connect('\0'+address[1:] if address.startswith('@') else address)
-                notifier.sendall(b'READY=1')
+        fan.takeover()
+        fan.write(value)
+        notify_ready()
         end = None if persistent else time.monotonic() + (5 if identify else minutes*60)
-        while not stopped and (end is None or time.monotonic() < end):
-            time.sleep(1)
+        interval = 2 if channel.startswith(('nv.', 'amd.')) else 1
+        while not stopped and (end is None or (now := time.monotonic()) < end):
+            time.sleep(interval if end is None else min(interval, max(0, end-now)))
             if not stopped:
-                value = cooling_floor(target)
-                pwm.write_text(str(value))
-                if identify and value != target:
-                    break
+                fan.write(fan.safe_target(target, identify))
     finally:
-        try:
-            restore(channel)
-        finally:
-            if identification_lock is not None:
-                os.close(identification_lock)
+        restore_saved(state, fan)
 
 
 def request(args):
-    if not (len(args) == 3 and args[0] == 'save' and re.fullmatch(r'pwm[2-5]', args[1])
-            and re.fullmatch(r'(?:[0-9]|[1-9][0-9]|100)', args[2])
-            or len(args) == 2 and args[0] == 'restore' and re.fullmatch(r'pwm[2-5]', args[1])
-            or len(args) == 4 and args[0] == 'boost' and re.fullmatch(r'pwm[2-5]', args[1])
+    if not (2 <= len(args) <= 4 and re.fullmatch(CHANNEL, args[1]) and (
+            len(args) == 3 and args[0] == 'save' and re.fullmatch(r'(?:[0-9]|[1-9][0-9]|100)', args[2])
+            or len(args) == 2 and args[0] == 'restore'
+            or len(args) == 4 and args[0] == 'boost'
             and args[2] in ('60', '80', '100') and args[3] in ('5', '10', '30')
-            or len(args) == 4 and args[0] == 'identify' and re.fullmatch(r'pwm[2-5]', args[1])
-            and args[2] in ('0','5','10','20','30','40','50','60','80','100') and args[3] == '5'):
+            or len(args) == 4 and args[0] == 'identify'
+            and args[2] in ('0','5','10','20','30','40','50','60','80','100') and args[3] == '5')):
         raise ValueError('Invalid fan request')
-    if Path('/usr/local/lib/loadlet/power-profile').is_file():
-        subprocess.run(['/usr/local/lib/loadlet/power-profile', 'request', 'auto-off'],
-                       check=True, timeout=360)
+    power = '/usr/local/lib/loadlet/power-profile'
+    if Path(power).is_file():
+        result = subprocess.run([power, 'request', 'auto-off'], capture_output=True, text=True, timeout=360)
+        if result.returncode:
+            raise ValueError('Cannot disable automatic profiles: ' + (result.stderr.strip() or 'command failed'))
     command = [SELF, *args]
     attempted = subprocess.run(['/usr/bin/sudo', '-n', '--', *command],
                                capture_output=True, text=True, timeout=40,
@@ -261,7 +598,27 @@ def request(args):
             ('a password is required', 'not allowed to execute')):
         raise ValueError(attempted.stderr.strip() or 'Fan command failed')
     subprocess.run(['/usr/bin/pkexec', SELF, 'unlock', str(os.getuid())], check=True, timeout=60)
-    subprocess.run(['/usr/bin/sudo', '-n', '--', *command], check=True, timeout=40)
+    result = subprocess.run(['/usr/bin/sudo', '-n', '--', *command], capture_output=True, text=True, timeout=40)
+    if result.returncode:
+        raise ValueError(result.stderr.strip() or 'Fan command failed')
+    print(result.stdout, end='')
+
+
+def sudoers_rule(username, expires):
+    commands = []
+    # Build a 1..32-character slug without a comma, the sudoers command delimiter.
+    character = '[a-z0-9_-]'
+    bounded = character + ''.join(f'({character}{{{size}}})?' for size in (16, 8, 4, 2, 1))
+    hardware_ere = HARDWARE.replace(character + '{1,32}', bounded)
+    for channel in (LEGACY, NVIDIA, AMD, hardware_ere):
+        for arguments in (f'boost {channel} (60|80|100) (5|10|30)',
+                          f'save {channel} ([0-9]|[1-9][0-9]|100)',
+                          f'restore {channel}',
+                          f'identify {channel} (0|5|10|20|30|40|50|60|80|100) 5'):
+            commands.append(f'{SELF} ^{arguments}$')
+    for arguments in ('apply [A-Za-z0-9_=-]+', 'restore', 'auto-config [A-Za-z0-9_=-]+', 'auto-off'):
+        commands.append(f'/usr/local/lib/loadlet/power-profile ^{arguments}$')
+    return f'{username} ALL=(root) NOTAFTER={expires} NOPASSWD: ' + ', '.join(commands) + '\n'
 
 
 def unlock(uid):
@@ -274,15 +631,7 @@ def unlock(uid):
     # Sudo enforces this absolute deadline; reboot does not extend the grant.
     from datetime import datetime, timedelta, timezone
     expires = (datetime.now(timezone.utc) + timedelta(hours=24)).strftime('%Y%m%d%H%M%SZ')
-    rule = (f'{username} ALL=(root) NOTAFTER={expires} NOPASSWD: '
-            + SELF + ' ^boost pwm[2-5] (60|80|100) (5|10|30)$, '
-            + SELF + ' ^save pwm[2-5] ([0-9]|[1-9][0-9]|100)$, '
-            + SELF + ' ^restore pwm[2-5]$, '
-            + SELF + ' ^identify pwm[2-5] (0|5|10|20|30|40|50|60|80|100) 5$, '
-            + '/usr/local/lib/loadlet/power-profile ^apply [A-Za-z0-9_=-]+$, '
-            + '/usr/local/lib/loadlet/power-profile ^restore$, '
-            + '/usr/local/lib/loadlet/power-profile ^auto-config [A-Za-z0-9_=-]+$, '
-            + '/usr/local/lib/loadlet/power-profile ^auto-off$\n')
+    rule = sudoers_rule(username, expires)
     import tempfile
     fd, temporary = tempfile.mkstemp(prefix='.loadlet-', dir='/etc/sudoers.d')
     try:
@@ -310,13 +659,32 @@ def main():
     if len(sys.argv) < 3:
         raise ValueError('Expected boost/restore, channel, optional percent and minutes')
     action, channel = sys.argv[1:3]
-    channel_files(channel)
+    check_channel(channel)
+    if action in ('save', 'restore', 'boost', 'identify'):
+        if re.fullmatch(LEGACY, channel):
+            channel_files(channel)
+        def interrupt(*_):
+            signal.signal(signal.SIGTERM, signal.SIG_IGN)
+            raise InterruptedError('Fan operation interrupted')
+        signal.signal(signal.SIGTERM, interrupt)
+        with power_profile_lock():
+            operate(action, channel)
+    else:
+        operate(action, channel)
+
+
+def operate(action, channel):
     unit = 'loadlet-fan-'+channel+'.service'
     profile_unit = PROFILE_UNIT.format(channel)
+    legacy_gpu_unit = ('loadlet-gpu-fan@' + bus_address(channel.split('.')[1]) + '.service'
+                       if channel.startswith(('nv.', 'amd.')) else None)
     if action == 'save' and len(sys.argv) == 4:
         if not re.fullmatch(r'(?:[0-9]|[1-9][0-9]|100)', sys.argv[3]):
             raise ValueError('Expected an integer percentage from 0 to 100')
         percent = int(sys.argv[3])
+        if not re.fullmatch(LEGACY, channel):
+            with backend(channel) as fan:
+                fan.target(percent)
         install_profile_unit()
         with switching(channel):
             previous = read_profile(channel)
@@ -324,10 +692,12 @@ def main():
                                          check=False, timeout=15).returncode == 0
             was_active = subprocess.run(['/usr/bin/systemctl', 'is-active', '--quiet', profile_unit],
                                         check=False, timeout=15).returncode == 0
-            stop_unit(unit)
-            stop_unit(profile_unit)
-            restore(channel)
             try:
+                if legacy_gpu_unit:
+                    stop_unit(legacy_gpu_unit, disable=True)
+                stop_unit(unit)
+                stop_unit(profile_unit)
+                restore(channel)
                 save_profile(channel, percent)
                 subprocess.run(['/usr/bin/systemctl', 'enable', '--now', profile_unit], check=True, timeout=15)
             except BaseException as failure:
@@ -359,9 +729,11 @@ def main():
         worker(channel, percent, 0, persistent=True)
     elif action == 'restore' and len(sys.argv) == 3:
         with switching(channel):
+            if legacy_gpu_unit:
+                stop_unit(legacy_gpu_unit, disable=True)
             stop_unit(profile_unit, disable=True)
             stop_unit(unit)
-            restore(channel)
+            restore(channel, reset=channel.startswith('nv.'))
             profile_path(channel).unlink(missing_ok=True)
         print('restored')
     elif action in ('boost', 'worker', 'identify', 'identify-worker') and len(sys.argv) == 5:
@@ -373,26 +745,43 @@ def main():
         if action in ('worker','identify-worker'):
             worker(channel, percent, minutes, identify=identifying)
             return
+        if not re.fullmatch(LEGACY, channel):
+            with backend(channel) as fan:
+                target = fan.target(percent)
+                if identifying:
+                    fan.safe_target(target, True)
         with switching(channel):
-            stop_unit(unit)
-            stop_unit(profile_unit)
-            restore(channel)
-            subprocess.run(['/usr/bin/systemd-run', '--quiet', '--collect', '--unit='+unit,
-                            '--property=Type=exec', '--property=TimeoutStopSec=5',
-                            '--property=RuntimeMaxSec='+str(10 if identifying else minutes*60+15),
-                            '--property=ExecStopPost='+SELF+' recover '+channel,
-                            SELF, 'identify-worker' if identifying else 'worker', channel, str(percent), str(minutes)], check=True, timeout=15)
+            try:
+                if legacy_gpu_unit:
+                    stop_unit(legacy_gpu_unit, disable=True)
+                stop_unit(unit)
+                stop_unit(profile_unit)
+                restore(channel)
+                subprocess.run(['/usr/bin/systemd-run', '--quiet', '--collect', '--unit='+unit,
+                                '--property=Type=notify', '--property=TimeoutStartSec=10',
+                                '--property=TimeoutStopSec=5',
+                                '--property=RuntimeMaxSec='+str(10 if identifying else minutes*60+15),
+                                '--property=ExecStopPost='+SELF+' recover '+channel,
+                                SELF, 'identify-worker' if identifying else 'worker',
+                                channel, str(percent), str(minutes)], check=True, timeout=17)
+            except BaseException as failure:
+                try:
+                    stop_unit(unit)
+                    restore(channel)
+                    resume_profile(channel)
+                except (OSError, ValueError, subprocess.SubprocessError) as error:
+                    raise ValueError(f'Fan trial failed; restoration incomplete: {error}') from failure
+                raise
         print('boosted')
     elif action in ('recover', 'recover-profile') and len(sys.argv) == 3:
         restore(channel)
         if action == 'recover':
-            marker = switching_path(channel)
             try:
-                marker_exists = marker.exists()
-            except OSError:
-                marker_exists = False
-            if not marker_exists:
-                resume_profile(channel)
+                with switching(channel, nonblocking=True):
+                    resume_profile(channel, asynchronous=True)
+            except BlockingIOError:
+                # The request holding the lock owns rollback or the replacement.
+                pass
     else:
         raise ValueError('Invalid operation')
 

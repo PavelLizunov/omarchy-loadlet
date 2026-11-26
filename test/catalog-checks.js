@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const path = require('node:path');
 const root = path.join(__dirname, '..');
 const files = fs.readdirSync(path.join(root, 'i18n')).filter(name => name.endsWith('.json'));
+assert.ok(['en.json', 'ru.json', 'de.json', 'zh-CN.json'].every(name => files.includes(name)));
 const catalogs = Object.fromEntries(files.map(name => [name.slice(0, -5),
   JSON.parse(fs.readFileSync(path.join(root, 'i18n', name), 'utf8'))]));
 const keys = Object.keys(catalogs.en).sort();

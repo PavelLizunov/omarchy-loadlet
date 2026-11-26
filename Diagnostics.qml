@@ -45,7 +45,8 @@ Column {
   property var answerRange: []
   property string agentQuestion: ""
   readonly property bool analyzing: busy && action==="analyze"
-  property bool waitingFlush: false
+  property int flushRequest: 0
+  readonly property bool waitingFlush: flushRequest !== 0
   property bool timedOut: false
   property string captured: ""
   readonly property bool busy: query.running || waitingFlush
@@ -85,11 +86,13 @@ Column {
     action=kind;error="";notice="";timedOut=false
     deadline.interval=30000
     if(activity && activity.captureEnabled && kind!=="launch" && kind!=="agent-info") {
-      waitingFlush=true;deadline.restart();activity.requestCaptureAction("flush")
+      flushRequest=activity.requestCaptureAction("flush")
+      if (flushRequest) deadline.restart()
+      else cancelQuery(t("diagnostic_export_failed"))
     } else runQuery()
   }
   function runQuery() {
-    waitingFlush=false;captured=""
+    flushRequest=0;captured=""
     var argv=["/usr/bin/python3","-I",helper]
     if(action==="launch")argv=argv.concat(["--launch",runner,"--report",reportPath])
     else if(action==="agent-info")argv.push("--agent-info")
@@ -105,14 +108,19 @@ Column {
     query.command=argv;deadline.restart();query.running=true
   }
   function cancelQuery(message) {
-    deadline.stop();waitingFlush=false;timedOut=true
+    deadline.stop();flushRequest=0;timedOut=true
     error=message || ""
     if(query.running) {query.signal(15);escalation.restart()}
   }
   onPanelOpenChanged: if(!panelOpen && analyzing)cancelQuery(t("capture_agent_cancelled"))
   Connections {
     target: root.activity
-    function onCaptureFlushed() { if(root.waitingFlush)root.runQuery() }
+    function onCaptureFlushed(requestId, error) {
+      if (requestId !== root.flushRequest) return
+      if (error) root.cancelQuery(root.t("diagnostic_export_failed") + " · "
+        + (error === "capture_unavailable" ? root.t("reader_error") : error))
+      else root.runQuery()
+    }
   }
   Row {
     visible:!root.agentVisible

@@ -1,3 +1,10 @@
+// Keep display strings inert in consumers that may interpret markup.
+function neutralDisplayText(value) {
+  return String(value == null ? "" : value)
+    .replace(/[\x00-\x08\x0b-\x1f\x7f-\x9f\u061c\u200e\u200f\u202a-\u202e\u2066-\u2069]/g, " ")
+    .replace(/&/g, "＆").replace(/</g, "‹").replace(/>/g, "›")
+}
+
 function number(value, fallback) {
   var n = Number(value)
   return isFinite(n) ? n : (fallback === undefined ? 0 : fallback)
@@ -72,15 +79,94 @@ function emptySensorSnapshot() {
   return { schema: 0, sample: 0, temperatures: [], fans: [], controls: [] }
 }
 
+var sensorCategories = ["cpu", "gpu", "motherboard", "memory", "storage", "wifi", "ethernet", "battery", "psu", "aio", "unknown"]
+
+function fanBackend(id) {
+  if (/^pwm[2-5]$/.test(id)) return "it8613"
+  if (/^nv\.[0-9a-f]{4}_[0-9a-f]{2}_[0-9a-f]{2}_[0-7](\.fan[0-7])?$/.test(id)) return "nvidia"
+  if (/^amd\.[0-9a-f]{4}_[0-9a-f]{2}_[0-9a-f]{2}_[0-7]\.pwm[1-8]$/.test(id)) return "amdgpu"
+  if (/^hw\.[a-z0-9_-]{1,32}\.[a-z0-9_-]{1,32}\.pwm([1-9]|1[0-6])$/.test(id)) return "hwmon"
+  return ""
+}
+
+function isGpuFan(channel) {
+  return channel.backend === "nvidia" || channel.backend === "amdgpu"
+}
+
+function fanChannelWritable(channel) {
+  return !!channel && channel.controllable === true && fanBackend(channel.id) === channel.backend
+    && channel.backend !== ""
+}
+
+function fanPercentAllowed(channel, percent) {
+  return Number.isInteger(percent) && percent >= channel.minPercent && percent <= channel.maxPercent
+}
+
+function settingObject(raw) {
+  try {
+    var value = JSON.parse(String(raw || "{}"))
+    return value && typeof value === "object" && !Array.isArray(value) ? value : {}
+  } catch (error) {
+    return {}
+  }
+}
+
+function fanSetting(settings, kind, channel, fallback) {
+  var legacy = channel.legacyId || (fanBackend(channel.id) === "it8613" ? channel.id : "")
+  var value = legacy ? settings["fan" + kind + "_" + legacy]
+    : settingObject(settings["fanChannel" + kind + "s"])[channel.id]
+  return value === undefined ? fallback : value
+}
+
+function sensorUnsigned(field, maximum) {
+  if (!/^\d+$/.test(field)) return NaN
+  var value = Number(field)
+  return Number.isSafeInteger(value) && value <= maximum ? value : NaN
+}
+
+function parseLegacyFan(fields) {
+  var id = fields[1]
+  if ((fields.length !== 4 && fields.length !== 5) || fanBackend(id) !== "it8613") return null
+  var duty = sensorUnsigned(fields[2], 255), mode = sensorUnsigned(fields[3], 2)
+  var rpm = fields[4] ? sensorUnsigned(fields[4], Number.MAX_SAFE_INTEGER) : -1
+  if (![duty, mode, rpm].every(isFinite)) return null
+  return {id:id, legacyId:id, backend:"it8613", driver:"it8613", owner:"ITE IT8613E",
+    label:id, location:"", duty:duty, percent:Math.round(duty / 255 * 100),
+    mode:mode, modeName:["full", "manual", "auto"][mode], rpm:rpm,
+    minPercent:0, maxPercent:100, controllable:true, sensorId:""}
+}
+
+function parseFanChannel(fields) {
+  if (fields.length !== 15) return null
+  var id = fields[1], backend = fields[2], modeName = fields[8], legacyId = fields[13]
+  if (!backend || fanBackend(id) !== backend || !fields[3] || !fields[5]
+      || (legacyId && fanBackend(legacyId) !== "it8613")
+      || (backend === "it8613" && legacyId && legacyId !== id)
+      || ["auto", "manual", "full", "off", "unknown"].indexOf(modeName) < 0
+      || !/^[01]$/.test(fields[12])) return null
+  var percent = fields[7] === "" ? -1 : sensorUnsigned(fields[7], 150)
+  var rpm = fields[9] === "" ? -1 : sensorUnsigned(fields[9], Number.MAX_SAFE_INTEGER)
+  var minPercent = sensorUnsigned(fields[10], 100), maxPercent = sensorUnsigned(fields[11], 150)
+  if (![percent, rpm, minPercent, maxPercent].every(isFinite) || minPercent > maxPercent) return null
+  return {id:id, legacyId:legacyId || (backend === "it8613" ? id : ""), backend:backend,
+    driver:fields[3], owner:fields[4], label:fields[5], location:fields[6],
+    duty:percent < 0 ? -1 : Math.round(Math.min(100, percent) * 255 / 100), percent:percent,
+    mode:modeName === "auto" ? 2 : modeName === "manual" ? 1 : 0, modeName:modeName, rpm:rpm,
+    minPercent:minPercent, maxPercent:maxPercent, controllable:fields[12] === "1", sensorId:fields[14]}
+}
+
 function parseSensorSnapshot(raw) {
   var snapshot = emptySensorSnapshot()
+  var legacy = Object.create(null), discovered = []
   var lines = String(raw || "").split("\n")
   for (var i = 0; i < lines.length; i++) {
     var fields = lines[i].split("\t")
     if (fields[0] === "schema") snapshot.schema = fields[1] === "activity-sensors" ? number(fields[2]) : 0
     else if (fields[0] === "sample") snapshot.sample = number(fields[1])
-    else if (fields[0] === "control" && /^pwm[2-5]$/.test(fields[1])) {
-      snapshot.controls.push({id:fields[1],duty:number(fields[2]),mode:number(fields[3]),rpm:number(fields[4])})
+    else if (fields[0] === "control" || fields[0] === "fan-channel") {
+      var channel = fields[0] === "control" ? parseLegacyFan(fields) : parseFanChannel(fields)
+      if (channel && fields[0] === "fan-channel") discovered.push(channel)
+      else if (channel && !legacy[channel.id]) legacy[channel.id] = channel
     }
     else if (fields[0] === "recording-error") snapshot.recordingError = String(fields[1] || "")
     else if (fields[0] === "temperature" && fields.length >= 5) {
@@ -94,16 +180,30 @@ function parseSensorSnapshot(raw) {
     } else if (fields[0] === "fan" && fields.length >= 6) {
       var value = fields[4] === "" ? NaN : Number(fields[4])
       var unit = fields[5] === "percent" ? "percent" : "rpm"
-      if (isFinite(value) && value >= 0 && value <= (unit === "percent" ? 100 : 100000))
+      if (isFinite(value) && value >= 0 && value <= (unit === "percent" ? 150 : 100000))
         snapshot.fans.push({ id: String(fields[1]), chip: String(fields[2]),
           label: String(fields[3]), value: value, unit: unit,
           category: String(fields[6] || "unknown"), owner: String(fields[7] || ""),
           location: String(fields[8] || "") })
     }
   }
-  var order = ["cpu", "gpu", "motherboard", "memory", "storage", "wifi", "ethernet", "unknown"]
+  var seen = Object.create(null)
+  snapshot.controls = discovered.concat(Object.keys(legacy).map(function(id) { return legacy[id] })).filter(function(channel) {
+    if (seen[channel.id] || (channel.legacyId && seen[channel.legacyId])) return false
+    seen[channel.id] = true
+    if (channel.legacyId) seen[channel.legacyId] = true
+    return true
+  })
+  snapshot.controls.forEach(function(channel) {
+    var old = legacy[channel.legacyId]
+    if (old && old.percent === channel.percent) channel.duty = old.duty
+  })
   function byOwner(a, b) {
-    return order.indexOf(a.category) - order.indexOf(b.category)
+    function rank(category) {
+      var index = sensorCategories.indexOf(category)
+      return index < 0 ? sensorCategories.length - 1 : index
+    }
+    return rank(a.category) - rank(b.category)
       || String(a.owner + a.location).localeCompare(String(b.owner + b.location))
       || a.id.localeCompare(b.id)
   }
@@ -611,6 +711,7 @@ function counterRate(previous, current, seconds) {
 function memoryPercent(memory) {
   var total = number(memory && memory.total)
   if (total <= 0) return 0
+  if (memory.available < 0) return -1
   return clamp((total - number(memory.available)) / total * 100, 0, 100)
 }
 
@@ -965,7 +1066,7 @@ function nextMetrics(previous, current, existing, historyLimit) {
     networkInterface: network ? network.name : "",
     cores: coreUsage(previous, current),
     cpuHistory: appendHistory(old.cpuHistory, cpu, historyLimit),
-    memoryHistory: appendHistory(old.memoryHistory, memory, historyLimit),
+    memoryHistory: memory < 0 ? (old.memoryHistory || []).slice() : appendHistory(old.memoryHistory, memory, historyLimit),
     networkHistory: appendHistory(old.networkHistory, download + upload, historyLimit),
     diskHistory: diskHistories.all || [],
     diskDevices: disks.devices,
@@ -1003,6 +1104,7 @@ function nextProcesses(previous, current, totalMemory) {
       state: process.state,
       startTicks: process.startTicks,
       cpu: cpu,
+      cpuMeasured: Boolean(old) && seconds > 0,
       cpuTicksDelta: cpuTicksDelta,
       memory: memoryTotal > 0 ? process.rss / memoryTotal * 100 : 0,
       rss: process.rss,
@@ -1699,9 +1801,9 @@ function filterAndSortProcesses(processes, query, sortKey, ascending) {
   var key = sortKey || "cpu"
   var direction = ascending ? 1 : -1
   values.sort(function(left, right) {
-    if (key === "gpu" || String(key).indexOf("gpu:") === 0) {
-      var leftKnown = processValue(left, key) >= 0
-      var rightKnown = processValue(right, key) >= 0
+    if (key === "cpu" || key === "gpu" || String(key).indexOf("gpu:") === 0) {
+      var leftKnown = key === "cpu" ? left.cpuMeasured !== false : processValue(left, key) >= 0
+      var rightKnown = key === "cpu" ? right.cpuMeasured !== false : processValue(right, key) >= 0
       if (leftKnown !== rightKnown) return leftKnown ? -1 : 1
     }
     var a = processValue(left, key)

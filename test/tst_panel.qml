@@ -7,6 +7,7 @@ import "imports/ActivityHost/Ui" as NativeHost
 import "plugin" as Plugin
 import "mock-data.js" as MockData
 import "plugin/ProfileCodec.js" as ProfileCodec
+import "plugin/Model.js" as Model
 
 Item {
   id: host
@@ -30,9 +31,9 @@ Item {
   QtObject {
     id: inertBar
     property string fontFamily: Style.font.family
-    property color barForeground: Color.foreground
-    property color urgent: Color.urgent
-    property color background: Color.background
+    property color barForeground: Host.Color.foreground
+    property color urgent: Host.Color.urgent
+    property color background: Host.Color.background
     property bool vertical: false
     property int barSize: Style.bar.sizeHorizontal
     property bool foregroundAnimationEnabled: false
@@ -56,6 +57,17 @@ Item {
       var all=nodes(plugin)
       for(var i=0;i<all.length;i++) if(all[i][prop] !== undefined) return all[i]
       fail("Missing property " + prop)
+    }
+    function populate() {
+      var ctrl = plugin.activityController
+      var fixture = {}
+      MockData.populate(fixture)
+      var snapshot = fixture._sensorSnapshot
+      var rows = snapshot.controls.map(function(channel) {
+        return ["control", channel.id, channel.duty, channel.mode, channel.rpm].join("\t")
+      })
+      snapshot.controls = Model.parseSensorSnapshot(rows.join("\n")).controls
+      Object.keys(fixture).forEach(function(key) { ctrl[key] = fixture[key] })
     }
     function init() {
       Host.I18n.languageFile.fixtureText=""
@@ -86,9 +98,9 @@ Item {
       var profiles=named("powerProfiles")
       profiles.statusKey="";profiles.editorOpen=false;profiles.automationOptionsOpen=false
       profiles.cpuCapabilities={policies:[]};profiles.capabilitiesReady=false;profiles.selectProfile("idle")
-      profiles.statusExpired=false;profiles.statusExitCode=-1;profiles.pendingCapabilities=null
+      profiles.statusExpired=false;profiles.statusSuperseded=false;profiles.statusExitCode=-1;profiles.pendingCapabilities=null
       plugin.activityController.resetData();plugin.activityController.lastTick=Date.now()
-      MockData.populate(plugin.activityController); plugin.hintsVisible=true
+      populate(); plugin.hintsVisible=true
       wait(60)
     }
     function cleanup() { plugin.close(); plugin.bar=null; wait(60) }
@@ -128,6 +140,52 @@ Item {
       compare(watch.events.length,20,'Event retention is capped')
       watch.stop();compare(watch.notificationQueue.length,0)
       watch.notificationsEnabled=false;watch.frames=[];watch.events=[]
+    }
+    function test_memory_watch_start_stop_generation() {
+      var watch=named("memoryWatch"), ctrl=plugin.activityController
+      watch.notificationsEnabled=false
+      var reader=nodes(ctrl).find(function(n){return n.command && n.command[1]==="--activity-reader"})
+      reader.running=true
+      ctrl.state="ready"
+      watch.begin()
+      compare(ctrl.pending,"memory-watch")
+      var generation=ctrl.pendingMemoryWatchGeneration
+      watch.stop();watch.begin()
+      compare(ctrl.memoryWatchGeneration,generation+2)
+      ctrl.buffer=memoryFrame(0).split("\n")
+      ctrl.consume("snapshot-end\tmemory-watch")
+      compare(watch.frames.length,0)
+      compare(ctrl.memoryWatchDue,0)
+      ctrl.dispatch();compare(ctrl.pending,"memory-watch")
+      ctrl.buffer=memoryFrame(1).split("\n")
+      ctrl.consume("snapshot-end\tmemory-watch")
+      compare(watch.frames.length,1)
+      watch.stop();ctrl.stop()
+    }
+    function test_memory_cleanup_is_direct_and_confirmed() {
+      plugin.showPage('memory');wait(30)
+      var cleanup=named('memoryCleanup'),action=named('memoryCleanupRun')
+      verify(action.visible && action.enabled && named('memoryProcesses').visible)
+      compare(action.text,'Очистить кэш…')
+      var openerX=action.mapToItem(cleanup,action.width/2,0).x
+      mouseClick(action,action.width/2,action.height/2)
+      tryCompare(cleanup,'confirming',true)
+      compare(cleanup.running,false)
+      var viewport=named('memoryCleanupViewport'),prompt=named('memoryCleanupPrompt')
+      verify(prompt.visible && prompt.mapToItem(viewport,0,prompt.height).y <= viewport.height)
+      var cancel=named('memoryCleanupCancel')
+      verify(cancel.visible)
+      tryCompare(cancel,'x',openerX-cancel.width/2)
+      mouseClick(cancel,cancel.width/2,cancel.height/2)
+      tryCompare(cleanup,'confirming',false)
+      compare(cleanup.running,false)
+      verify(cleanup.active,'Cancel keeps the Memory page active')
+      cleanup.watch.begin()
+      tryVerify(function(){return cleanup.watch.running && !action.enabled},
+        1000,'Observation disables cache cleanup')
+      cleanup.watch.stop()
+      tryVerify(function(){return !cleanup.watch.running && action.enabled},
+        1000,'Stopping observation enables cache cleanup')
     }
     function test_language_picker_keys_and_search() {
       plugin.setExpanded(false);plugin.languageExpanded=true;wait(40)
@@ -292,14 +350,19 @@ Item {
       compare(plugin.sensorsOpen,false);compare(plugin.expanded,true)
     }
     function clickVisible(item, viewport) {
-      verify(item.visible, 'Target must be visible')
+      tryVerify(function() { return item.visible }, 1000, 'Target must be visible: '+item.objectName)
       if (viewport) {
-        var y=item.mapToItem(viewport,0,0).y
+        var startY=item.mapToItem(viewport,0,0).y
         viewport.contentY=Math.max(0,Math.min(viewport.contentHeight-viewport.height,
-          viewport.contentY+y-Math.max(0,(viewport.height-item.height)/2)))
+          viewport.contentY+startY-Math.max(0,(viewport.height-item.height)/2)))
         wait(20)
-        verify(item.mapToItem(viewport,0,0).y>=-1,'Target top inside viewport')
-        verify(item.mapToItem(viewport,0,item.height).y<=viewport.height+1,'Target bottom inside viewport')
+        tryVerify(function() {
+          var y=item.mapToItem(viewport,0,0).y
+          if (y >= -1 && y + item.height <= viewport.height + 1) return true
+          viewport.contentY=Math.max(0,Math.min(viewport.contentHeight-viewport.height,
+            viewport.contentY+y-Math.max(0,(viewport.height-item.height)/2)))
+          return false
+        }, 1000, 'Target fits inside viewport: '+item.objectName)
       }
       mouseClick(item,item.width/2,item.height/2);wait(30)
     }
@@ -370,7 +433,7 @@ Item {
     }
     function test_profile_timeout_retains_failure() {
       plugin.setExpanded(true);plugin.sensorsOpen=true;plugin.fansOpen=true
-      plugin.activityController.stop();MockData.populate(plugin.activityController);wait(20)
+      plugin.activityController.stop();populate();wait(20)
       var profiles=named('powerProfiles')
       profiles.applyProfile(profiles.profiles[1])
       var proc=nodes(profiles).filter(function(n){return n.command&&n.command.indexOf('apply')>=0})[0]
@@ -381,7 +444,7 @@ Item {
     }
     function test_power_profiles_create_save_apply_inert() {
       plugin.setExpanded(true);plugin.showPage('profiles')
-      plugin.activityController.stop();MockData.populate(plugin.activityController);wait(20)
+      plugin.activityController.stop();populate();wait(20)
       var profiles=named('powerProfiles')
       compare(profiles.profiles.length,3)
       profiles.selectProfile('idle');profiles.changeCpu('maxMHz',1800);profiles.saveDraft();wait(10)
@@ -497,6 +560,60 @@ Item {
       var before=JSON.stringify(plugin.settings)
       compare(profiles.saveDraft(),false);compare(profiles.statusKey,'profile_invalid');compare(JSON.stringify(plugin.settings),before)
     }
+    function test_profile_discovered_fans_and_cpu_choices() {
+      var ctrl=plugin.activityController, profiles=named("powerProfiles")
+      var amd="amd.0000_03_00_0.pwm1", nv="nv.0000_01_00_0.fan0", hw="hw.nct6799.isa0290.pwm1"
+      var legacyNv="0000:01:00.0"
+      var rows=[
+        ["fan-channel",nv,"nvidia","nvidia","RTX 5060 Ti","fan1","0000:01:00.0","40","auto","","30","100","1","",""],
+        ["fan-channel",amd,"amdgpu","amdgpu","Radeon","fan1","0000:03:00.0","55","auto","1500","20","90","1","",""],
+        ["fan-channel",hw,"hwmon","nct6799","Motherboard","System fan","isa0290","60","auto","1500","15","95","1","",""]
+      ].map(function(fields){return fields.join("\t")})
+      ctrl._sensorSnapshot=Object.assign({},ctrl.sensorSnapshot,{controls:Model.parseSensorSnapshot(rows.join("\n")).controls})
+      plugin.assignFan(hw,"fan_front")
+      compare(JSON.parse(plugin.settings.fanChannelPlaces)[hw],"fan_front")
+      compare(profiles.boardFans.length,1)
+      compare(profiles.boardFans[0].id,hw)
+      compare(profiles.gpuFans.length,2)
+      profiles.cpuCapabilities={policies:[{scaling_available_governors:"conservative ondemand schedutil powersave performance userspace"}],
+        platformProfile:"custom",platformProfileChoices:["quiet","balanced","performance","custom"]}
+      var current=profiles.profiles.find(function(profile){return profile.id==="current"})
+      verify(current.config.cpu.platformProfile === undefined)
+      plugin.persistSettings({powerProfiles:JSON.stringify([{id:"current",name:"Fixture",icon:"fans",
+        config:{cpu:{},fans:{},gpuFans:{"0000:01:00.0":40}}}])})
+      plugin.showPage("profiles");profiles.selectedId="current";profiles.beginEdit();wait(20)
+      compare(named("profileCpuMode").options.map(function(item){return item.value}).join(","),
+        ",conservative,ondemand,schedutil,powersave,performance")
+      named("profileCpuMode").changed("ondemand")
+      var platform=named("profilePlatformProfile")
+      verify(platform.visible)
+      compare(platform.options.map(function(item){return item.value}).join(","),",quiet,balanced,performance")
+      platform.changed("balanced")
+      compare(profiles.gpuFanValue(profiles.draft.config.gpuFans,profiles.gpuFans[0]),40)
+      profiles.changeFan(nv,"45",true)
+      compare(profiles.draft.config.gpuFans[legacyNv],undefined)
+      profiles.changeFan(amd,"19",true);verify(!profiles.saveDraft())
+      profiles.changeFan(amd,"80",true);verify(profiles.saveDraft())
+      var config=JSON.parse(plugin.settings.powerProfiles)[0].config
+      compare(config.cpu.platformProfile,"balanced");compare(config.cpu.governor,"ondemand")
+      compare(config.gpuFans[nv],45);compare(config.gpuFans[amd],80)
+    }
+    function test_profile_fan_save_limits_data() {
+      return [{tag:"board",gpu:false,limit:16}, {tag:"GPU",gpu:true,limit:8}]
+    }
+    function test_profile_fan_save_limits(data) {
+      var profiles=named("powerProfiles"), values={}
+      for (var i=1;i<=data.limit;i++) {
+        var channel=data.gpu ? "nv.0000_01_00_0.fan"+(i-1) : "hw.nct6799.isa0290.pwm"+i
+        values[channel]=100
+      }
+      verify(profiles.saveFanValuesValid(values,data.gpu))
+      values[channel]=101
+      verify(!profiles.saveFanValuesValid(values,data.gpu))
+      values[channel]=100
+      values[data.gpu ? "amd.0000_03_00_0.pwm1" : "hw.nct6799.isa02a0.pwm1"]=100
+      verify(!profiles.saveFanValuesValid(values,data.gpu))
+    }
     function test_map_live_readings_assignments_and_stale() {
       plugin.hintsVisible=false;plugin.sensorsOpen=true
       plugin.persistSettings({fanPlace_pwm2:'fan_cpu',fanPlace_pwm3:'fan_front'})
@@ -551,8 +668,10 @@ Item {
       plugin.hintsVisible=false;clickVisible(tab('fans'))
       var viewport=named('fansViewport')
       verify(!named('identifyFanButton').visible,'Trials are separated from everyday controls')
+      compare(named('fanAssignmentToggle').text,plugin.t('map_assignment','pwm2'))
       clickVisible(named('fanAssignmentToggle'),viewport)
       verify(named('fanAssignmentDropdown').visible)
+      compare(named('fanAssignmentDropdown').label,plugin.t('map_assignment','pwm2'))
       clickVisible(named('fanAssignmentToggle'),viewport)
       clickVisible(named('fanIdentificationToggle'),viewport)
       verify(named('identifyFanButton').visible)
@@ -562,10 +681,10 @@ Item {
       verify(viewport.contentHeight>0,'Fan controls retain a scrollable content surface')
       clickVisible(restore,viewport)
       var fan=nodes(plugin).filter(function(n){return n.command&&n.command[0]==='/usr/local/lib/loadlet/fan-control'})[0]
-      fan.running=false;fan.exited(0);plugin.activityController.stop();MockData.populate(plugin.activityController);wait(20)
+      fan.running=false;fan.exited(0);plugin.activityController.stop();populate();wait(20)
       var history=named('fanHistoryButton');clickVisible(history,viewport)
       compare(plugin.fansOpen,false);compare(plugin.selectedSensor.label,'fan2');compare(plugin.expanded,false)
-      plugin.close();plugin.open();plugin.activityController.stop();MockData.populate(plugin.activityController);wait(20)
+      plugin.close();plugin.open();plugin.activityController.stop();populate();wait(20)
       compare(plugin.computerMapVisible,false);compare(plugin.fanIdentificationOpen,false)
     }
     function test_chart_timestamp_selection() {
@@ -580,6 +699,128 @@ Item {
       compare(chart.selectedPoint.time,110,'Selection follows the timestamp, not a shifting index')
       chart.points=[];keyClick(Qt.Key_Left);compare(chart.selectedIndex,-1)
       chart.points=[{time:110,value:50},{time:200,value:60}];keyClick(Qt.Key_Left);compare(chart.selectedIndex,1,'Left enters from newest sample')
+    }
+    function test_chart_negative_temperatures() {
+      plugin.showPage("sensors");wait(20)
+      var chart=named("sensorHistoryChart")
+      chart.referenceTime=200;chart.windowSeconds=100
+      chart.points=[{time:100,value:-20},{time:150,value:-10},{time:200,value:5}]
+      compare(chart.minimum,-20)
+      verify(chart.yFor(-20)>chart.yFor(-10))
+      verify(chart.yFor(-10)>chart.yFor(0))
+      verify(chart.yFor(0)>chart.yFor(5))
+      chart.selectAt(chart.xFor(chart.points[1]))
+      compare(chart.selectedPoint.value,-10)
+      verify(named("chartReading",chart).text.indexOf("-10") >= 0)
+    }
+    function test_gpu_fan_commands_bounds_and_identity() {
+      plugin.persistSettings({locale:"en",activePowerProfile:"idle",autoGameProfiles:true,fanOutput_pwm2:37})
+      var id="nv.0000_01_00_0.fan0", ctrl=plugin.activityController, original=ctrl.sensorSnapshot
+      var reader=nodes(ctrl).find(function(n){return n.command && n.command[1]==="--activity-reader"})
+      reader.running=true
+      ctrl.state="ready"
+      var frame=Model.parseSensorSnapshot([
+        ["fan-channel",id,"nvidia","nvidia","NVIDIA GeForce RTX 5060 Ti","fan1","0000:01:00.0","0","auto","","30","100","1","","gpu-speed"].join("\t"),
+        "fan\tgpu-speed\tnvidia\tDriver speed\t0\tpercent\tgpu"
+      ].join("\n"))
+      ctrl._sensorSnapshot=Object.assign({},original,{
+        controls:original.controls.concat(frame.controls), fans:original.fans.concat(frame.fans)
+      })
+      var gpuSnapshot=ctrl.sensorSnapshot
+      plugin.showPage("sensors");plugin.computerMapVisible=true;wait(20)
+      clickVisible(named("mapFan-"+id),named("coolingViewport"))
+      compare(plugin.fansOpen,true);compare(plugin.activeFanChannel,id)
+      verify(!named("fanAssignmentToggle").visible)
+      verify(named("fanChannelReadings").text.indexOf("NVIDIA GeForce RTX 5060 Ti") >= 0)
+      verify(named("fanChannelReadings").text.indexOf("RPM —") >= 0)
+      compare(plugin.fanHistorySensor(id).id,"gpu-speed")
+      compare(named("fanHistoryButton").text,"Output history")
+      var input=named("fanOutputInput"), save=named("saveFanOutputButton")
+      compare(input.text,"");compare(input.placeholderText,"30–100");verify(!save.enabled)
+      input.text="29";verify(!input.acceptableInput);verify(!save.enabled)
+      input.text="101";verify(!input.acceptableInput)
+      input.text="30";verify(input.acceptableInput);verify(save.enabled)
+      var proc=nodes(plugin).find(function(n){return n.command&&n.command[0]==="/usr/local/lib/loadlet/fan-control"})
+      var profiles=named("powerProfiles")
+      profiles.cpuCapabilities={policies:[],automatic:{enabled:true,gaming:true,error:""}}
+      plugin.fanAction(id,29,"save");verify(!proc.running)
+      save.clicked()
+      compare(proc.command.slice(1).join(" "),"request save "+id+" 30")
+      profiles.applyProfile(profiles.selectedProfile);verify(!profiles.running)
+      proc.running=false;proc.exited(0)
+      compare(JSON.parse(plugin.settings.fanChannelOutputs)[id],30)
+      compare(plugin.settings.fanOutput_pwm2,37)
+      compare(plugin.settings.activePowerProfile,"");compare(profiles.automatic.enabled,false)
+      compare(plugin.settings.autoGameProfiles,false)
+      named("fanIdentificationToggle").clicked()
+      var target=named("fanTrialTarget")
+      verify(target.visible)
+      compare(target.text,"Trial channel: NVIDIA GeForce RTX 5060 Ti · Fan 1 · Graphics card")
+      var choices=named("identifyPercentDropdown")
+      compare(choices.options.map(function(item){return item.value}).join(","),"30,40,50,60,80,100")
+      plugin.fanAction(id,20,"identify");verify(!proc.running)
+      named("identifyFanButton").clicked()
+      compare(proc.command.slice(1).join(" "),"request identify "+id+" 30 5")
+      proc.running=false;proc.exited(0)
+      plugin.fanDuration=5
+      named("fanBoost80").clicked()
+      compare(proc.command.slice(1).join(" "),"request boost "+id+" 80 5")
+      proc.running=false;proc.exited(0)
+      ctrl._sensorSnapshot=original;wait(20)
+      compare(plugin.activeFanChannel,id);verify(!named("fanRestoreButton").enabled);verify(!save.enabled)
+      plugin.fanAction(id,80,"boost");verify(!proc.running)
+      ctrl._sensorSnapshot=gpuSnapshot;wait(20)
+      compare(plugin.activeFanChannel,id)
+      var restore=named("fanRestoreButton")
+      verify(restore.enabled);compare(restore.text,"Restore automatic control")
+      restore.clicked()
+      compare(proc.command.slice(1).join(" "),"request restore "+id)
+      proc.running=false;proc.exited(0)
+      compare(Object.keys(JSON.parse(plugin.settings.fanChannelOutputs)).length,0)
+      plugin.fanDuration=10
+    }
+    function test_hardware_markup_in_fan_controls() {
+      var ctrl = plugin.activityController
+      var id = "nv.0000_01_00_0.fan0"
+      var owner = '<img src="https://example.invalid/x">RTX'
+      var label = "<b>Fan</b> &amp; \u202e1"
+      var safeOwner = '‹img src="https://example.invalid/x"›RTX'
+      var safeLabel = "‹b›Fan‹/b› ＆amp;  1"
+      var frame = Model.parseSensorSnapshot(
+        ["fan-channel",id,"nvidia","nvidia",owner,label,"0000:01:00.0","40","auto","","30","100","1","",""].join("\t"))
+      ctrl._sensorSnapshot = Object.assign({}, ctrl.sensorSnapshot, {controls:frame.controls, temperatures:[]})
+      compare(frame.controls[0].owner, owner)
+      compare(frame.controls[0].label, label)
+      plugin.persistSettings({locale:"en", powerProfiles:JSON.stringify([
+        {id:"idle", name:"Fixture", icon:"fans", config:{cpu:{}, fans:{}, gpuFans:{"nv.0000_01_00_0.fan0":40}}}
+      ])})
+      plugin.showPage("overview")
+      compare(named("quickProfile-idle").tooltipText, safeOwner + " · " + safeLabel + " 40%")
+
+      plugin.showPage("fans")
+      var dropdown = named("fanChannelDropdown")
+      compare(dropdown.value, id)
+      var expected = safeOwner + " · " + safeLabel + " · 0000:01:00.0 · RPM —"
+      compare(dropdown.currentLabel(), expected)
+      verify(nodes(dropdown).some(function(item) {
+        return item.text === expected && item.textFormat === Text.PlainText
+      }))
+      dropdown.open()
+      tryCompare(dropdown, "popupOpen", true)
+      verify(nodes(dropdown.optionView.currentItem).some(function(item) {
+        return item.text === expected && item.textFormat === Text.PlainText
+      }))
+      dropdown.optionView.selectCurrent()
+      compare(plugin.activeFanChannel, id)
+      compare(named("fanChannelReadings").textFormat, Text.PlainText)
+
+      plugin.showPage("sensors"); plugin.computerMapVisible = true
+      var button = named("mapFan-" + id)
+      compare(button.text, safeOwner + " · " + safeLabel)
+      var gpuLegend = named("mapLegendPart4")
+      compare(gpuLegend.tooltipText, plugin.t("map_gpu") + "\n" + safeOwner + " · " + safeLabel + " · 40%")
+      button.clicked()
+      compare(plugin.activeFanChannel, id)
     }
     function test_symmetric_page_margins_data() {
       return ['fans','cooling','profiles','settings'].map(function(page){return {tag:page,page:page}})
@@ -689,7 +930,7 @@ Item {
       proc.running=false;proc.exited(0)
     }
     function test_fan_commands_inert() {
-      plugin.setExpanded(true);plugin.sensorsOpen=true;plugin.fansOpen=true;plugin.activityController.stop();MockData.populate(plugin.activityController);wait(20)
+      plugin.setExpanded(true);plugin.sensorsOpen=true;plugin.fansOpen=true;plugin.activityController.stop();populate();wait(20)
       var proc=nodes(plugin).filter(function(n){return n.command&&n.command[0]==='/usr/local/lib/loadlet/fan-control'})[0]
       verify(!!proc)
       var boost=nodes(plugin).filter(function(n){return n.text==='Разгон 60%'})[0]
@@ -697,7 +938,7 @@ Item {
       compare(proc.running,true);compare(proc.command.join(' '),'/usr/local/lib/loadlet/fan-control request boost pwm2 60 10')
       proc.running=false;proc.exited(126);wait(10);compare(plugin.fanStatusKey,'fan_action_failed')
       var viewport=named('fansViewport');viewport.contentY=Math.max(0,viewport.contentHeight-viewport.height);wait(10)
-      plugin.activityController.stop();MockData.populate(plugin.activityController);wait(10)
+      plugin.activityController.stop();populate();wait(10)
       var restore=nodes(plugin).filter(function(n){return n.iconName==='restore'&&n.text&&n.text.indexOf('Вернуть')>=0})[0]
       mouseClick(restore,restore.width/2,restore.height/2);wait(10)
       compare(proc.command.join(' '),'/usr/local/lib/loadlet/fan-control request restore pwm2')
@@ -717,7 +958,7 @@ Item {
       verify(identify.visible)
       mouseClick(identify,identify.width/2,identify.height/2);wait(10)
       compare(proc.command.join(' '),'/usr/local/lib/loadlet/fan-control request identify pwm2 0 5')
-      proc.running=false;proc.exited(0);plugin.activityController.stop();MockData.populate(plugin.activityController)
+      proc.running=false;proc.exited(0);plugin.activityController.stop();populate()
       plugin.assignFan('pwm2','fan_cpu');compare(plugin.fanPlace('pwm2'),'fan_cpu')
       plugin.computerMapVisible=true;wait(20)
       var map=named('computerMap');map.picked('fan_cpu');wait(30)
@@ -746,7 +987,7 @@ Item {
     }
     function test_compact_gpu_survives_collapse() {
       plugin.settings={locale:'ru',iconIndicator:false,compactTile0:'cpu',compactTile1:'gpu'}
-      plugin.setExpanded(true);MockData.populate(plugin.activityController)
+      plugin.setExpanded(true);populate()
       plugin.setExpanded(false);wait(10)
       compare(plugin.gpus.length,1,'Collapsing preserves a GPU used by a compact tile')
       compare(plugin.compactRamStrip,true)
@@ -1010,7 +1251,7 @@ Item {
       plugin.setSettingsOpen(false);plugin.setExpanded(false)
       pick('moveRequested').forceActiveFocus();keyClick(Qt.Key_E);wait(20)
       compare(plugin.expanded,true,'internal details remain available through the panel')
-      plugin.activityController.stop();MockData.populate(plugin.activityController);wait(20)
+      plugin.activityController.stop();populate();wait(20)
       plugin.sortKey='name';plugin.processQuery='fire';wait(10);plugin.selectProcess(0)
       var selected=plugin.selectedProcessKey
       verify(selected!=='');verify(plugin.searchField!==null);verify(plugin.processViewport!==null)

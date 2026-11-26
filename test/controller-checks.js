@@ -7,8 +7,11 @@ const source = fs.readFileSync(path.join(__dirname, '../ActivityController.qml')
 const timer = () => ({started: 0, stopped: 0, interval: 0,
   start() { this.started++; }, restart() { this.started++; }, stop() { this.stopped++; }});
 const context = vm.createContext({
-  memoryWatchEnabled:false, memoryWatchDue:0, memoryInterrupted() {}, memoryObserved() {},
+  memoryWatchEnabled:false, memoryWatchDue:0, memoryWatchGeneration:0, pendingMemoryWatchGeneration:-1,
+  memoryInterrupted() {}, observed: [], memoryObserved(frame) { context.observed.push(frame); },
   captureWanted:false, captureEnabled:false, captureInterval:500, captureAppliedInterval:0, captureAction:"",
+  captureFlushSerial:0, queuedCaptureFlush:0, pendingCaptureFlush:0,
+  flushResults:[], captureFlushed(id, error) { context.flushResults.push([id, error]); },
   sensorRecording: false, sensorWriterEnabled: false, sensorRecordingError: "", sensorsActive: false,
   gpuEnabled: false, storageEnabled: false, sensorSummaryEnabled: false,
   sensorHistory: {}, sensorsUpdatedAt: 0,
@@ -51,13 +54,27 @@ assert.equal(context.reader.running, false);
 assert.equal(context.pending, '');
 console.log('PASS controller: failed startup, bounded retry, single flight, overflow, background gate');
 context.active = true; context.collectionEnabled = true; context.state = 'ready'; context.pending = 'processes';
-context.buffer = ['schema\tactivity-processes\t1', 'sample\t100\t100'];
-context.previousProcesses = context.Model.emptyProcessSnapshot(); context._processMetricsReady = false;
+context.buffer = ['schema\tactivity-processes\t1', 'sample\t100\t100', 'process\t42\tdemo\tS\t100\t5\t64\tworker'];
+context.previousProcesses = context.Model.parseProcessSnapshot(
+  'schema\tactivity-processes\t1\nsample\t70\t100\nprocess\t42\tdemo\tS\t100\t1\t64\tworker');
+context._processMetricsReady = false;
+context.snapshot = {memory: {total: 1024 * 1024}};
 const before = Date.now();
 vm.runInContext('consume("snapshot-end\\tprocesses")', context);
 assert.ok(context.due.processes >= before + 600 && context.due.processes <= Date.now() + 600);
 assert.equal(context.processWarmup.started, 1);
-console.log('PASS controller: first process sample schedules a 600ms wakeup instead of the regular interval');
+assert.equal(context._processMetricsReady, true);
+assert.equal(context._processes[0].rss, 64 * 1024);
+assert.equal(context._processes[0].cpuMeasured, false);
+context.pending = 'processes';
+context.buffer = ['schema\tactivity-processes\t1', 'sample\t101\t100', 'process\t42\tdemo\tS\t100\t15\t64\tworker',
+  'process\t43\tdemo\tS\t101\t2\t64\tnew-worker'];
+vm.runInContext('consume("snapshot-end\\tprocesses")', context);
+assert.equal(context._processes[0].cpuMeasured, true);
+assert.equal(context._processes[0].cpu, 10);
+assert.equal(context._processes[1].cpuMeasured, false);
+assert.equal(context.processWarmup.started, 1);
+console.log('PASS controller: first process rows appear immediately, CPU follows the 600ms warmup');
 context.active = false; context.collectionEnabled = true;
 context.state = 'ready'; context.pending = ''; context.due = {}; context.reader.writes = [];
 vm.runInContext('dispatch()', context);
@@ -148,3 +165,43 @@ vm.runInContext('resetData()',context);assert.equal(context.memoryWatchDue,nextW
 context.pending='';context.reader.writes=[];context.due={glance:Date.now()+15000,thermals:Date.now()+15000};
 vm.runInContext('dispatch()',context);assert.equal(context.reader.writes.length,0);
 console.log('PASS memory scheduling: explicit admission, 30s due survives presentation reset, closed-panel dispatch does not oversample');
+context.memoryWatchDue=0;
+context.reader.running=true;
+vm.runInContext('dispatch()',context);
+assert.equal(context.pending,'memory-watch');
+const onWatchChange = source.match(/onMemoryWatchEnabledChanged: \{([^]*?)\n  }/)[1];
+context.memoryWatchEnabled=false;
+vm.runInContext(onWatchChange,context);
+context.memoryWatchEnabled=true;
+vm.runInContext(onWatchChange,context);
+const observedBefore=context.observed.length;
+context.buffer=['old session'];
+vm.runInContext('consume("snapshot-end\\tmemory-watch")',context);
+assert.equal(context.observed.length,observedBefore);
+assert.equal(context.memoryWatchDue,0,'The next session can sample immediately');
+vm.runInContext('dispatch()',context);
+context.buffer=['new session'];
+vm.runInContext('consume("snapshot-end\\tmemory-watch")',context);
+assert.equal(context.observed.at(-1),'new session');
+vm.runInContext('updateGlance({sample:1,cpu:{total:50,idle:10},memory:{total:1000,available:-1}})',context);
+assert.equal(context.glanceMemory,-1);
+assert.equal(context.memoryAlert,false);
+console.log('PASS memory generation and explicit unavailable RAM');
+
+context.memoryWatchEnabled=false;context.captureWanted=true;context.captureEnabled=true;context.captureAppliedInterval=500;
+context.pending='resources';context.reader.writes=[];
+const flushID=vm.runInContext('requestCaptureAction("marker"); requestCaptureAction("flush")',context);
+assert.equal(context.captureAction,'capture-marker');
+assert.equal(context.queuedCaptureFlush,flushID);
+context.pending='';
+vm.runInContext('dispatch()',context);
+assert.equal(context.reader.writes[0],'capture-marker\n');
+context.buffer=['schema\tactivity-diagnostics\t2','enabled\t1','interval\t500','error\tmarker failed'];
+vm.runInContext('consume("snapshot-end\\tcapture-marker")',context);
+assert.equal(context.flushResults.length,0);
+vm.runInContext('dispatch()',context);
+assert.equal(context.reader.writes[1],'capture-flush\n');
+context.buffer=['schema\tactivity-diagnostics\t2','enabled\t1','interval\t500','error\tflush failed'];
+vm.runInContext('consume("snapshot-end\\tcapture-flush")',context);
+assert.deepEqual(context.flushResults,[[flushID,'flush failed']]);
+console.log('PASS independent marker and flush requests with correlated diagnostics errors');

@@ -207,9 +207,9 @@ Terminate confirmation. Zombie processes have already released their address spa
 their parent must reap the exit status. Killing zombies is not a RAM cleanup method.
 No automatic process cleanup, swap reset or stronger cache-drop mode is added.
 
-Expand Cache cleanup to reveal this secondary tool. It is disabled while a
-memory observation is running, so the plugin does not itself distort that session.
-Clear cache opens an explicit confirmation. Authenticate and clear invokes
+Clear cache is in the bottom action row, beside Processes by memory. It is
+disabled while a memory observation is running to preserve the session's readings.
+Clear cache opens a confirmation. Authenticate and clear invokes
 Polkit for that one request, flushes pending file writes with `sync()`, then
 writes `3` to `/proc/sys/vm/drop_caches`. This asks the kernel to reclaim clean
 file pages, dentries and inodes system-wide. It does not terminate processes,
@@ -467,6 +467,10 @@ The pinned Overview/Cooling/Fans tabs share the same fitted panel frame. The Coo
 page uses a device/sensor selector and one detailed chart, rather than a tall
 stack of graphs. It reads hwmon temperature and fan inputs, plus
 active NVIDIA temperatures and per-fan percentages from the existing NVML provider.
+Hwmon discovery covers ITE (`it87`, `it86*`), Nuvoton (`nct67*`, `nct668*`),
+Fintek (`f718*`), and laptop, AIO, storage, network and battery drivers.
+The CPU temperature reader falls back to CPU-related `thermal_zone` readings
+when dedicated CPU hwmon readings are unavailable.
 RPM is displayed only for a sensor that actually supplies RPM. Missing fan data
 is unavailable, not zero. Cooling is read-only; the separate Fans page requires
 the optional authenticated adapter for timed overrides. The entire Cooling page
@@ -543,68 +547,26 @@ connector. Observe physical wiring or BIOS labels before assigning CPU_FAN.
 
 ## Motherboard fan control
 
-The Fans tab supports the DRFXI board with the actual IT8613E hwmon driver.
-Generic channel numbers pwm2-pwm5 are retained until their physical CPU/case/SSD
-connectors have been identified. A nonzero RPM does not establish that identity.
-The driver also exposes temp1-temp3; these are motherboard-controller inputs,
-not guessed CPU/VRM/chipset temperatures. Other controllers remain unsupported
-by this adapter instead of being operated through fabricated register mappings.
+The Fans tab controls motherboard, AIO and laptop fans whose hwmon drivers
+expose a supported PWM channel and mode control. It retains the `pwm2`–`pwm5`
+channel names on DRFXI with the IT8613E driver. Assign physical locations after
+checking wiring or firmware labels. A tachometer reading alone cannot identify
+a connector. Install the [optional system controls](#optional-controls-installation-and-removal)
+to make changes.
 
-The system adapter is the root-owned /usr/local/lib/loadlet/fan-control. Install
-it separately after reviewing the source and a driver that genuinely supports
-IT8613E; the normal plugin installer does not deploy privileged executables:
+Enter a whole percentage within the channel's displayed range and press
+**Save %** or Enter to save a controller duty. Boosts use 60%, 80% or 100% where
+supported, retain the prior-duty floor and run for 5, 10 or 30 minutes. To
+identify a fan, open the five-second trial and choose an available output. A
+trial can lower the duty. **Stop for 5s** requests zero duty on channels that
+accept it. The fan may continue spinning even at 0% duty.
 
-~~~sh
-sudo install -Dm755 fan-control /usr/local/lib/loadlet/fan-control
-~~~
-
-The UI invokes this fixed root-owned helper as an ordinary user. It first uses
-noninteractive sudo, honoring Omarchy's existing day grant. If authentication is
-needed, one Polkit pkexec unlock grants the authenticated caller 24 hours of
-passwordless CPU, fan and profile requests. The helper validates and atomically
-installs /etc/sudoers.d/60-loadlet-fans-UID with an absolute NOTAFTER deadline,
-fixed helper paths, and constrained fan save/boost/restore/identification and
-profile apply/restore/auto-config/auto-off arguments. CPU settings remain validated
-by the profile helper; no general sudo or pkexec permission is added.
-Remove that file as root to revoke early. Expired files grant nothing; a new
-unlock replaces the deadline. Passwords never enter plugin code. Requests allow
-only the four exposed channels. Saved profiles accept any integer from0to100%;
-separate boosts use60/80/100% and a5/10/30-minute hold.
-A separate identification trial accepts 0/5/10/20/30/40/50/60/80/100% for exactly
-5 seconds, then restores the saved state. Unlike a boost, this intentionally
-allows a lower duty, including zero. One identification worker holds an exclusive
-lock; CPU temperature at/above 80 C or missing CPU telemetry rejects/cancels the
-trial. It uses a 10-second systemd watchdog and the same recovery hook. These
-are application limits, not a hardware cooling guarantee. Some fans do not stop
-at 0% PWM; observe the physical fan rather than inferring identity from RPM alone.
-No actual fan-stop trial was executed during development.
-
-To request zero duty, select the intended channel, open the five-second fan
-trial, choose0% and press Stop for5s. The button requests a stop for exactly five
-seconds, then restores the saved duty and mode; the physical fan may continue
-spinning if its controller does not support stopping. Selecting a percentage
-alone does not apply it. Closing the trial editor or the entire Loadlet panel
-does not cancel an already-started service timer. Restore ends the override early.
-
-Enter an exact integer percentage in Fans and press **Save %** or Enter. This
-is controller duty, not an exact-RPM setpoint. Unlike boosts, a saved output can
-reduce the current duty. Zero requests zero duty, not a guaranteed physical stop.
-At80C or without CPU temperature, the existing fallback requests100%; the saved
-output resumes when readings recover below80C. This is not a cooling guarantee.
-
-Profiles are root-owned JSON under /var/lib/loadlet-fans. The adapter installs
-and enables loadlet-fan-profile@pwmN.service, one instance per saved channel,
-so output is restored after reboot without the desktop shell. Missing drivers
-cause a five-second retry. Ordinary stop restores the captured prior duty/mode;
-ExecStopPost attempts recovery after a worker failure. **Restore previous control**
-deletes the saved profile and disables its service. The optional adapter remains
-a separate system installation; updating QML alone cannot add these operations.
-
-Timed boosts retain their prior-duty floor. Trials and boosts temporarily pause
-a saved profile, then resume it when the timer ends. They do not replace the
-saved output or get replayed after reboot. Assigned locations persist in shell.json.
-Reboot persistence is implemented by the enabled service; actual post-reboot and
-physical fan behavior still require user observation.
+Saved outputs use a root-owned service per channel and persist across reboots.
+Boosts and trials pause a saved output, restore the captured duty and mode on
+exit, and resume the saved output if one exists. Closing Loadlet leaves the
+systemd timer running. **Restore previous control** ends the override, removes
+the saved output and disables its service. The worker's recovery hook also
+attempts to restore the captured state after a failure.
 
 Settings is split into Tiles, Icon, Sampling and History. The normal preferred
 frame fits short categories; diagnostic history and constrained screens scroll internally.
@@ -615,21 +577,9 @@ device heading and selector label as well as the diagram filter. Raw driver
 identity remains visible in Category. Wi-Fi driver instance suffixes are excluded
 from saved assignment keys; existing matching keys are retained as a fallback.
 
-A channel boost snapshots its original duty/mode,
-starts one owned transient system service, and restores the snapshot on expiry,
-stop, or worker exit. Root-only state lives in /run/loadlet-fans. ExecStopPost
-attempts restoration if the worker is killed. The override can outlive the UI
-so closing the panel does not cancel a timed cooldown. Automatic game detection
-is separate from these timed boosts; channel-to-connector assignment stays manual.
-
-IT8613 rejects duty writes in automatic mode. Takeover goes through full speed
-before setting manual duty, without a fan-stop calibration. Requests never
-reduce an already-higher sampled duty. While held, missing CPU temperatures or
-any observed CPU reading at/above 80 C requests full duty. This is an application
-fallback, not a hardware-critical limit, thermal guarantee, or replacement for
-firmware protection. No voltage, PWM polarity or hardware temperature offsets
-are changed. The Restore button restores the actual prior mode, including a
-prior manual setting; it does not invent a firmware default.
+IT8613 takeover goes through full speed before setting manual duty. For
+motherboard channels the thermal fallback uses CPU readings. The fallback
+thresholds below also apply to GPU channels using their own temperature readings.
 
 One driver-level check on DRFXI found IT8613E revision12 at0xa30. The in-tree
 it87 module did not bind. The separately packaged frankcrawford/it87 revision
@@ -638,7 +588,23 @@ bypass or a global ACPI override. It exposed three temperature inputs and four
 fan/PWM channels. A bounded pwm2 full-duty request changed reported RPM from
 about695 to1534, then duty40/mode2 were restored. Physical connector identity,
 acoustic/airflow change and automatic timed restoration remain unverified.
-This observation is not generic board compatibility or a driver safety audit.
+
+## GPU fan control
+
+The Fans tab also offers direct control of NVIDIA fans through NVML and discrete
+AMD fans through `amdgpu` hwmon. Only channels with driver control are available.
+Saved outputs, boosts and trials honor each channel's minimum and maximum. For
+example, a zero-RPM RTX 5060 Ti can report 0% in automatic mode with a 30–100%
+manual range. The output field shows the permitted range until you enter a value.
+A 30% request and return to automatic were verified on the observed RTX 5060 Ti.
+
+At 80 °C or above, or when temperature readings are missing, a saved output or
+boost requests the driver's maximum. The requested output resumes after three
+consecutive samples below 75 °C. A five-second trial is refused or ends early
+when temperature is high or unavailable. On exit, the trial restores the
+captured policy and any prior manual target. For NVIDIA, **Restore automatic
+control** explicitly returns fan control to the driver. AMD restoration uses the
+captured PWM mode and duty.
 
 ## Named CPU and cooling profiles
 
@@ -663,13 +629,17 @@ used by running automation. Existing names, values and assignments are preserved
 Changing a single fan output clears the active profile indication, since it no
 longer represents the saved named configuration.
 
-Each preset stores exact motherboard percentages, optional NVIDIA percentages,
-CPU boost, powersave/performance mode with its corresponding energy preference,
-and a maximum CPU frequency in MHz. Zero frequency means the original limit,
-not zero processor speed. The driver validates every frequency and preference;
-unsupported choices fail rather than silently succeeding. Quiet idle uses boost
-off and powersave/power. Games permits boost and performance. Default fan values
-come from the current saved outputs, never invented quiet or gaming speeds.
+Each preset can store up to 16 motherboard outputs and 8 GPU outputs, with exact
+whole percentages inside the available driver ranges. CPU settings include boost
+(including per-policy boost where exposed), governor, energy preference, a
+maximum frequency in MHz and the ACPI `platform_profile`. Governors can include
+`powersave`, `performance`, `ondemand`, `conservative` and `schedutil` when
+available across CPU policies. A zero frequency restores the original limit.
+Quiet idle uses boost off and powersave/power. Games permits boost and performance.
+
+The platform profile picker lists selectable firmware modes. ACPI can report
+`custom` when platform handlers have different modes. Current settings omits
+that aggregate value, and Original control restores each captured handler mode.
 
 Automatic game profiles use SteamAppId/SteamGameId and an actual game executable,
 not GPU load or merely an open Steam launcher. A root-owned systemd worker checks
@@ -687,37 +657,12 @@ worker remains active with the panel closed and after reboot. Per-game CPU/fan
 settings are not inferred from load. No game-playthrough or reboot check is
 implied by installation.
 
-The optional root-owned helper is installed separately:
-
-```sh
-sudo install -Dm755 power-profile /usr/local/lib/loadlet/power-profile
-sudo install -Dm644 GameDetection.py /usr/local/lib/loadlet/GameDetection.py
-```
-
-The existing authenticated fan unlock grants exact validated profile apply and
-restore requests for24hours. The helper snapshots CPU values, serializes applies,
-checks service readiness, and restores prior CPU/fan settings if an application
-step fails. The active profile is root-owned under /var/lib/loadlet-power;
-loadlet-power-profile.service replays its CPU policy after boot. Motherboard
-fan instances retain their existing boot persistence. Original control restores
-the captured CPU settings, removes the named active configuration and returns
-GPU fans to automatic control. A successful systemd enable is not an observed
-successful physical reboot.
-
-NVIDIA support uses the driver's NVML interface, not X11/Coolbits. On the observed
-RTX5060Ti one fan is exposed, with a reported manual range30–100%. A bounded30%
-request and readback succeeded, then automatic policy was restored. Below-minimum
-requests fail. A missing GPU percentage means automatic control; no fake manual
-control is provided for the integrated Radeon610M. Manual NVIDIA mode runs an
-owned per-device service, requests100% at80C/missing GPU temperature and restores
-automatic control on exit or recovery. Physical RPM and acoustic effects remain
-unmeasured.
-
-No digital PSU controller was found in the observed USB/hwmon inventory. The
-physical PSU model and control/data connection are not established. Its internal
-fan is not equated with an IT8613 channel. No register guessing, firmware flashing
-or physical connector reassignment was performed. Those limits do not block the
-CPU, motherboard and observed NVIDIA controls.
+The profile helper snapshots CPU and fan settings, serializes applies and
+attempts to restore the prior settings if a step fails. The active profile is
+root-owned under `/var/lib/loadlet-power`. The profile service reapplies CPU
+settings after boot and per-channel services restore saved fan outputs.
+**Original control** restores the captured CPU settings and releases the fan
+overrides managed by the active named profile.
 
 ## Optional controls installation and removal
 
@@ -735,29 +680,30 @@ these root-owned files. Reapply a named profile to refresh unit definitions; if
 automation was enabled, disable and re-enable it after updating the adapters.
 Do not change saved fan percentages or CPU limits merely to update the helpers.
 
-The optional services are `loadlet-power-profile.service`,
-`loadlet-auto-game.service`, `loadlet-fan-profile@pwmN.service` and
-`loadlet-gpu-fan@PCI-ID.service`. Timed fan trials use `loadlet-fan-pwmN.service`.
-They are system services and can outlive the desktop shell. Authentication grants
-only validated operations on root-owned helpers for24hours; already-enabled
-services continue when that grant expires. Revoke a grant by removing only the
-matching `/etc/sudoers.d/60-loadlet-fans-UID` file as root.
+The optional system services are `loadlet-power-profile.service`,
+`loadlet-auto-game.service` and `loadlet-fan-profile@CHANNEL.service` for saved
+motherboard and GPU outputs. Timed boosts and trials use
+`loadlet-fan-CHANNEL.service`. Older whole-device NVIDIA presets may use
+`loadlet-gpu-fan@PCI-ID.service`. These services can outlive the desktop shell.
+Polkit authentication grants 24 hours of validated requests to the root-owned
+helpers through sudo. Enabled services continue when the grant expires. Revoke
+it by removing the matching `/etc/sudoers.d/60-loadlet-fans-UID` file as root.
 
-To remove optional controls, first disable automatic profiles and use Original
-control on Profiles. Restore each separately saved motherboard channel
-as well. The equivalent commands for channels you actually configured are:
+To remove optional controls, disable automatic profiles and use **Original
+control** on Profiles. In Fans, use **Restore** on each separately overridden
+motherboard or GPU channel. The command-line equivalents use each configured
+channel ID. For example, on a system with these two channels:
 
 ```sh
 /usr/local/lib/loadlet/power-profile request restore
 /usr/local/lib/loadlet/fan-control request restore pwm2
-# Repeat for your other configured channels: pwm3, pwm4 or pwm5.
+/usr/local/lib/loadlet/fan-control request restore nv.0000_01_00_0.fan0
 ```
 
 Only after restoration succeeds, remove the installed helper files and disabled
 Loadlet unit definitions as root, remove your matching sudoers grant, and run
 `sudo systemctl daemon-reload`. Do not delete recovery state or helper executables
-while their workers are still active. Original-control restoration restores the
-captured CPU snapshot and GPU automatic control; it is not a firmware reset.
+while their workers are still active.
 
 The plugin can then be removed with `omarchy plugin remove slovn.activity-lite`.
 User history under `~/.local/state/omarchy/activity-lite` and explicit exports are
@@ -815,6 +761,9 @@ expanded view or for a selected storage tile (60 seconds in Efficient mode).
 Scheduling rounds to the resource timer. One request is in flight at a time. History is bounded to
 20–240 points. A failed request times out after 5 seconds; restarts back off from
 2 to 30 seconds. Shutdown allows 1 second before killing the owned reader.
+
+The first process snapshot displays the rows, memory and process identity
+immediately. Process CPU percentages become available on the next sample.
 
 Frames are bounded to 256 KiB before emission. Over-capacity input is rejected,
 not shown as a partial process inventory. The reader also bounds directory

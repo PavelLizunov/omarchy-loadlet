@@ -36,7 +36,7 @@ Item {
   function write(data) {}
   function signal(value) {}
 }''',
-    'Io/FileView': '''import QtQuick
+    'Io/FileView': r'''import QtQuick
 Item {
   property string path: ""
   property bool watchChanges: false
@@ -162,6 +162,7 @@ Item {
   id: root
   property string tooltipText: ""
   property string fontFamily: Style.font.family
+  QtObject { id: tooltipWindow; property bool revealed: true }
   implicitWidth: tooltipBubble.implicitWidth
   implicitHeight: tooltipBubble.implicitHeight
 ''' + bubble.replace('id: tooltipBubble', 'id: tooltipBubble\n        objectName: "activityTooltipBubble"') + '\n}\n')

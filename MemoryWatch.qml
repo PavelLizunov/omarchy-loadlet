@@ -40,6 +40,7 @@ Column {
     ? Model.formatBytes(kib*1024,"",function(v,d) { return root.locale ? root.locale.number(v,d) : v.toFixed(d) }) : "—" }
   function delta(kib) { return kib === null || kib === undefined ? "—" : (kib < 0 ? "−" : "+") + bytes(Math.abs(kib)) }
   function begin() {
+    if (running) running = false
     frames = []; selectedKey = ""; interrupted = false; stateKey = "memory_watch_running"
     events = []; eventsExpanded = false; notificationQueue = []; notificationError = false
     clock = Date.now()/1000
@@ -90,8 +91,7 @@ Column {
     if (batch.length > 3) body += "\n" + t("memory_watch_more_events",batch.length-3)
     body += "\n" + t("memory_watch_notification_hint")
     // The desktop notification body supports markup; process names are plain data.
-    body = body.replace(/[\x00-\x08\x0b-\x1f\x7f-\x9f\u202a-\u202e\u2066-\u2069]/g," ")
-      .replace(/&/g,"＆").replace(/</g,"‹").replace(/>/g,"›").slice(0,4000)
+    body = Model.neutralDisplayText(body).slice(0,4000)
     notifier.command = ["/usr/bin/timeout","--kill-after=1s","5s",
       "/usr/share/omarchy/bin/omarchy-notification-send","--app-name","Loadlet","-u","normal","-t","10000",
       "Loadlet · " + t("memory_watch_notification_title"),body,
@@ -224,7 +224,7 @@ Column {
         required property int index
         readonly property var entry: root.leaders[index]
         width: parent.width
-        text: entry ? entry.name + " · PID " + entry.pid + " · " + root.delta(entry.growth)
+        text: entry ? Model.neutralDisplayText(entry.name) + " · PID " + entry.pid + " · " + root.delta(entry.growth)
           + (entry.candidate ? " · " + root.t("memory_watch_candidate") : "") : ""
         tooltipText: text
         selected: !!entry && root.selectedKey === entry.key

@@ -40,7 +40,7 @@ Panel {
     active: root.opened && root.memoryOpen && !root.settingsOpen && !root.languageExpanded
     locale: strings
     memory: activity.glancePrevious.memory
-    memoryReady: activity.glanceFresh && activity.glanceMemoryTotal > 0
+    memoryReady: activity.glanceFresh && activity.glanceMemory >= 0
     onCompleted: if (root.opened) activity.refresh()
     onProcessesRequested: {
       root.showPage("overview")
@@ -60,7 +60,7 @@ Panel {
     editorHost: profileEditorHost
     settings: root.settings
     channels: activity.sensorSnapshot.controls || []
-    gpus: root.gpus
+    fanBusy: root.fanBusy
     locale: strings
     foreground: root.foreground; accent: root.accent
     onSaveSettings: function(values) { root.persistSettings(values) }
@@ -121,8 +121,8 @@ Panel {
         captureInterval: activity.captureAppliedInterval,
         heatThreshold: activity.heatThreshold,
         productName: "Loadlet",
-        iconRevision: "2.20.2",
-        implementationRevision: "system-process-helper-20261120",
+        iconRevision: "2.21.0",
+        implementationRevision: "gpu-hw-fans-20261126",
         memoryWatchEvents: memoryCleanup.watch.events.length,
         memoryWatchNotifications: memoryCleanup.watch.notificationsEnabled,
         memoryWatching: memoryCleanup.watch.running,
@@ -172,69 +172,124 @@ Panel {
   readonly property bool overviewOpen: !sensorsOpen && !profilesOpen && !memoryOpen
   property string fanStatusKey: ""
   property int fanDuration: 10
-  property var fanProfileOutputs: ({})
   property var fanOutputDrafts: ({})
   function clearFanDrafts(channel) {
     var drafts = channel ? Object.assign({}, fanOutputDrafts) : ({})
     if (channel) delete drafts[channel]
     fanOutputDrafts = drafts
   }
+  readonly property bool fanBusy: fanController.running
   property string pendingFanChannel: ""
+  property string pendingFanLegacy: ""
   property int pendingFanSpeed: 100
+  property int pendingFanDuration: 10
   property string pendingFanAction: "boost"
-  function fanAction(channel, speed, action) {
-    if (fanController.running || !/^pwm[2-5]$/.test(channel)
-        || !isFinite(speed) || Math.floor(speed) !== speed || speed < 0 || speed > 100) return
-    pendingFanChannel = channel; pendingFanSpeed = speed; pendingFanAction = action
+  readonly property var boostFanLevels: [60,80,100]
+  readonly property var trialFanLevels: [0,5,10,20,30,40,50,60,80,100]
+  function levelsForFan(levels, channel) {
+    return channel ? levels.filter(function(percent) { return Model.fanPercentAllowed(channel, percent) }) : []
+  }
+  function fanAction(channelId, speed, action) {
+    var channel = root.controlForFan(channelId)
+    if (root.fanBusy || powerProfiles.busy || !Model.fanChannelWritable(channel)) return
+    if (["restore","save","boost","identify"].indexOf(action) < 0) return
+    if (action !== "restore" && !Model.fanPercentAllowed(channel, speed)) return
+    if (action === "boost" && (boostFanLevels.indexOf(speed) < 0 || [5,10,30].indexOf(fanDuration) < 0)) return
+    if (action === "identify" && trialFanLevels.indexOf(speed) < 0) return
+    pendingFanChannel = channelId
+    pendingFanLegacy = channel.legacyId
+    pendingFanSpeed = action === "restore" ? 0 : speed
+    pendingFanDuration = action === "identify" ? 5 : fanDuration
+    pendingFanAction = action
     fanStatusKey = "fan_action_pending"
+    fanDeadline.restart()
     fanController.running = true
   }
   Process {
     id: fanController
-    command: root.pendingFanAction === "restore"
-      ? ["/usr/local/lib/loadlet/fan-control", "request", "restore", root.pendingFanChannel]
-      : root.pendingFanAction === "save"
-        ? ["/usr/local/lib/loadlet/fan-control", "request", "save", root.pendingFanChannel, String(root.pendingFanSpeed)]
-        : ["/usr/local/lib/loadlet/fan-control", "request", root.pendingFanAction, root.pendingFanChannel, String(root.pendingFanSpeed), String(root.pendingFanAction === "identify" ? 5 : root.fanDuration)]
-    onStarted: fanDeadline.restart()
+    command: {
+      var args = ["/usr/local/lib/loadlet/fan-control", "request", root.pendingFanAction, root.pendingFanChannel]
+      if (root.pendingFanAction !== "restore") args.push(String(root.pendingFanSpeed))
+      if (root.pendingFanAction === "boost" || root.pendingFanAction === "identify") args.push(String(root.pendingFanDuration))
+      return args
+    }
     onExited: function(code) {
       fanDeadline.stop()
-      root.fanStatusKey = code === 0 ? (root.pendingFanAction === "save" ? "fan_profile_saved" : "fan_action_sent") : "fan_action_failed"
-      if (code === 0 && (root.pendingFanAction === "save" || root.pendingFanAction === "restore")) {
-        var outputs = Object.assign({}, root.fanProfileOutputs)
-        if (root.pendingFanAction === "save") outputs[root.pendingFanChannel] = root.pendingFanSpeed
-        else delete outputs[root.pendingFanChannel]
-        root.fanProfileOutputs = outputs
-        root.clearFanDrafts(root.pendingFanChannel)
-        var change = {activePowerProfile:"",autoGameProfiles:false}; change["fanOutput_" + root.pendingFanChannel] = root.pendingFanAction === "save" ? root.pendingFanSpeed : -1
+      var saved = root.pendingFanAction === "save"
+      root.fanStatusKey = code === 0 ? (saved ? "fan_profile_saved" : "fan_action_sent") : "fan_action_failed"
+      if (code === 0) {
+        var change = {activePowerProfile:"",autoGameProfiles:false}
+        if (saved || root.pendingFanAction === "restore") {
+          var id = root.pendingFanChannel
+          if (root.pendingFanLegacy) change["fanOutput_" + root.pendingFanLegacy] = saved ? root.pendingFanSpeed : -1
+          else {
+            var outputs = Model.settingObject(root.setting("fanChannelOutputs", "{}"))
+            if (saved) outputs[id] = root.pendingFanSpeed
+            else delete outputs[id]
+            change.fanChannelOutputs = JSON.stringify(outputs)
+          }
+          root.clearFanDrafts(id)
+        }
+        powerProfiles.reconcileDirectFan()
         root.persistSettings(change)
       }
+      powerProfiles.refreshStatus()
       activity.refresh()
     }
   }
-  Timer { id: fanDeadline; interval: 150000; onTriggered: { fanController.signal(9); root.fanStatusKey = "fan_action_failed" } }
+  Timer { id: fanDeadline; interval: 420000; onTriggered: { fanController.signal(9); root.fanStatusKey = "fan_action_failed" } }
   property int sensorWindowSeconds: 600
   property string selectedSensorId: ""
   property string sensorPart: ""
   property bool computerMapVisible: false
   property string focusedFanChannel: ""
-  readonly property string activeFanChannel: {
-    var channels=activity.sensorSnapshot.controls || []
-    return channels.some(function(channel){return channel.id===root.focusedFanChannel}) ? focusedFanChannel : channels.length ? channels[0].id : ""
+  readonly property var controllableFans: (activity.sensorSnapshot.controls || [])
+    .filter(Model.fanChannelWritable).sort(function(a, b) {
+      return Number(Model.isGpuFan(a)) - Number(Model.isGpuFan(b)) || a.id.localeCompare(b.id)
+    })
+  readonly property var gpuFanChannels: controllableFans.filter(Model.isGpuFan)
+  readonly property string activeFanChannel: focusedFanChannel || (controllableFans.length ? controllableFans[0].id : "")
+  function rememberFanChannel() {
+    if (fansOpen && !focusedFanChannel && controllableFans.length) focusedFanChannel = controllableFans[0].id
   }
+  onFansOpenChanged: rememberFanChannel()
+  onControllableFansChanged: rememberFanChannel()
   property bool sensorOptionsOpen: false
   property bool fanAssignmentOpen: false
   property bool fanIdentificationOpen: false
   property string settingsSection: "tiles"
   property int identificationPercent: 0
   readonly property var fanPlaces: ["unknown", "fan_cpu", "fan_front", "fan_rear", "fan_top", "fan_ssd", "fan_bottom"]
-  function fanPlace(channel) {
-    var place = String(root.setting("fanPlace_" + channel, "unknown"))
+  function controlForFan(id) {
+    return (activity.sensorSnapshot.controls || []).find(function(channel) { return channel.id === id })
+  }
+  function fanPlace(id) {
+    var channel = controlForFan(id) || {id:id,backend:Model.fanBackend(id)}
+    if (Model.isGpuFan(channel)) return "gpu"
+    var place = Model.fanSetting(root.settings, "Place", channel, "unknown")
     return fanPlaces.indexOf(place) >= 0 ? place : "unknown"
   }
-  function assignFan(channel, place) {
-    if (!/^pwm[2-5]$/.test(channel) || fanPlaces.indexOf(place) < 0) return
-    var change = {}; change["fanPlace_" + channel] = place
+  function fanName(channel) {
+    var numbered = String(channel.label || "").match(/^fan(\d+)$/i)
+    var label = numbered ? root.t("sensor_fan", numbered[1]) : channel.label
+    return Model.isGpuFan(channel)
+      ? [channel.owner || root.t("gpu"), label].filter(function(text) { return !!text }).join(" · ")
+      : channel.legacyId || [channel.owner, label || channel.id].filter(function(text) { return !!text }).join(" · ")
+  }
+  function fanRpm(channel) {
+    return channel.rpm >= 0 ? root.t("fan_rpm", channel.rpm) : root.t("fan_rpm_unavailable")
+  }
+  function assignFan(id, place) {
+    var channel = controlForFan(id)
+    if (!Model.fanChannelWritable(channel) || Model.isGpuFan(channel) || fanPlaces.indexOf(place) < 0) return
+    var change = {}
+    if (channel.legacyId) change["fanPlace_" + channel.legacyId] = place
+    else {
+      var places = Model.settingObject(root.setting("fanChannelPlaces", "{}"))
+      if (place === "unknown") delete places[id]
+      else places[id] = place
+      change.fanChannelPlaces = JSON.stringify(places)
+    }
     root.persistSettings(change)
     Qt.callLater(function() {
       root.fanAssignmentOpen = false
@@ -242,15 +297,22 @@ Panel {
     })
   }
   function fanChannel(sensor) {
+    if (!sensor.fan) return ""
+    var channels = activity.sensorSnapshot.controls || []
+    var linked = channels.find(function(channel) { return channel.sensorId && channel.sensorId === sensor.id })
+    if (linked) return linked.id
     if (sensor.category !== "motherboard") return ""
     var match = String(sensor.label || "").match(/^fan([2-5])$/)
-    return match ? "pwm" + match[1] : ""
+    var legacy = match && channels.find(function(channel) {
+      return !channel.sensorId && channel.legacyId === "pwm" + match[1]
+    })
+    return legacy ? legacy.id : ""
   }
   readonly property var sensorAssignments: {
     try { var value = JSON.parse(String(root.setting("sensorAssignments", "{}"))); return value && typeof value === "object" && !Array.isArray(value) ? value : ({}) }
     catch (error) { return ({}) }
   }
-  readonly property var sensorPlaces: ["automatic", "cpu", "gpu", "memory", "storage", "motherboard", "fan_cpu", "fan_front", "fan_rear", "fan_top", "fan_ssd", "fan_bottom"]
+  readonly property var sensorPlaces: ["automatic", "cpu", "gpu", "memory", "storage", "motherboard", "battery", "psu", "aio", "fan_cpu", "fan_front", "fan_rear", "fan_top", "fan_ssd", "fan_bottom"]
   function sensorKey(sensor) {
     var chip = String(sensor.chip || "").replace(/^iwlwifi_\d+$/, "iwlwifi")
     if (!chip || !sensor.location || !sensor.label)
@@ -307,11 +369,16 @@ Panel {
       var percent = sensors.filter(function(s) { return s.fan && s.unit === "percent" }).map(function(s) { return s.value })
       var detail = sensors.map(function(s) { return root.sensorOwner(s) + " · " + root.sensorLabel(s) + ": "
         + (!s.fan ? root.formatTemperature(s.value,root.temperatureUnitSetting) : root.number(s.value, 0) + (s.unit === "percent" ? "%" : " RPM")) })
-      if (activity.sensorsFresh && part.indexOf("fan_") === 0) {
+      if (activity.sensorsFresh && (part === "gpu" || part.indexOf("fan_") === 0)) {
         (activity.sensorSnapshot.controls || []).forEach(function(channel) {
-          if (root.fanPlace(channel.id) !== part || typeof channel.rpm !== "number" || channel.rpm < 0
-              || root.currentSensors.some(function(s) { return root.fanChannel(s) === channel.id })) return
-          rpm.push(channel.rpm); detail.push(channel.id + ": " + root.number(channel.rpm) + " RPM")
+          if (root.fanPlace(channel.id) !== part) return
+          var linked = sensors.filter(function(s) { return root.fanChannel(s) === channel.id })
+          if (channel.rpm >= 0 && !linked.some(function(s) { return s.unit === "rpm" })) {
+            rpm.push(channel.rpm); detail.push(root.fanName(channel) + " · " + root.fanRpm(channel))
+          }
+          if (part === "gpu" && channel.percent >= 0 && !linked.some(function(s) { return s.unit === "percent" })) {
+            percent.push(channel.percent); detail.push(root.fanName(channel) + " · " + root.percentText(channel.percent))
+          }
         })
       }
       function range(values,unit) {
@@ -333,10 +400,10 @@ Panel {
     selectedSensorId = ""
     focusedFanChannel = ""
     if (part.indexOf("fan_") === 0) {
-      var channels = activity.sensorSnapshot.controls || []
-      var assigned = channels.filter(function(channel) { return root.fanPlace(channel.id) === part })
-      focusedFanChannel = assigned.length === 1 ? assigned[0].id : ""
+      var assigned = controllableFans.filter(function(channel) { return root.fanPlace(channel.id) === part })
+      focusedFanChannel = assigned.length ? assigned[0].id : ""
       fansOpen = true
+      rememberFanChannel()
       sensorsOpen = true
     } else {
       fansOpen = false
@@ -344,8 +411,23 @@ Panel {
       loadSensorHistory()
     }
   }
+  function openFanControls(id) {
+    if (!Model.fanChannelWritable(controlForFan(id))) return
+    showPage("fans")
+    computerMapVisible = false
+    focusedFanChannel = id
+    sensorPart = fanPlace(id)
+    fanAssignmentOpen = false
+    fanIdentificationOpen = false
+  }
+  function fanHistorySensor(id) {
+    var channel = controlForFan(id)
+    return coolingSensors.find(function(item) {
+      return item.fan && (channel && channel.sensorId ? item.id === channel.sensorId : root.fanChannel(item) === id)
+    })
+  }
   function showFanHistory(channel) {
-    var sensor = coolingSensors.filter(function(item) { return root.fanChannel(item) === channel && item.fan })[0]
+    var sensor = fanHistorySensor(channel)
     if (!sensor) return
     computerMapVisible = false
     historyFanChannel = channel
@@ -530,7 +612,7 @@ Panel {
     var manual = root.sensorPlace(sensor)
     if (manual !== "automatic") return root.t("map_" + manual)
       + (sensor.owner ? " · " + sensor.owner : "")
-    var category = String(sensor.category || "unknown")
+    var category = Model.sensorCategories.indexOf(sensor.category) >= 0 ? sensor.category : "unknown"
     var owner = String(sensor.owner || "")
     var prefix = root.t("sensor_owner_" + category)
     return prefix + (owner ? " · " + owner : "")
@@ -551,7 +633,7 @@ Panel {
       return root.t("sensor_fan", fan[1])
         + (place !== "unknown" ? " · " + root.t("map_" + place) : "")
     }
-    return root.t("sensor_reading")
+    return label || root.t("sensor_reading")
   }
   property string selectedDiskId: "all"
   property string selectedStoragePath: ""
@@ -784,7 +866,7 @@ Panel {
       iconHeatThreshold: 80,
       iconMotion: true,
       diagnosticJournal: false, diagnosticCapture: false, diagnosticCaptureInterval: 500, diagnosticAgentModel: "", sensorAssignments: "{}",
-      fanPlace_pwm2: "unknown", fanPlace_pwm3: "unknown", fanPlace_pwm4: "unknown", fanPlace_pwm5: "unknown",
+      fanChannelPlaces: "{}", fanPlace_pwm2: "unknown", fanPlace_pwm3: "unknown", fanPlace_pwm4: "unknown", fanPlace_pwm5: "unknown",
       compactTileCount: 2, compactTile0: "cpu", compactTile1: "ram", compactTile2: "gpu", compactRamStrip: true, sensorRecording: false
     })
   }
@@ -795,7 +877,7 @@ Panel {
   }
 
   function memoryBreakdownText() {
-    if (!snapshot.memory.total) return root.t("used") + " — · " + root.t("cache") + " —"
+    if (!snapshot.memory.total || snapshot.memory.available < 0) return root.t("used") + " — · " + root.t("cache") + " —"
     var usedText = root.formatCompactBytes(snapshot.memory.total - snapshot.memory.available)
     var totalText = root.formatCompactBytes(snapshot.memory.total)
     var cacheText = root.formatCompactBytes(snapshot.memory.cached)
@@ -1074,7 +1156,7 @@ Panel {
     tooltipText: (activity.glanceFresh
       ? "CPU " + (activity.glanceCpu >= 0 ? root.percentText(activity.glanceCpu) : "—")
         + " · " + root.t("ram") + " "
-        + root.formatBytes(activity.glanceMemoryUsed) + " / " + root.formatBytes(activity.glanceMemoryTotal) + "\n"
+        + (activity.glanceMemory < 0 ? "—" : root.formatBytes(activity.glanceMemoryUsed) + " / " + root.formatBytes(activity.glanceMemoryTotal)) + "\n"
       : root.t("icon_no_data") + "\n")
       + (activity.thermalFresh
         ? root.t("cpu") + " " + root.formatTemperature(activity.iconTemperature, root.temperatureUnitSetting)
@@ -1468,14 +1550,14 @@ Panel {
               SvgButton {
                 required property var modelData
                 objectName:"quickProfile-"+modelData.id
-                text:modelData.name;iconName:modelData.icon || "fans"
+                text:Model.neutralDisplayText(modelData.name);iconName:modelData.icon || "fans"
                 height:profileShortcuts.height
                 width:Math.min(implicitWidth,Style.space(180))
                 selected:powerProfiles.activeId===modelData.id
-                enabled:powerProfiles.capabilitiesReady && !powerProfiles.running
+                enabled:powerProfiles.capabilitiesReady && !powerProfiles.busy
                 foreground:root.foreground;accent:root.accent
                 fontFamily:Style.font.family;fontSize:Style.font.caption
-                focusable:true;tooltipText:powerProfiles.summary(modelData)
+                focusable:true;tooltipText:Model.neutralDisplayText(powerProfiles.summary(modelData))
                 onClicked:powerProfiles.applyProfile(modelData)
                 onActiveFocusChanged:if(activeFocus)profileShortcuts.contentX=Math.max(0,Math.min(x,profileShortcuts.contentWidth-profileShortcuts.width))
               }
@@ -1647,6 +1729,7 @@ Panel {
         spacing: 0
 
         Text {
+          textFormat: Text.PlainText
           width: parent.width
           elide: Text.ElideRight
           text: root.settingsOpen
@@ -1665,6 +1748,7 @@ Panel {
         }
 
         Text {
+          textFormat: Text.PlainText
           width: parent.width
           elide: Text.ElideRight
           text: root.hasSnapshot
@@ -1902,7 +1986,7 @@ Panel {
           visible: root.compactRamStrip
           width: parent.width
           height: visible ? root.ramStripHeight : 0
-          readonly property bool ready: root.hasSnapshot && root.snapshot.memory.total > 0
+          readonly property bool ready: root.hasSnapshot && root.snapshot.memory.total > 0 && root.metrics.memory >= 0
           Text {
             anchors.left: parent.left
             anchors.right: parent.right
@@ -1960,6 +2044,7 @@ Panel {
           }
 
           Text {
+            textFormat: Text.PlainText
             visible: root.topProcesses.length === 0
             text: root.processMetricsReady ? root.t("no_processes") : root.t("sampling")
             color: root.dim
@@ -2015,6 +2100,8 @@ Panel {
       locale: strings
       selectedPart: root.sensorPart
       readings: root.mapReadings
+      gpuFans: root.gpuFanChannels
+      onFanPicked: function(id) { root.openFanControls(id) }
       onPicked: function(part) { root.selectPart(part) }
     }
     Text {
@@ -2131,7 +2218,7 @@ Panel {
           objectName: "backToFanControls"
           visible: root.historyFanChannel !== "" && !root.computerMapVisible
           width: parent.width
-          text: root.t("fan_back_controls", root.historyFanChannel)
+          text: Model.neutralDisplayText(root.t("fan_back_controls", root.historyFanChannel))
           iconName: "fans"; foreground: root.foreground; accent: root.accent
           fontFamily: Style.font.family; fontSize: Style.font.caption; focusable: true; bordered: true
           onClicked: root.returnToFanControls()
@@ -2308,14 +2395,15 @@ Panel {
             objectName: "fanChannelDropdown"
             width: parent.width
             label: root.t("map_channel")
-            enabled: !!root.activeFanChannel
+            enabled: root.controllableFans.length > 0
             value: root.activeFanChannel
-            options: (activity.sensorSnapshot.controls || []).map(function(channel) {
-              return {value:channel.id,label:channel.id+" · "+root.t("map_"+root.fanPlace(channel.id))+" · "+root.t("fan_rpm",channel.rpm)}
+            options: root.controllableFans.map(function(channel) {
+              var location = Model.isGpuFan(channel) && channel.location ? channel.location : root.t("map_" + root.fanPlace(channel.id))
+              return {value:channel.id,label:root.fanName(channel) + " · " + location + " · " + root.fanRpm(channel)}
             })
             foreground: root.foreground; accent: root.accent; fontFamily:Style.font.family
             onChanged: function(value) {
-              root.focusedFanChannel=value; root.fanIdentificationOpen=false
+              root.focusedFanChannel=value; root.fanIdentificationOpen=false; root.fanAssignmentOpen=false
               fanChannelDropdown.value = Qt.binding(function() { return root.activeFanChannel })
             }
           }
@@ -2332,9 +2420,14 @@ Panel {
           DetailSurface {
             id: fanChannelCard
             required property string modelData
-            readonly property var channel: (activity.sensorSnapshot.controls || []).filter(function(item) {
-              return item.id === fanChannelCard.modelData
-            })[0] || ({id:modelData,rpm:0,duty:0,mode:2})
+            readonly property var channel: root.controlForFan(modelData)
+            readonly property string channelName: channel ? root.fanName(channel) : modelData
+            readonly property bool available: Model.fanChannelWritable(channel)
+            readonly property bool gpu: Model.isGpuFan(channel || {backend:Model.fanBackend(modelData)})
+            readonly property bool idle: available && !root.fanBusy && !powerProfiles.busy
+            readonly property var trialLevels: available ? root.levelsForFan(root.trialFanLevels, channel) : []
+            readonly property int trialLevel: trialLevels.indexOf(root.identificationPercent) >= 0
+              ? root.identificationPercent : (trialLevels.length ? trialLevels[0] : -1)
             width: fanBody.width
             height: channelBody.implicitHeight + Style.spacing.md * 2
             Column {
@@ -2344,9 +2437,10 @@ Panel {
               spacing: Style.spacing.sm
               SvgButton {
                 objectName: "fanAssignmentToggle"
+                visible: fanChannelCard.available && !fanChannelCard.gpu
                 height: Style.spacing.controlHeight
                 width: parent.width
-                text: root.t("map_assignment", fanChannelCard.channel.id)
+                text: Model.neutralDisplayText(root.t("map_assignment", fanChannelCard.channelName))
                 iconName: "category"; selected: root.fanAssignmentOpen
                 foreground: root.foreground; accent: root.accent; fontFamily: Style.font.family
                 fontSize: Style.font.caption; bordered: true; focusable: true
@@ -2356,22 +2450,29 @@ Panel {
                 id: fanAssignmentDropdown
                 objectName: "fanAssignmentDropdown"
                 width: parent.width
-                visible: root.fanAssignmentOpen
-                label: root.t("map_assignment", fanChannelCard.channel.id)
-                value: root.fanPlace(fanChannelCard.channel.id)
+                visible: root.fanAssignmentOpen && fanChannelCard.available && !fanChannelCard.gpu
+                label: root.t("map_assignment", fanChannelCard.channelName)
+                value: root.fanPlace(fanChannelCard.modelData)
                 options: root.fanPlaces.map(function(place) { return {value:place,label:root.t("map_" + place)} })
                 foreground: root.foreground; accent: root.accent
                 fontFamily: Style.font.family
                 onChanged: function(place) {
-                  root.assignFan(fanChannelCard.channel.id, place)
-                  fanAssignmentDropdown.value = Qt.binding(function() { return root.fanPlace(fanChannelCard.channel.id) })
+                  root.assignFan(fanChannelCard.modelData, place)
+                  fanAssignmentDropdown.value = Qt.binding(function() { return root.fanPlace(fanChannelCard.modelData) })
                 }
               }
               Text {
                 width: parent.width
-                text: fanChannelCard.channel.id + " · " + root.t("fan_rpm",fanChannelCard.channel.rpm)
-                  + " · " + root.number(fanChannelCard.channel.duty/255*100, 0) + "% · "
-                  + root.t(fanChannelCard.channel.mode === 2 ? "fan_mode_auto" : fanChannelCard.channel.mode === 0 ? "fan_mode_full" : "fan_mode_manual")
+                objectName: "fanChannelReadings"
+                text: {
+                  var channel = fanChannelCard.channel
+                  if (!fanChannelCard.available) return fanChannelCard.modelData + " · " + root.t("fan_channel_unavailable")
+                  var percent = channel.percent < 0 ? "—" : root.percentText(channel.percent)
+                  if (channel.backend === "nvidia") percent = root.t("fan_driver_reported", percent)
+                  return root.fanName(channel) + " · " + root.fanRpm(channel) + " · " + percent
+                    + " · " + root.t("fan_mode_" + channel.modeName)
+                    + (fanChannelCard.gpu ? "\n" + root.t("fan_driver_range", root.number(channel.minPercent), root.number(channel.maxPercent)) : "")
+                }
                 textFormat: Text.PlainText; wrapMode: Text.Wrap
                 color: root.foreground
                 font.family: root.bar ? root.bar.fontFamily : Style.font.family
@@ -2385,12 +2486,21 @@ Panel {
                   objectName: "fanOutputInput"
                   width: (parent.width - parent.spacing) / 2
                   height: Style.spacing.controlHeight
-                  readonly property int savedOutput: Number(root.setting("fanOutput_" + fanChannelCard.channel.id,
-                    root.fanProfileOutputs[fanChannelCard.channel.id] === undefined ? -1 : root.fanProfileOutputs[fanChannelCard.channel.id]))
-                  text: root.fanOutputDrafts[fanChannelCard.channel.id] !== undefined
-                    ? root.fanOutputDrafts[fanChannelCard.channel.id]
-                    : String(savedOutput >= 0 ? savedOutput : Math.round(fanChannelCard.channel.duty / 255 * 100))
-                  validator: IntValidator { bottom: 0; top: 100 }
+                  enabled: fanChannelCard.idle
+                  readonly property int savedOutput: fanChannelCard.channel
+                    ? Number(Model.fanSetting(root.settings, "Output", fanChannelCard.channel, -1)) : -1
+                  readonly property int output: savedOutput >= 0 ? savedOutput : (fanChannelCard.channel ? fanChannelCard.channel.percent : -1)
+                  placeholderText: fanChannelCard.channel
+                    ? root.number(fanChannelCard.channel.minPercent) + "–" + root.number(fanChannelCard.channel.maxPercent) : ""
+                  text: root.fanOutputDrafts[fanChannelCard.modelData] !== undefined
+                    ? root.fanOutputDrafts[fanChannelCard.modelData]
+                    : savedOutput >= 0 || (fanChannelCard.channel && output >= fanChannelCard.channel.minPercent)
+                      ? String(output) : ""
+                  validator: IntValidator {
+                    locale: Qt.locale("C").name
+                    bottom: fanChannelCard.channel ? fanChannelCard.channel.minPercent : 0
+                    top: fanChannelCard.channel ? fanChannelCard.channel.maxPercent : 100
+                  }
                   inputMethodHints: Qt.ImhDigitsOnly
                   selectByMouse: true
                   color: root.foreground
@@ -2405,10 +2515,10 @@ Panel {
                   }
                   onTextEdited: {
                     var drafts = Object.assign({}, root.fanOutputDrafts)
-                    drafts[fanChannelCard.channel.id] = text
+                    drafts[fanChannelCard.modelData] = text
                     root.fanOutputDrafts = drafts
                   }
-                  onAccepted: if (acceptableInput) root.fanAction(fanChannelCard.channel.id, Number(text), "save")
+                  onAccepted: if (acceptableInput) root.fanAction(fanChannelCard.modelData, Number(text), "save")
                 }
                 SvgButton {
                   objectName: "saveFanOutputButton"
@@ -2419,13 +2529,13 @@ Panel {
                   iconName: "save"
                   foreground: root.foreground; accent: root.accent; fontFamily: Style.font.family
                   bordered: true; focusable: true
-                  enabled: !fanController.running && fanOutputInput.acceptableInput
-                  onClicked: root.fanAction(fanChannelCard.channel.id, Number(fanOutputInput.text), "save")
+                  enabled: fanChannelCard.idle && fanOutputInput.acceptableInput
+                  onClicked: root.fanAction(fanChannelCard.modelData, Number(fanOutputInput.text), "save")
                 }
               }
               Text {
                 width: parent.width
-                text: root.t("fan_profile_hint")
+                text: root.t(fanChannelCard.gpu ? "fan_gpu_profile_hint" : "fan_profile_hint")
                 textFormat: Text.PlainText; wrapMode: Text.Wrap
                 color: root.dim; font.family: Style.font.family; font.pixelSize: Style.font.caption
               }
@@ -2445,11 +2555,14 @@ Panel {
                   width:(parent.width-parent.spacing)/2
                   anchors.bottom:parent.bottom
                   objectName: "fanHistoryButton"
+                  readonly property var historySensor: root.fanHistorySensor(fanChannelCard.modelData)
                   height: fanDurationDropdown.rowHeight
-                  text:root.t("map_fan_history");iconName:"history"
+                  text:root.t(historySensor && historySensor.unit === "percent" ? "map_fan_percent_history" : "map_fan_history")
+                  iconName:"history"
                   foreground:root.foreground;accent:root.accent;fontFamily:Style.font.family
                   bordered:true;focusable:true
-                  onClicked:root.showFanHistory(fanChannelCard.channel.id)
+                  enabled: !!historySensor
+                  onClicked:root.showFanHistory(fanChannelCard.modelData)
                 }
               }
               Row {
@@ -2457,15 +2570,17 @@ Panel {
                 width: parent.width
                 spacing: Style.spacing.xs
                 Repeater {
-                  model: [60,80,100]
+                  model: root.boostFanLevels
                   Button {
                     required property int modelData
+                    objectName: "fanBoost" + modelData
                     width: (speeds.width - speeds.spacing*2)/3
                     text: root.t("fan_boost_percent", modelData)
                     foreground: root.foreground; accent: root.accent
                     fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
-                    focusable: true; bordered: true; enabled: !fanController.running
-                    onClicked: root.fanAction(fanChannelCard.channel.id, modelData, "boost")
+                    focusable: true; bordered: true
+                    enabled: fanChannelCard.idle && Model.fanPercentAllowed(fanChannelCard.channel, modelData)
+                    onClicked: root.fanAction(fanChannelCard.modelData, modelData, "boost")
                   }
                 }
               }
@@ -2479,10 +2594,11 @@ Panel {
                 onClicked: root.fanIdentificationOpen = !root.fanIdentificationOpen
               }
               Text {
+                objectName: "fanTrialTarget"
                 visible: root.fanIdentificationOpen
                 width: parent.width
                 text: root.t("fan_trial_target",
-                  fanChannelCard.channel.id, root.t("map_" + root.fanPlace(fanChannelCard.channel.id)))
+                  fanChannelCard.channelName, root.t("map_" + root.fanPlace(fanChannelCard.modelData)))
                 textFormat: Text.PlainText; wrapMode: Text.Wrap
                 color: root.foreground; font.family: Style.font.family; font.pixelSize: Style.font.caption
               }
@@ -2494,8 +2610,9 @@ Panel {
                   objectName:"identifyPercentDropdown"
                   width:(parent.width-parent.spacing)/2
                   label:root.t("fan_identify_level")
-                  value:String(root.identificationPercent)
-                  options:[0,5,10,20,30,40,50,60,80,100].map(function(n){return {value:String(n),label:n+"%"}})
+                  value:fanChannelCard.trialLevel < 0 ? "" : String(fanChannelCard.trialLevel)
+                  enabled: fanChannelCard.idle && fanChannelCard.trialLevels.length > 0
+                  options:fanChannelCard.trialLevels.map(function(n){return {value:String(n),label:root.percentText(n)}})
                   foreground:root.foreground;accent:root.accent;fontFamily:Style.font.family
                   onChanged:function(value){root.identificationPercent=Number(value)}
                 }
@@ -2503,28 +2620,28 @@ Panel {
                   objectName:"identifyFanButton"
                   height: identifyPercentDropdown.rowHeight
                   width:(parent.width-parent.spacing)/2;anchors.bottom:parent.bottom
-                  text:root.t(root.identificationPercent === 0 ? "fan_stop_trial" : "fan_run_trial",root.identificationPercent);iconName:"fans"
+                  text:root.t(fanChannelCard.trialLevel === 0 ? "fan_stop_trial" : "fan_run_trial",fanChannelCard.trialLevel < 0 ? "—" : fanChannelCard.trialLevel);iconName:"fans"
                   foreground:root.urgent;accent:root.urgent;fontFamily:Style.font.family
-                  bordered:true;focusable:true;enabled:!fanController.running
-                  onClicked:root.fanAction(fanChannelCard.channel.id,root.identificationPercent,"identify")
+                  bordered:true;focusable:true;enabled:fanChannelCard.idle && fanChannelCard.trialLevel >= 0
+                  onClicked:root.fanAction(fanChannelCard.modelData,fanChannelCard.trialLevel,"identify")
                 }
               }
               Text {
                 width:parent.width
                 visible: root.fanIdentificationOpen
-                text:root.t("fan_identify_hint")
+                text:root.t(fanChannelCard.gpu ? "fan_gpu_trial_hint" : "fan_identify_hint")
                 textFormat:Text.PlainText;wrapMode:Text.Wrap
                 color:root.dim;font.family:Style.font.family;font.pixelSize:Style.font.caption
               }
               SvgButton {
                 objectName: "fanRestoreButton"
                 width: parent.width
-                text: root.t("fan_restore")
+                text: root.t(fanChannelCard.gpu ? "fan_restore_auto" : "fan_restore")
                 iconName: "restore"
                 foreground: root.foreground; accent: root.accent
                 fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
-                focusable: true; bordered: true; enabled: !fanController.running
-                onClicked: root.fanAction(fanChannelCard.channel.id,100,"restore")
+                focusable: true; bordered: true; enabled: fanChannelCard.idle
+                onClicked: root.fanAction(fanChannelCard.modelData,100,"restore")
               }
               Text {
                 visible: root.fanAssignmentOpen || root.fanIdentificationOpen
@@ -2538,7 +2655,7 @@ Panel {
         }
         Text {
           width: parent.width
-          visible: !root.computerMapVisible && (!activity.sensorSnapshot.controls || activity.sensorSnapshot.controls.length === 0)
+          visible: !root.computerMapVisible && !root.activeFanChannel
           text: root.t("fan_control_unavailable")
           textFormat: Text.PlainText; wrapMode: Text.Wrap
           color: root.dim
@@ -2778,6 +2895,7 @@ Panel {
               }
 
               Text {
+                textFormat: Text.PlainText
                 width: parent.width
                 visible:false
                 text: root.t("settings_desc")
@@ -2888,6 +3006,7 @@ Panel {
                 }
 
                 Text {
+                  textFormat: Text.PlainText
                   visible:root.settingsSection==="icon"
                   width: (preferenceGrid.width - preferenceGrid.columnSpacing * (preferenceGrid.columns - 1)) / preferenceGrid.columns
                   text: root.t("icon_heat_desc", activity.heatThreshold - 5)
@@ -2898,6 +3017,7 @@ Panel {
                 }
 
                 Text {
+                  textFormat: Text.PlainText
                   visible:root.settingsSection==="icon"
                   width: (preferenceGrid.width - preferenceGrid.columnSpacing * (preferenceGrid.columns - 1)) / preferenceGrid.columns
                   text: root.iconLegend + "\n" + root.t(root.iconShapeSetting === IconVector.defaultShape
@@ -2922,6 +3042,7 @@ Panel {
                 }
 
                 Text {
+                  textFormat: Text.PlainText
                   visible:root.settingsSection==="icon"
                   width: (preferenceGrid.width - preferenceGrid.columnSpacing * (preferenceGrid.columns - 1)) / preferenceGrid.columns
                   text: root.t("heat_steps",activity.heatThreshold)
@@ -3060,6 +3181,7 @@ Panel {
                   onClicked: root.persistSettings({diagnosticJournal: !root.booleanSetting("diagnosticJournal",false)})
                 }
                 Text {
+                  textFormat: Text.PlainText
                   width: parent.width
                   text: activity.journalError ? root.t("diagnostic_write_failed")
                     : root.t("diagnostic_retention")
@@ -3376,7 +3498,7 @@ Panel {
       : kind === "ram" ? (!root.expanded && root.compactTileCount === 3 ? root.t("ram") : root.memoryCardLabel())
       : kind === "gpu" && gpu ? root.compactGpuName(gpu) : root.tileTitle(kind)
     value: kind === "cpu" ? (activity.cpuReady ? root.percentText(root.metrics.cpu) : "—")
-      : kind === "ram" ? (root.hasSnapshot ? root.percentText(root.metrics.memory) : "—")
+      : kind === "ram" ? (root.hasSnapshot && root.metrics.memory >= 0 ? root.percentText(root.metrics.memory) : "—")
       : kind === "gpu" ? (gpu ? root.gpuUsageText(gpu) : "—")
       : kind === "temperature" ? (root.cpuTemperature ? root.formatTemperature(root.cpuTemperature.value, root.temperatureUnitSetting) : "—")
       : kind === "fans" ? (activity.sensorsFresh && activity.sensorSnapshot.fans.length
@@ -3471,7 +3593,7 @@ Panel {
           anchors.right: cardBadge.visible ? cardBadge.left : parent.right
           anchors.verticalCenter: parent.verticalCenter
           anchors.rightMargin: cardBadge.visible ? Style.spacing.xs : 0
-          text: metricCard.label
+          text: Model.neutralDisplayText(metricCard.label)
           foreground: root.foreground
           fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
           wrapMode: Text.Wrap
@@ -3617,6 +3739,7 @@ Panel {
 
     Text {
       id: icon
+      textFormat: Text.PlainText
       anchors.verticalCenter: parent.verticalCenter
       text: iconText
       color: root.accent
@@ -3631,6 +3754,7 @@ Panel {
       spacing: 1
 
       Text {
+        textFormat: Text.PlainText
         text: label
         color: root.dim
         font.family: root.bar ? root.bar.fontFamily : Style.font.family
@@ -3643,6 +3767,7 @@ Panel {
         spacing: Style.spacing.xs
 
         Text {
+          textFormat: Text.PlainText
           text: value
           color: root.foreground
           font.family: root.bar ? root.bar.fontFamily : Style.font.family
@@ -3651,6 +3776,7 @@ Panel {
         }
 
         Text {
+          textFormat: Text.PlainText
           visible: secondary !== ""
           text: "·"
           color: root.dim
@@ -3658,6 +3784,7 @@ Panel {
         }
 
         Text {
+          textFormat: Text.PlainText
           visible: secondary !== ""
           text: secondary
           color: root.dim
@@ -3739,7 +3866,7 @@ Panel {
       hoverEnabled: true
       PanelToolTip {
         visible: cellHover.containsMouse
-        text: cellHover.parent.tooltipText
+        text: Model.neutralDisplayText(cellHover.parent.tooltipText)
         fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
       }
     }
@@ -3873,7 +4000,7 @@ Panel {
       cursorShape: Qt.PointingHandCursor
       PanelToolTip {
         visible: sortMouse.containsMouse && sortCell.tooltipText !== ""
-        text: sortCell.tooltipText
+        text: Model.neutralDisplayText(sortCell.tooltipText)
         fontFamily: Style.font.family
       }
       onClicked: root.setSort(sortCell.sortKey)
@@ -3925,7 +4052,7 @@ Panel {
         id: cpuValue
         objectName: rowRoot.rowIndex === 0 ? "firstProcess-cpu" : ""
         width: root.colCpuWidth
-        text: root.number(processData.cpu || 0, 1) + "%"
+        text: processData.cpuMeasured === false ? "—" : root.number(processData.cpu || 0, 1) + "%"
         alignment: Text.AlignRight
         emphasized: Number(processData.cpu || 0) >= 25
       }

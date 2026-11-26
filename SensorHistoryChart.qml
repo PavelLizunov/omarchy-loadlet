@@ -32,6 +32,11 @@ Item {
   readonly property var selectedPoint: selectedIndex >= 0 && selectedIndex < points.length ? points[selectedIndex] : null
   readonly property real endTime: referenceTime > 0 ? referenceTime : points.length ? points[points.length - 1].time : 0
   readonly property real startTime: windowSeconds > 0 ? endTime - windowSeconds : points.length ? points[0].time : 0
+  readonly property real minimum: {
+    var low = 0
+    points.forEach(function(point) { low = Math.min(low, point.value) })
+    return Math.floor(low)
+  }
   readonly property real maximum: {
     var high = Math.max(1, ceiling)
     points.forEach(function(point) { high = Math.max(high, point.value) })
@@ -39,7 +44,7 @@ Item {
     var step = Math.pow(10, Math.floor(Math.log(high) / Math.LN10)) / 2
     return Math.ceil(high * 1.1 / step) * step
   }
-  readonly property real axisWidth: Math.ceil(axisMetrics.width) + Style.spacing.sm
+  readonly property real axisWidth: Math.ceil(Math.max(axisMetrics.width, lowerAxisMetrics.width)) + Style.spacing.sm
   function formatValue(value) {
     var decimals = unit === "°C" || unit === "°F" ? 1 : 0
     return locale ? locale.number(value, decimals) : Host.I18n.formatNumber(value, decimals)
@@ -48,7 +53,11 @@ Item {
     var ratio = endTime > startTime ? (point.time - startTime) / (endTime - startTime) : 0.5
     return 1 + Math.max(0, Math.min(1, ratio)) * Math.max(1, plot.width - 2)
   }
-  function yFor(value) { return 1 + (1 - Math.max(0, Math.min(1, value / maximum))) * Math.max(1, plot.height - 2) }
+  function axisValue(level) { return minimum + (maximum - minimum) * level }
+  function yFor(value) {
+    var ratio = (value - minimum) / (maximum - minimum)
+    return 1 + (1 - Math.max(0, Math.min(1, ratio))) * Math.max(1, plot.height - 2)
+  }
   function breakBefore(index) {
     return index > 0 && (points[index].breakBefore === true
       || (points[index].breakBefore === undefined && points[index].time - points[index - 1].time > 60))
@@ -80,6 +89,7 @@ Item {
     plot.requestPaint()
   }
   onMaximumChanged: plot.requestPaint()
+  onMinimumChanged: plot.requestPaint()
   onStartTimeChanged: plot.requestPaint()
   onEndTimeChanged: plot.requestPaint()
   onLineColorChanged: plot.requestPaint()
@@ -89,6 +99,12 @@ Item {
     font.family: Style.font.family
     font.pixelSize: Style.font.caption
     text: root.formatValue(root.maximum) + " " + root.unit
+  }
+  TextMetrics {
+    id: lowerAxisMetrics
+    font.family: Style.font.family
+    font.pixelSize: Style.font.caption
+    text: root.formatValue(root.minimum)
   }
   Text {
     id: reading
@@ -128,7 +144,7 @@ Item {
         required property real modelData
         width: root.axisWidth - Style.spacing.sm
         y: (1 - modelData) * (graphArea.height - height)
-        text: root.formatValue(root.maximum * modelData) + (modelData === 1 ? " " + root.unit : "")
+        text: root.formatValue(root.axisValue(modelData)) + (modelData === 1 ? " " + root.unit : "")
         horizontalAlignment: Text.AlignRight
         textFormat: Text.PlainText; color: Host.Color.popups.text
         font.family: Style.font.family; font.pixelSize: Style.font.caption
@@ -148,7 +164,7 @@ Item {
         context.clearRect(0, 0, width, height)
         context.beginPath()
         ;[1, 0.5, 0].forEach(function(level) {
-          var y = root.yFor(root.maximum * level)
+          var y = root.yFor(root.axisValue(level))
           context.moveTo(0, y); context.lineTo(width, y)
         })
         context.strokeStyle = Util.alpha(Host.Color.popups.text, 0.16)

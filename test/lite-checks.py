@@ -17,6 +17,7 @@ import time
 from types import SimpleNamespace
 
 ROOT = Path(__file__).resolve().parents[1]
+SAMPLER = Path(os.environ.get('ACTIVITY_TEST_SAMPLER', ROOT / 'activity-sampler'))
 loader = importlib.machinery.SourceFileLoader('process_signal', str(ROOT / 'process-signal'))
 spec = importlib.util.spec_from_loader(loader.name, loader)
 helper = importlib.util.module_from_spec(spec)
@@ -190,7 +191,7 @@ with tempfile.TemporaryDirectory() as directory:
         fields[0] = 'S'; fields[19] = '100'; fields[21] = '20'
         (folder / 'stat').write_text(f'{pid} (' + 'x' * 800 + ') ' + ' '.join(fields))
         (folder / 'status').write_text('Uid:\t1000\t1000\t1000\t1000\n')
-    result = subprocess.run([str(ROOT / 'activity-sampler'), '--activity-reader'],
+    result = subprocess.run([str(SAMPLER), '--activity-reader'],
                             input='processes\nresources\n', env=env,
                             capture_output=True, text=True, timeout=5, check=True)
     first, second = result.stdout.split('snapshot-end\tprocesses\n')
@@ -198,7 +199,7 @@ with tempfile.TemporaryDirectory() as directory:
     assert second.endswith('snapshot-end\tresources\n')
     assert len(result.stdout.encode()) < 262144
     print('PASS bounded producer: no partial overflow frame; next request survives')
-    assert subprocess.run([str(ROOT / 'activity-sampler'), '--activity-process-power'],
+    assert subprocess.run([str(SAMPLER), '--activity-process-power'],
                           capture_output=True, timeout=2).returncode != 0
     print('PASS removed power-reader entry point')
 
@@ -209,8 +210,8 @@ with tempfile.TemporaryDirectory() as directory:
     proc.mkdir()
     (proc / 'uptime').write_text('100.0 0.0\n')
     (proc / 'stat').write_text('cpu 100 0 100 800 0 0 0 0\ncpu0 100 0 100 800 0 0 0 0\n')
-    (proc / 'meminfo').write_text('MemTotal: 1000 kB\nMemAvailable: 600 kB\nSwapTotal: 0 kB\nSwapFree: 0 kB\nCached: 100 kB\n')
-    result = subprocess.run([str(ROOT / 'activity-sampler'), '--activity-reader'],
+    (proc / 'meminfo').write_text('MemTotal: 1000 kB\nMemFree: 400 kB\nMemAvailable: 600 kB\nSwapTotal: 0 kB\nSwapFree: 0 kB\nCached: 100 kB\n')
+    result = subprocess.run([str(SAMPLER), '--activity-reader'],
                             input='glance\n', env=dict(os.environ, OMARCHY_SYSTEM_STATS_PROC_PATH=str(proc)),
                             capture_output=True, text=True, timeout=3, check=True)
     assert result.stdout.splitlines() == ['schema\tactivity-resources\t1', 'sample\t100.0',
@@ -234,7 +235,7 @@ with tempfile.TemporaryDirectory() as directory:
     env = dict(os.environ, OMARCHY_SYSTEM_STATS_PROC_PATH=str(proc),
                OMARCHY_SYSTEM_STATS_SYS_PATH=str(base / 'sys'))
     def thermals():
-        return subprocess.run([str(ROOT / 'activity-sampler'), '--activity-reader'],
+        return subprocess.run([str(SAMPLER), '--activity-reader'],
                               input='thermals\n', env=env, capture_output=True,
                               text=True, timeout=3, check=True).stdout.splitlines()
     assert thermals() == ['schema\tactivity-thermals\t1', 'sample\t100.0',
@@ -244,3 +245,136 @@ with tempfile.TemporaryDirectory() as directory:
     (hwmon / 'hwmon0' / 'name').write_text('x' * 9000)
     assert thermals() == ['error\tcapacity', 'snapshot-end\tthermals'], thermals()
     print('PASS thermals: an overlong sysfs line is still a capacity error')
+
+with tempfile.TemporaryDirectory() as directory:
+    base = Path(directory)
+    proc = base/'proc'
+    sysfs = base/'sys'
+    (proc/'70/fd').mkdir(parents=True)
+    (proc/'70/fdinfo').mkdir()
+    (proc/'uptime').write_text('100 0\n')
+    (proc/'meminfo').write_text('MemTotal: 1000 kB\nMemFree: 700 kB\n')
+    env = dict(os.environ, OMARCHY_SYSTEM_STATS_PROC_PATH=str(proc),
+               OMARCHY_SYSTEM_STATS_SYS_PATH=str(sysfs))
+
+    def sample(kind):
+        return subprocess.run([str(SAMPLER), f'--activity-{kind}'], env=env, text=True,
+                              capture_output=True, timeout=3, check=True).stdout
+
+    assert 'memory\t1000\t700\t0\t0\t0\n' in sample('resources')
+    hwmon = sysfs/'class/hwmon'
+
+    def chip(number, name, device=None, **attributes):
+        path = hwmon/f'hwmon{number}'
+        path.mkdir(parents=True)
+        (path/'name').write_text(name)
+        if device:
+            device.mkdir(parents=True, exist_ok=True)
+            (path/'device').symlink_to(device)
+        for key, value in attributes.items():
+            (path/key).write_text(str(value)+'\n')
+        return path
+
+    zone = sysfs/'class/thermal/thermal_zone0'
+    zone.mkdir(parents=True)
+    (zone/'type').write_text('x86_pkg_temp')
+    (zone/'temp').write_text('62000')
+    assert 'temperature\tthermal_zone0/temp\tx86_pkg_temp\tx86_pkg_temp\t62000' in sample('thermals')
+    chip(0, 'zenpower5', temp1_input=51000, temp1_label='Tctl', temp2_input=75000)
+    assert 'temperature\thwmon0/temp1\tzenpower5\tTctl\t51000' in sample('thermals')
+
+    board = sysfs/'class/dmi/id'
+    board.mkdir(parents=True)
+    (board/'board_name').write_text('DRFXI')
+    chip(1, 'it8613', pwm2=128, pwm2_enable=2, fan2_input='unavailable')
+    amd = sysfs/'devices/0000:03:00.0'
+    chip(2, 'amdgpu', amd, pwm1=255, pwm1_enable=1, pwm1_min=51, pwm1_max=204, fan1_input=1840)
+    chip(3, 'amdgpu', sysfs/'devices/0000:04:00.0', temp1_input=63000)
+    chip(4, 'CUSTOM__Cooling!!', sysfs/'devices/Fan::Board', pwm16='bad', pwm16_enable=0)
+    chip(5, 'asus-ec-sensors', pwm1=100, pwm1_enable=1)
+    intel = sysfs/'devices/0000:00:02.0'
+    chip(6, 'xe', intel, temp1_input=61000, fan1_input=0, power1_average=25000000)
+    snapshot = sample('sensors')
+    rows = {f[1]: f for f in (line.split('\t') for line in snapshot.splitlines()) if f[0]=='fan-channel'}
+    assert all(len(row)==15 for row in rows.values())
+    assert set(rows)=={'pwm2', 'amd.0000_03_00_0.pwm1', 'hw.custom_cooling.fan_board.pwm16',
+                      'hw.asus-ec-sensors.hwmon5.pwm1'}
+    assert rows['pwm2'][7:15]==['50', 'auto', '', '0', '100', '1', 'pwm2', '']
+    assert 'control\tpwm2\t128\t2\t\n' in snapshot
+    assert rows['amd.0000_03_00_0.pwm1'][7:15]==['100', 'manual', '1840', '20', '80', '1', '', 'hwmon2/fan1']
+    assert rows['hw.custom_cooling.fan_board.pwm16'][7:13]==['', 'full', '', '0', '100', '1']
+    assert rows['hw.asus-ec-sensors.hwmon5.pwm1'][12]=='0'
+    assert 'temperature\thwmon6/temp1\txe\ttemp1\t61000\tgpu\t' in snapshot
+    assert 'fan\thwmon6/fan1\txe\tfan1\t0\trpm\tgpu\t' in snapshot
+
+    for number, device, driver, vendor in [(0, intel, 'xe', '0x8086'), (1, amd, 'amdgpu', '0x1002')]:
+        card = sysfs/f'class/drm/card{number}'
+        card.mkdir(parents=True)
+        (card/'device').symlink_to(device)
+        driver_path = sysfs/'drivers'/driver
+        driver_path.mkdir(parents=True)
+        (device/'driver').symlink_to(driver_path)
+        (device/'vendor').write_text(vendor)
+
+    (amd/'mem_info_gtt_total').write_text('1000000')
+    (amd/'mem_info_gtt_used').write_text('400000')
+    stat_path = proc/'70/stat'
+    info = proc/'70/fdinfo/5'
+    (proc/'70/fd/5').symlink_to('/dev/dri/renderD128')
+
+    def process_stat(start):
+        stat_path.write_text('70 (render\nclient) S '+'0 '*18+str(start)+' 0 1\n')
+
+    process_stat(80)
+    info.write_text('drm-driver: xe\ndrm-client-id: 7\ndrm-pdev: 0000:00:02.0\n'
+                    'drm-memory-gtt: 7 MiB\ndrm-resident-gtt: 4 MiB\ndrm-memory-local: 1 KiB\n'
+                    'drm-memory-vram: invalid MiB\ndrm-resident-other: 1 invalid\n'
+                    'drm-engine-rcs: 520 ns\ndrm-cycles-rcs: 40\ndrm-total-cycles-rcs: 100\n'
+                    'drm-cycles-vcs: 10\ndrm-maxfreq-vcs: 500 MHz\ndrm-engine-corrupt: invalid ns\n'
+                    'drm-engine-negative: -1 ns\ndrm-engine-unit: 100 nonsense\n')
+    gpus = sample('gpus')
+    assert '\t400000\t1000000\tshared\t' in gpus, gpus
+    assert 'process-engine\t0000:00:02.0\t7\trcs/time\t520\t-1\t1\ttime\t70\t80' in gpus, gpus
+    assert 'process-engine\t0000:00:02.0\t7\trcs\t40\t100\t1\tcycles\t70\t80' in gpus
+    assert 'engine\t0000:00:02.0\t7\tvcs\t20\t-1\t1\tmaxfreq' in gpus
+    assert 'gpu-memory\t0000:00:02.0\tshared\t4194304\n' in gpus
+    assert 'gpu-memory\t0000:00:02.0\tvram\t1024\n' in gpus
+    assert all(name not in gpus for name in ('corrupt', 'negative', '\tunit\t'))
+
+    reader = subprocess.Popen([str(SAMPLER), '--activity-reader'], stdin=subprocess.PIPE,
+                              stdout=subprocess.PIPE, text=True, env=env)
+
+    def request(kind):
+        reader.stdin.write(kind+'\n')
+        reader.stdin.flush()
+        rows = []
+        while (line := reader.stdout.readline()) != f'snapshot-end\t{kind}\n':
+            assert line
+            rows.append(line)
+        return ''.join(rows)
+
+    try:
+        assert '\t70\t80\n' in request('gpus')
+        process_stat(81)
+        assert 'process-engine\t' not in request('gpus'), 'Stale FD inventory must be discarded on PID reuse'
+        assert '\t70\t81\n' in request('gpus')
+        assert 'temperature\thwmon6/temp1\txe' in request('sensors')
+        (hwmon/'hwmon6/name').write_text('new-driver')
+        assert 'hwmon6/temp1' not in request('sensors')
+        assert 'temperature\thwmon6/temp1\tnew-driver' in request('sensors')
+    finally:
+        reader.stdin.close()
+        reader.wait(timeout=3)
+        reader.stdout.close()
+
+    info.write_text(info.read_text()+'X'*8192)
+    for fd in range(6, 38):
+        (proc/f'70/fd/{fd}').symlink_to('/dev/dri/renderD128')
+        (proc/f'70/fdinfo/{fd}').write_text(
+            f'drm-driver: xe\ndrm-client-id: {fd+10}\ndrm-pdev: 0000:00:02.0\n'
+            + ''.join(f'drm-engine-e{i}_'+ 'x'*64+': 100 ns\n' for i in range(70)))
+    gpus = sample('gpus')
+    assert gpus.startswith('schema\tactivity-gpus\t1\n') and gpus.endswith('\n')
+    assert 0 < gpus.count('process-engine\t') <= 1024 and len(gpus.encode()) <= 262144
+    assert '\t7\t' not in gpus, 'Oversized fdinfo must be skipped entirely'
+    print('PASS native sensors and DRM: PWM schema, identity, CPU fallback, GTT, malformed counters and frame budgets')

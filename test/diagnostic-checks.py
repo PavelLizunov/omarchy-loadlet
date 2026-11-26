@@ -1,18 +1,58 @@
 """Safe journal/export checks using temporary procfs and private storage only."""
+from contextlib import contextmanager
 from pathlib import Path
 import importlib.machinery
 import importlib.util
 import json
 import os
+import select
 import stat
 import subprocess
 import tempfile
 import time
 
 ROOT=Path(__file__).resolve().parents[1]
+SAMPLER = Path(os.environ.get('ACTIVITY_TEST_SAMPLER', ROOT / 'activity-sampler'))
 loader=importlib.machinery.SourceFileLoader('activity_report',str(ROOT/'activity-report'))
 spec=importlib.util.spec_from_loader(loader.name,loader)
 report=importlib.util.module_from_spec(spec);loader.exec_module(report)
+
+
+def request(writer, command):
+    writer.stdin.write(command+'\n');writer.stdin.flush()
+    marker = ('snapshot-end\t'+command).encode()
+    deadline = time.monotonic() + 5
+    rows = []
+    pending = b''
+    while True:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0 or not select.select([writer.stdout], [], [], remaining)[0]:
+            raise TimeoutError(f'Reader timed out waiting for {command}')
+        # A readable pipe can contain only part of a line.
+        chunk = os.read(writer.stdout.fileno(), 65536)
+        assert chunk, f'Reader closed stdout before completing {command}'
+        *lines, pending = (pending + chunk).split(b'\n')
+        for line in lines:
+            if line == marker:
+                return rows
+            rows.append(line.decode())
+
+
+@contextmanager
+def reader(env):
+    writer = subprocess.Popen([str(SAMPLER), '--activity-reader'], stdin=subprocess.PIPE,
+                              stdout=subprocess.PIPE, text=True, env=env)
+    try:
+        yield writer
+        writer.stdin.close()
+        writer.wait(timeout=3)
+    finally:
+        if writer.poll() is None:
+            writer.kill()
+            writer.wait(timeout=2)
+        writer.stdin.close()
+        writer.stdout.close()
+
 
 with tempfile.TemporaryDirectory(prefix='activity-diagnostic-') as tmp:
     base=Path(tmp);proc=base/'proc';proc.mkdir()
@@ -29,7 +69,7 @@ with tempfile.TemporaryDirectory(prefix='activity-diagnostic-') as tmp:
         (policy/'related_cpus').write_text(str(n))
     state=base/'state';state.mkdir(mode=0o700)
     env=dict(os.environ,HOME=str(base),XDG_STATE_HOME=str(state),OMARCHY_SYSTEM_STATS_PROC_PATH=str(proc),OMARCHY_SYSTEM_STATS_SYS_PATH=str(base/'sys'))
-    run=lambda commands: subprocess.run([str(ROOT/'activity-sampler'),'--activity-reader'],input=commands,text=True,capture_output=True,env=env,timeout=5,check=True)
+    run=lambda commands: subprocess.run([str(SAMPLER),'--activity-reader'],input=commands,text=True,capture_output=True,env=env,timeout=5,check=True)
     run('glance\nthermals\n');assert not (state/'omarchy').exists(),'Disabled journal must do no writes'
     # Actual reader and journal writer. Flush on disable; baseline is unavailable.
     run('journal-on\nglance\nthermals\nprocesses\ndiagnostics\njournal\njournal\njournal-off\n')
@@ -59,6 +99,7 @@ with tempfile.TemporaryDirectory(prefix='activity-diagnostic-') as tmp:
         raise AssertionError('export overwrite admitted')
     except FileExistsError:
         pass
+    assert not list(base.glob('.loadlet-export-*')), 'Refused overwrite left staging data'
     unsafe=directory/'samples-test-link.jsonl';unsafe.symlink_to(files[0])
     try:
         list(report.records(directory,0,time.time()))
@@ -68,29 +109,45 @@ with tempfile.TemporaryDirectory(prefix='activity-diagnostic-') as tmp:
     unsafe.unlink()
     # Writer refuses symlink ancestors and permits metrics to continue.
     alias=base/'alias';alias.symlink_to(state,target_is_directory=True)
-    bad=subprocess.run([str(ROOT/'activity-sampler'),'--activity-reader'],input='journal-on\nglance\n',text=True,capture_output=True,env=dict(env,XDG_STATE_HOME=str(alias)),timeout=5,check=True)
+    bad=subprocess.run([str(SAMPLER),'--activity-reader'],input='journal-on\nglance\n',text=True,capture_output=True,env=dict(env,XDG_STATE_HOME=str(alias)),timeout=5,check=True)
     assert 'error\tunsafe_or_unavailable_state_directory' in bad.stdout
     assert 'snapshot-end\tglance' in bad.stdout
     # Writer lock covers competing readers, not just file append.
-    writer=subprocess.Popen([str(ROOT/'activity-sampler'),'--activity-reader'],stdin=subprocess.PIPE,stdout=subprocess.PIPE,text=True,env=env)
-    try:
-        writer.stdin.write('journal-on\n');writer.stdin.flush()
-        while writer.stdout.readline().strip()!='snapshot-end\tjournal-on': pass
+    with reader(env) as writer:
+        request(writer, 'journal-on')
         assert 'journal_writer_busy_or_unsafe' in run('journal-on\n').stdout
-    finally:
-        writer.stdin.close();writer.wait(timeout=3)
     # SIGTERM while blocked waiting for a request flushes an owned batch.
-    writer=subprocess.Popen([str(ROOT/'activity-sampler'),'--activity-reader'],stdin=subprocess.PIPE,stdout=subprocess.PIPE,text=True,env=env)
-    try:
+    with reader(env) as writer:
         for command in ['journal-on','glance','journal']:
-            writer.stdin.write(command+'\n');writer.stdin.flush()
-            while writer.stdout.readline().strip()!='snapshot-end\t'+command: pass
+            request(writer, command)
         count_before=len(list(directory.glob('samples-*.jsonl')))
         writer.terminate();assert writer.wait(timeout=3)==0
         assert len(list(directory.glob('samples-*.jsonl')))>count_before
-    finally:
-        if writer.poll() is None: writer.kill();writer.wait(timeout=2)
-        writer.stdin.close();writer.stdout.close()
+    # A failed process frame clears a recent valid payload before the 30s admission interval.
+    row_path = proc/'42'
+    row_path.mkdir()
+    ticks = ['S'] + ['0'] * 18 + ['123', '0', '10']
+    (row_path/'stat').write_text('42 (fixture) ' + ' '.join(ticks))
+    (row_path/'status').write_text('Uid: 1000\n')
+    overflow = proc/'43'
+    overflow.mkdir()
+    (overflow/'stat').write_text('x' * 8192)
+    (overflow/'stat').rename(overflow/'pending')
+    with reader(env) as writer:
+        before=set(directory.glob('samples-*.jsonl'))
+        request(writer, 'journal-on')
+        assert any(line.startswith('process\t42\t') for line in request(writer, 'processes'))
+        (overflow/'pending').rename(overflow/'stat')
+        assert request(writer, 'processes') == ['error\tcapacity']
+        request(writer, 'journal')
+        request(writer, 'journal-off')
+        records=[json.loads(line) for path in set(directory.glob('samples-*.jsonl'))-before
+                 for line in path.read_text().splitlines()]
+        sample=next(record for record in records if 'processes' in record)
+        assert sample['processes'] is None and sample['process_sample_uptime'] is None
+        assert sample['process_age_ms'] is None and sample['processes_truncated'] is False
+        assert sample['collection_error']=='capacity_or_invalid_collection'
+    (overflow/'stat').unlink()
     binary=base/'journal-check'
     subprocess.run(['c++','-std=c++17','-O0','-Wall','-Wextra','-Werror',str(ROOT/'test/diagnostic-checks.cpp'),'-ldl','-o',str(binary)],check=True,timeout=90)
     subprocess.run([str(binary),str(base)],env=env,check=True,timeout=5)

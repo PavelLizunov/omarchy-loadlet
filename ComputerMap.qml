@@ -2,6 +2,7 @@ import QtQuick
 import qs.Commons
 import qs.Commons as Host
 import qs.Ui
+import "Model.js" as Model
 
 Item {
   id: root
@@ -11,15 +12,21 @@ Item {
   property string language: locale ? locale.language : "en"
   property string selectedPart: ""
   property var readings: ({})
+  property var gpuFans: []
   signal picked(string part)
+  signal fanPicked(string id)
+  readonly property var extraParts: ["battery", "psu", "aio"].filter(function(part) {
+    return root.readings[part] && !!root.readings[part].detail
+  })
   readonly property bool compact: width < Style.space(600)
   readonly property bool stacked: width < Style.space(436)
   readonly property real labelWidth: stacked ? (width-Style.spacing.sm)/2
     : compact ? Style.space(94) : Math.min(width * 0.32, Style.space(190))
   readonly property real rowHeight: compact ? Math.max(Style.space(44), Style.font.caption * 4 + Style.spacing.xs)
     : Math.max(Style.space(48), Style.font.caption * 4 + Style.spacing.sm * 2)
-  implicitHeight: stacked ? drawing.height + Style.spacing.sm + rowHeight * 6
+  readonly property real diagramHeight: stacked ? drawing.height + Style.spacing.sm + rowHeight * 6
     : Math.max(width * 0.40, rowHeight * 6)
+  implicitHeight: diagramHeight + (extraControls.implicitHeight > 0 ? Style.spacing.sm + extraControls.implicitHeight : 0)
   readonly property color ink: Host.Color.popups.text
   readonly property color accent: Host.Color.accent
   function hex(color) {
@@ -39,7 +46,7 @@ Item {
     LayoutMirroring.enabled: false
     LayoutMirroring.childrenInherit: true
     x: (root.width-width)/2
-    y: root.stacked ? 0 : (root.height-height)/2
+    y: root.stacked ? 0 : (root.diagramHeight-height)/2
     width: root.stacked ? parent.width : Math.max(0, parent.width - root.labelWidth * 2 - Style.spacing.sm * 2)
     height: width * 0.72
     Image {
@@ -105,7 +112,7 @@ Item {
           id: mouse; anchors.fill: parent; hoverEnabled:true; cursorShape:Qt.PointingHandCursor
           onClicked: root.picked(target.modelData.key)
         }
-        PanelToolTip { visible:mouse.containsMouse || target.activeFocus; text:target.Accessible.name; fontFamily:Style.font.family }
+        PanelToolTip { visible:mouse.containsMouse || target.activeFocus; text:Model.neutralDisplayText(target.Accessible.name); fontFamily:Style.font.family }
       }
     }
   }
@@ -123,7 +130,7 @@ Item {
         readonly property real pointY: drawing.y + modelData.y * drawing.height
         x: modelData.side ? root.width - width : 0
         y: root.stacked ? drawing.height + Style.spacing.sm + modelData.row * root.rowHeight
-          : modelData.row * (root.height-root.rowHeight) / 5
+          : modelData.row * (root.diagramHeight-root.rowHeight) / 5
         width: root.labelWidth
         height: root.rowHeight - Style.spacing.xs
         Rectangle {
@@ -146,7 +153,7 @@ Item {
           foreground: root.ink; accent: root.accent
           selected: root.selectedPart===callout.modelData.key
           bordered: true; focusable: true
-          tooltipText: root.t("map_"+callout.modelData.key) + "\n" + (callout.reading.detail || root.t("map_no_data"))
+          tooltipText: Model.neutralDisplayText(root.t("map_"+callout.modelData.key) + "\n" + (callout.reading.detail || root.t("map_no_data")))
           Accessible.name: title.text + ": " + value.text
           onClicked: root.picked(callout.modelData.key)
           Column {
@@ -170,6 +177,37 @@ Item {
             }
           }
         }
+      }
+    }
+  }
+  Column {
+    id: extraControls
+    y: root.diagramHeight + Style.spacing.sm
+    width: root.width
+    spacing: Style.spacing.xs
+    Repeater {
+      model: root.gpuFans
+      Button {
+        required property var modelData
+        objectName: "mapFan-" + modelData.id
+        width: parent.width
+        text: Model.neutralDisplayText((modelData.owner || root.t("gpu")) + " · " + modelData.label)
+        foreground: root.ink; accent: root.accent
+        bordered: true; focusable: true
+        onClicked: root.fanPicked(modelData.id)
+      }
+    }
+    Repeater {
+      model: root.extraParts
+      Button {
+        required property string modelData
+        width: parent.width
+        text: Model.neutralDisplayText(root.t("map_" + modelData) + " · " + root.readings[modelData].text)
+        tooltipText: Model.neutralDisplayText(root.readings[modelData].detail)
+        foreground: root.ink; accent: root.accent
+        selected: root.selectedPart === modelData
+        bordered: true; focusable: true
+        onClicked: root.picked(modelData)
       }
     }
   }

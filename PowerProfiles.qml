@@ -6,6 +6,7 @@ import qs.Commons
 import qs.Commons as Host
 import qs.Ui
 import "ProfileCodec.js" as ProfileCodec
+import "Model.js" as Model
 
 Column {
   id: root
@@ -13,7 +14,68 @@ Column {
   property var settings: ({})
   property bool active: visible
   property var channels: []
-  property var gpus: []
+  property bool fanBusy: false
+  readonly property var writableFans: channels.filter(Model.fanChannelWritable)
+  readonly property var boardFans: {
+    var discovered = writableFans.filter(function(channel) { return !Model.isGpuFan(channel) })
+    return discovered.length ? discovered : [2,3,4,5].map(function(n) {
+      var id = "pwm" + n
+      return {id:id, legacyId:id, backend:"it8613", label:id, minPercent:0, maxPercent:100}
+    })
+  }
+  readonly property var gpuFans: writableFans.filter(Model.isGpuFan)
+  function fanLabel(channel) {
+    return Model.isGpuFan(channel)
+      ? (channel.owner || root.t("gpu")) + " · " + channel.label
+      : channel.label || channel.id
+  }
+  function oldGpuKey(channel) {
+    if (channel.backend !== "nvidia") return ""
+    return channel.id.split(".")[1].replace(/^(\w{4})_(\w{2})_(\w{2})_(\w)$/, "$1:$2:$3.$4")
+  }
+  function gpuFanValue(values, channel) {
+    return values[channel.id] === undefined ? values[oldGpuKey(channel)] : values[channel.id]
+  }
+  function saveFanValuesValid(values, gpu) {
+    var keys = Object.keys(values)
+    if (keys.length > (gpu ? 8 : 16)) return false
+    var candidates = gpu ? gpuFans : boardFans
+    return keys.every(function(id) {
+      var value = values[id]
+      var matching = candidates.filter(function(channel) {
+        return channel.id === id || (gpu && oldGpuKey(channel) === id)
+      })
+      return Number.isInteger(value) && value >= 0 && value <= 100
+        && matching.every(function(channel) { return Model.fanPercentAllowed(channel, value) })
+    })
+  }
+  readonly property var supportedGovernors: ["powersave", "performance", "schedutil", "ondemand", "conservative"]
+  readonly property var governors: {
+    var reported = cpuCapabilities.governors || cpuCapabilities.availableGovernors
+    var list = []
+    if (Array.isArray(reported)) {
+      list = reported
+    } else {
+      var lists = (cpuCapabilities.policies || []).map(function(policy) {
+        return String(policy.scaling_available_governors || "").split(/\s+/).filter(Boolean)
+      }).filter(function(items) { return items.length > 0 })
+      if (lists.length) {
+        list = lists[0].filter(function(governor) {
+          return lists.every(function(items) { return items.indexOf(governor) >= 0 })
+        })
+      }
+    }
+    return list.filter(function(governor) { return supportedGovernors.indexOf(governor) >= 0 })
+  }
+  readonly property var platformProfiles: {
+    var values = cpuCapabilities.platformProfiles || cpuCapabilities.platformProfileChoices
+    return Array.isArray(values) ? values.filter(function(value) { return value !== "custom" }) : []
+  }
+  function cpuChoices(values) {
+    return [{value:"",label:root.t("profile_unchanged")}].concat(values.map(function(value) {
+      return {value:value,label:value}
+    }))
+  }
   property var locale: null
   function number(value) { return locale ? locale.number(value) : Host.I18n.formatNumber(value) }
   LayoutMirroring.enabled: locale ? locale.rightToLeft : Host.I18n.rightToLeft
@@ -45,12 +107,17 @@ Column {
     var cpu=profile.config.cpu, values=[]
     if (typeof cpu.boost === "boolean") values.push(root.t(cpu.boost ? "profile_turbo_on" : "profile_turbo_off"))
     if (cpu.governor) values.push(cpu.governor)
+    if (cpu.platformProfile) values.push(cpu.platformProfile)
     if (cpu.maxMHz) values.push(root.number(cpu.maxMHz)+" MHz")
     Object.keys(profile.config.fans).forEach(function(id) {
-      var place=root.settings["fanPlace_"+id]
+      var channel = root.boardFans.find(function(item) { return item.id === id }) || {id:id}
+      var place = Model.fanSetting(root.settings, "Place", channel, "unknown")
       values.push((place && place!=="unknown" ? root.t("map_"+place) : id)+" "+root.number(profile.config.fans[id])+"%")
     })
-    Object.keys(profile.config.gpuFans).forEach(function(id) { values.push("GPU "+root.number(profile.config.gpuFans[id])+"%") })
+    Object.keys(profile.config.gpuFans).forEach(function(id) {
+      var channel = root.gpuFans.find(function(item) { return item.id === id || root.oldGpuKey(item) === id })
+      values.push((channel ? root.fanLabel(channel) : id) + " " + root.number(profile.config.gpuFans[id]) + "%")
+    })
     return values.join(" · ") || root.t("profile_unchanged")
   }
   property var cpuCapabilities: ({policies:[]})
@@ -58,13 +125,14 @@ Column {
   property int statusExitCode: -1
   property bool statusExpired: false
   property var pendingCapabilities: null
+  property bool statusSuperseded: false
   function clearCapabilities() {
     pendingCapabilities = null
     capabilitiesReady = false
     cpuCapabilities = {policies:[],automatic:{enabled:false,gaming:null,error:"status_unavailable"}}
   }
   function finishStatus() {
-    if (statusExpired || statusExitCode !== 0 || !pendingCapabilities) return
+    if (statusExpired || statusSuperseded || statusExitCode !== 0 || !pendingCapabilities) return
     cpuCapabilities = pendingCapabilities
     capabilitiesReady = true
     if (editorOpen && !draft.id) selectProfile(selectedId)
@@ -82,6 +150,8 @@ Column {
   property string pendingBaseId: ""
   property bool operationExpired: false
   readonly property bool running: applyProcess.running
+  readonly property bool busy: running
+  readonly property bool mutationBlocked: busy || fanBusy
   readonly property var profiles: {
     try {
       var saved=JSON.parse(String(settings.powerProfiles || "[]"))
@@ -91,13 +161,22 @@ Column {
             && p.config.fans && p.config.gpuFans})) return saved
     } catch(error) {}
     var fans={}
-    channels.forEach(function(channel){
-      var output=settings["fanOutput_"+channel.id]
-      fans[channel.id]=typeof output==="number" && output>=0 ? output : Math.round(channel.duty/255*100)
+    var currentGpuFans = {}
+    writableFans.forEach(function(channel) {
+      var output = Model.fanSetting(settings, "Output", channel, -1)
+      if (Model.isGpuFan(channel)) {
+        if (Model.fanPercentAllowed(channel, output)) currentGpuFans[channel.id] = output
+      } else {
+        var speed = Model.fanPercentAllowed(channel, output) ? output : channel.percent
+        if (Model.fanPercentAllowed(channel, speed)) fans[channel.id] = speed
+      }
     })
     var cpu={}
     if (cpuCapabilities.boost !== null && cpuCapabilities.boost !== undefined) cpu.boost=cpuCapabilities.boost==="1"
     else if (cpuCapabilities.noTurbo !== null && cpuCapabilities.noTurbo !== undefined) cpu.boost=cpuCapabilities.noTurbo==="0"
+    if (typeof cpuCapabilities.platformProfile === "string"
+        && platformProfiles.indexOf(cpuCapabilities.platformProfile) >= 0)
+      cpu.platformProfile = cpuCapabilities.platformProfile
     if (cpuCapabilities.policies && cpuCapabilities.policies.length) {
       var policy=cpuCapabilities.policies[0]
       cpu.governor=policy.scaling_governor || ""
@@ -105,7 +184,7 @@ Column {
       cpu.maxMHz=Math.floor(Number(policy.scaling_max_freq || 0)/1000)
     }
     return [
-      {id:"current",name:root.t("profile_current"),icon:"fans",config:{fans:fans,cpu:cpu,gpuFans:{}}},
+      {id:"current",name:root.t("profile_current"),icon:"fans",config:{fans:fans,cpu:cpu,gpuFans:currentGpuFans}},
       {id:"idle",name:root.t("profile_idle"),icon:"quiet",config:{fans:fans,cpu:{boost:false,governor:"powersave",epp:"power",maxMHz:0},gpuFans:{}}},
       {id:"games",name:root.t("profile_games"),icon:"games",config:{fans:fans,cpu:{boost:true,governor:"performance",epp:"performance",maxMHz:0},gpuFans:{}}}
     ]
@@ -165,17 +244,36 @@ Column {
     next.config.cpu[key]=value
     draft=next
   }
-  function changeFan(id,text,gpu) {
-    var next=JSON.parse(JSON.stringify(draft))
-    var values=gpu ? next.config.gpuFans : next.config.fans
-    if (text==="") delete values[id]
-    else values[id]=Number(text)
-    draft=next
+  function changeGovernor(governor) {
+    var next = JSON.parse(JSON.stringify(draft))
+    var epp = governor === "powersave" ? "power" : governor === "performance" ? "performance" : ""
+    var policies = cpuCapabilities.policies || []
+    var supported = epp && policies.length && policies.every(function(policy) {
+      return String(policy.energy_performance_available_preferences || "").split(/\s+/).indexOf(epp) >= 0
+    })
+    next.config.cpu.governor = governor
+    next.config.cpu.epp = supported ? epp : ""
+    draft = next
+  }
+  function changeFan(id, text, gpu) {
+    var next = JSON.parse(JSON.stringify(draft))
+    var values = gpu ? next.config.gpuFans : next.config.fans
+    var channel = gpu ? gpuFans.find(function(item) { return item.id === id }) : null
+    var oldKey = channel ? oldGpuKey(channel) : ""
+    if (oldKey && values[oldKey] !== undefined) {
+      gpuFans.filter(function(item) { return root.oldGpuKey(item) === oldKey }).forEach(function(item) {
+        if (values[item.id] === undefined) values[item.id] = values[oldKey]
+      })
+      delete values[oldKey]
+    }
+    if (text === "") delete values[id]
+    else values[id] = Number(text)
+    draft = next
   }
   function saveDraft() {
     if (!draft.id || !draft.name || !String(draft.name).trim()) { statusKey="profile_invalid";return false }
     if (invalidCpuLimit || !Number.isInteger(draft.config.cpu.maxMHz || 0) || draft.config.cpu.maxMHz<0 || draft.config.cpu.maxMHz>10000) { statusKey="profile_invalid";return false }
-    if (Object.values(draft.config.fans).concat(Object.values(draft.config.gpuFans)).some(function(value){return !Number.isInteger(value)||value<0||value>100})) { statusKey="profile_invalid";return false }
+    if (!saveFanValuesValid(draft.config.fans, false) || !saveFanValuesValid(draft.config.gpuFans, true)) { statusKey="profile_invalid";return false }
     var list=profiles.slice()
     var index=list.findIndex(function(p){return p.id===draft.id})
     if (index<0 && list.length>=12) return false
@@ -190,13 +288,23 @@ Column {
     return true
   }
   function applyProfile(profile) {
-    if (running || !profile) return
+    if (mutationBlocked || !profile) return
     pendingId=profile.id
     pendingPayload=ProfileCodec.encode(profile.config)
     operation="apply";statusKey="profile_pending";applyProcess.running=true
   }
+  function reconcileDirectFan() {
+    if (statusProcess.running) statusSuperseded = true
+    pendingCapabilities = null
+    cpuCapabilities = Object.assign({}, cpuCapabilities, {automatic:{enabled:false,gaming:false,error:""}})
+    statusKey = ""
+  }
   function refreshStatus() {
-    if (active && !statusProcess.running) {statusDeadline.restart();statusProcess.running=true}
+    if (active && !fanBusy && !statusProcess.running) {
+      statusSuperseded = false
+      statusDeadline.restart()
+      statusProcess.running = true
+    }
   }
   onActiveChanged: if(active)refreshStatus()
   Component.onCompleted: {
@@ -214,11 +322,12 @@ Column {
     onStarted:{root.statusExitCode=-1;root.statusExpired=false;root.pendingCapabilities=null}
     onExited:function(code){
       statusDeadline.stop();root.statusExitCode=code
+      if (root.statusSuperseded) { Qt.callLater(root.refreshStatus); return }
       if(code!==0 || root.statusExpired)root.clearCapabilities()
       else root.finishStatus()
     }
     stdout:StdioCollector { waitForEnd:true; onStreamFinished:{
-      if(root.statusExpired)return
+      if(root.statusExpired || root.statusSuperseded)return
       try {
         if(text.length>=65536)throw new Error("Status exceeds budget")
         var value=JSON.parse(text)
@@ -250,7 +359,7 @@ Column {
     interval:5000;repeat:true;running:root.active
     onTriggered:root.refreshStatus()
   }
-  Timer { id:statusDeadline;interval:5000;onTriggered:{root.statusExpired=true;root.statusExitCode=1;root.clearCapabilities();statusProcess.signal(9)} }
+  Timer { id:statusDeadline;interval:5000;onTriggered:{root.statusExpired=true;root.statusExitCode=1;if(!root.statusSuperseded)root.clearCapabilities();statusProcess.signal(9)} }
   Timer { id:deadline;interval:360000;onTriggered:{root.operationExpired=true;applyProcess.signal(15);root.statusKey="profile_failed"} }
 
   Text {
@@ -283,7 +392,7 @@ Column {
       width:(parent.width-parent.spacing)/2
       text:root.t("profile_apply");iconName:"check"
       foreground:root.foreground;accent:root.accent;fontFamily:Style.font.family
-      bordered:true;focusable:true;enabled:!root.running && root.capabilitiesReady
+      bordered:true;focusable:true;enabled:!root.mutationBlocked && root.capabilitiesReady
       onClicked:root.applyProfile(root.selectedProfile)
     }
     SvgButton {
@@ -319,9 +428,10 @@ Column {
     label:root.t("profile_auto_games")
     description:root.t(root.automatic.error ? "profile_auto_error" : root.automatic.gaming ? "profile_auto_playing" : "profile_auto_hint")
     checked:root.automatic.enabled
-    enabled:!root.running && root.capabilitiesReady
+    enabled:!root.mutationBlocked && root.capabilitiesReady
     foreground:root.foreground;accent:root.accent;fontFamily:Style.font.family
     onClicked:{
+      if (root.mutationBlocked) return
       if(root.automatic.enabled){root.operation="auto-off"}
       else {
         var game=root.profiles.filter(function(p){return p.id==="games"})[0]
@@ -355,8 +465,11 @@ Column {
     width:parent.width;visible:!root.editorOpen
     text:root.t("profile_restore");iconName:"restore"
     foreground:root.foreground;accent:root.accent;fontFamily:Style.font.family
-    bordered:true;focusable:true;enabled:!root.running
-    onClicked:{root.operation="restore";root.statusKey="profile_pending";applyProcess.running=true}
+    bordered:true;focusable:true;enabled:!root.mutationBlocked
+    onClicked:{
+      if (root.mutationBlocked) return
+      root.operation="restore";root.statusKey="profile_pending";applyProcess.running=true
+    }
   }
 
   component SectionHeading: Row {
@@ -481,10 +594,17 @@ Column {
           width:parent.width
           label:root.t("profile_cpu_mode")
           value:root.draft.config ? root.draft.config.cpu.governor || "" : ""
-          options:[{value:"",label:root.t("profile_unchanged")},
-            {value:"powersave",label:root.t("profile_idle")},
-            {value:"performance",label:root.t("profile_games")}]
-          onChanged:function(mode){root.changeCpu("governor",mode);root.changeCpu("epp",mode==="powersave"?"power":mode==="performance"?"performance":"")}
+          options:root.cpuChoices(root.governors)
+          onChanged:function(mode){root.changeGovernor(mode)}
+        }
+        ChoiceDropdown {
+          objectName:"profilePlatformProfile"
+          width:parent.width
+          visible:root.platformProfiles.length > 0
+          label:root.t("profile_platform")
+          value:root.draft.config ? root.draft.config.cpu.platformProfile || "" : ""
+          options:root.cpuChoices(root.platformProfiles)
+          onChanged:function(mode) { root.changeCpu("platformProfile",mode) }
         }
         Text {
           width:parent.width;text:root.t("profile_max_mhz")
@@ -495,26 +615,23 @@ Column {
           objectName:"profileMaxMhz"
           width:parent.width;height:Style.spacing.controlHeight
           text:String(root.draft.config ? root.draft.config.cpu.maxMHz || 0 : 0)
-          validator:IntValidator{bottom:0;top:10000}
+          validator:IntValidator{locale:Qt.locale("C").name;bottom:0;top:10000}
           Accessible.name:root.t("profile_max_mhz")
-          onTextEdited:{root.invalidCpuLimit=!acceptableInput;if(acceptableInput)root.changeCpu("maxMHz",Number(text))}
+          onTextEdited:{
+            root.invalidCpuLimit = !acceptableInput || !/^\d+$/.test(text)
+            if (!root.invalidCpuLimit) root.changeCpu("maxMHz",Number(text))
+          }
         }
         SectionHeading { label:root.t("sensors");iconName:"fans" }
-        Text {
-          width:parent.width
-          visible:!root.channels.length && !root.gpus.some(function(g){return g.vendor==="NVIDIA" || String(g.name).indexOf("NVIDIA")>=0})
-          text:root.t("profile_no_fans")
-          textFormat:Text.PlainText;wrapMode:Text.Wrap;color:root.foreground
-          font.family:Style.font.family;font.pixelSize:Style.font.caption
-        }
         Repeater {
-          model:root.channels
+          model:root.boardFans
           Column {
             required property var modelData
             width:parent.width;spacing:Style.spacing.xs
             Text {
               width:parent.width
-              text:modelData.id+" · "+root.t("map_"+(root.settings["fanPlace_"+modelData.id]||"unknown"))+" %"
+              text:root.fanLabel(modelData) + " · " + root.t("map_" + Model.fanSetting(root.settings, "Place", modelData, "unknown"))
+                + " · " + root.t("fan_driver_range", root.number(modelData.minPercent), root.number(modelData.maxPercent))
               textFormat:Text.PlainText;wrapMode:Text.Wrap;color:root.foreground
               font.family:Style.font.family;font.pixelSize:Style.font.caption
             }
@@ -522,28 +639,30 @@ Column {
               width:parent.width;height:Style.spacing.controlHeight
               text:root.draft.config && root.draft.config.fans[modelData.id]!==undefined ? String(root.draft.config.fans[modelData.id]) : ""
               placeholderText:root.t("profile_unchanged")
-              validator:IntValidator{bottom:0;top:100}
-              Accessible.name:modelData.id+" %"
+              validator:IntValidator{locale:Qt.locale("C").name;bottom:modelData.minPercent;top:modelData.maxPercent}
+              Accessible.name:root.fanLabel(modelData)+" %"
               onTextEdited:root.changeFan(modelData.id,text,false)
             }
           }
         }
         Repeater {
-          model:root.gpus.filter(function(g){return g.vendor==="NVIDIA" || String(g.name).indexOf("NVIDIA")>=0})
+          model:root.gpuFans
           Column {
             required property var modelData
             width:parent.width;spacing:Style.spacing.xs
             Text {
-              width:parent.width;text:modelData.name+" · "+root.t("profile_gpu_fan")
+              width:parent.width
+              text:root.fanLabel(modelData) + " · " + root.t("fan_driver_range", root.number(modelData.minPercent), root.number(modelData.maxPercent))
               textFormat:Text.PlainText;wrapMode:Text.Wrap;color:root.foreground
               font.family:Style.font.family;font.pixelSize:Style.font.caption
             }
             TextField {
               width:parent.width;height:Style.spacing.controlHeight
-              text:root.draft.config && root.draft.config.gpuFans[modelData.id]!==undefined ? String(root.draft.config.gpuFans[modelData.id]) : ""
+              readonly property var output: root.draft.config ? root.gpuFanValue(root.draft.config.gpuFans, modelData) : undefined
+              text:output === undefined ? "" : String(output)
               placeholderText:root.t("profile_gpu_auto")
-              validator:IntValidator{bottom:0;top:100}
-              Accessible.name:modelData.name+" %"
+              validator:IntValidator{locale:Qt.locale("C").name;bottom:modelData.minPercent;top:modelData.maxPercent}
+              Accessible.name:root.fanLabel(modelData)+" %"
               onTextEdited:root.changeFan(modelData.id,text,true)
             }
           }

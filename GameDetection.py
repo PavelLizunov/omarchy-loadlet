@@ -15,13 +15,20 @@ def is_game(executable, arguments, environment):
     name = Path(executable).name.lower()
     if name in IGNORED or name.startswith(('steamwebhelper', 'crashpad_handler')):
         return False
-    app = environment.get('SteamAppId') or environment.get('SteamGameId')
-    if not app or not re.fullmatch(r'[1-9][0-9]{0,19}', app):
+    key = 'SteamAppId' if 'SteamAppId' in environment else 'SteamGameId'
+    app = environment.get(key)
+    if not isinstance(app, str) or not re.fullmatch(r'[1-9][0-9]{0,19}', app):
         return False
-    if name.startswith(('wine', 'python')) or name in ('bash', 'sh', 'dash'):
-        game_exes = [Path(arg.replace('\\', '/')).name.lower() for arg in arguments
-                     if arg.lower().endswith('.exe')]
-        return any(exe not in IGNORED for exe in game_exes)
+    if int(app) >= 1 << (32 if key == 'SteamAppId' else 64):
+        return False
+    if re.fullmatch(r'wine(?:64)?(?:-preloader)?', name):
+        for arg in arguments:
+            candidate = arg.replace('\\', '/').lower()
+            if candidate.endswith('.exe'):
+                return Path(candidate).name not in IGNORED and '/windows/' not in candidate
+        return False
+    if name.startswith(('wine', 'python')) or name in ('bash', 'sh', 'dash', 'zsh', 'fish', 'env'):
+        return False
     path = str(executable).lower()
     if '/steamapps/common/' in path and not any(part in path for part in
             ('/proton', '/steamlinuxruntime', '/steamworks shared/', '/steamworks_shared/')):
@@ -48,7 +55,9 @@ def running_games(uid, proc=Path('/proc')):
             for item in raw.split(b'\0'):
                 key, _, value = item.partition(b'=')
                 if key in (b'SteamAppId', b'SteamGameId'):
-                    env[key.decode()] = value.decode('ascii', errors='ignore')
+                    name = key.decode('ascii')
+                    # Duplicate or non-ASCII IDs cannot establish launch identity.
+                    env[name] = value.decode('ascii', errors='strict') if name not in env else ''
             with (entry/'cmdline').open('rb') as stream:
                 raw = stream.read(16385)
             if len(raw) > 16384:
@@ -56,7 +65,7 @@ def running_games(uid, proc=Path('/proc')):
             arguments = [arg.decode('utf-8', errors='replace') for arg in raw.split(b'\0') if arg]
             if is_game(executable, arguments, env):
                 found.append(int(entry.name))
-        except (FileNotFoundError, ProcessLookupError):
+        except (FileNotFoundError, ProcessLookupError, UnicodeDecodeError):
             continue
         except PermissionError:
             continue

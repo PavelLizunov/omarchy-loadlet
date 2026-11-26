@@ -34,3 +34,22 @@ with tempfile.TemporaryDirectory() as directory:
     (pid/'environ').write_bytes(b'x'*65537)
     assert games.running_games(os.getuid(), root) == []
 print('PASS game detection: native, Wine, wrapper/launcher exclusions, absent metadata, ownership and bounded input')
+
+for wrapper in ('/bin/sh', '/bin/bash', '/usr/bin/python3', '/steam/steamapps/common/Game/bin/python3'):
+    assert not games.is_game(wrapper, ['wrapper', 'other.exe'], env)
+assert not games.is_game('/usr/bin/wineprefix-script', ['wineprefix-script', 'other.exe'], env)
+assert not games.is_game('/usr/bin/wine64', ['wine64', 'services.exe', 'other.exe'], env)
+assert not games.is_game('/usr/bin/wine64', ['wine64', r'C:\windows\system32\notepad.exe'], env)
+assert not games.is_game('/usr/bin/wine64', ['wine64', 'game.exe'], {'SteamAppId': '4294967296'})
+assert not games.is_game('/usr/bin/wine64', ['wine64', 'game.exe'], {'SteamGameId': '18446744073709551616'})
+assert games.is_game('/usr/bin/wine64', ['wine64', 'game.exe'], {'SteamGameId': '18446744073709551615'})
+with tempfile.TemporaryDirectory() as directory:
+    root = Path(directory)
+    pid = root/'123'; pid.mkdir()
+    (pid/'exe').symlink_to('/steam/steamapps/common/Game/game')
+    (pid/'cmdline').write_bytes(b'game\0')
+    for raw in (b'SteamAppId=12\xff3\0', b'SteamAppId=123\0SteamAppId=456\0',
+                b'SteamAppId=\0SteamGameId=123\0'):
+        (pid/'environ').write_bytes(raw)
+        assert games.running_games(os.getuid(), root) == [], raw
+print('PASS strict Steam IDs: malformed bytes, duplicates, bounds and generic executable wrappers')

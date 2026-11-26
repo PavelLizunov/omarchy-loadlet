@@ -66,8 +66,8 @@ leak fix. [Observation and limits](docs/guide.md#memory-growth-observation).
 
 Ending another owner's process requires Polkit and the optional [root-owned process helper](docs/guide.md#authenticate-process-actions).
 Optional CPU/fan control needs authenticated root-owned Python helpers, systemd and
-Polkit/sudo. Motherboard output supports only DRFXI/IT8613; optional NVIDIA output
-uses NVML and driver-reported limits. There is no generic PSU fan control.
+Polkit/sudo. Fans controls writable hwmon PWM on motherboards, AIOs and laptops,
+including DRFXI/IT8613, plus NVIDIA (NVML) and discrete AMD (`amdgpu` hwmon) GPU fans.
 
 The control adapter maintains system services and a 24-hour, fixed-helper sudoers
 grant. Saved output can persist after logout or plugin removal. Read the

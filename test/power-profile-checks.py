@@ -1,4 +1,5 @@
 """Power profiles use temporary sysfs and mocked services only."""
+from contextlib import nullcontext
 from pathlib import Path
 import importlib.machinery
 import importlib.util
@@ -110,6 +111,51 @@ with tempfile.TemporaryDirectory() as temp:
             power.disable_auto(restore_base=False)
             apply.assert_not_called()
         assert not (power.STORE/'auto.json').exists()
+
+with tempfile.TemporaryDirectory() as directory:
+    base = Path(directory)
+    channel = 'nv.0000_01_00_0.fan0'
+    saved = {channel: 62}
+    updates = []
+    target = {'cpu': {'platformProfile': 'quiet'}, 'gpuFans': {channel: 80}}
+    payload = base64.urlsafe_b64encode(json.dumps({'game': target, 'base': target}).encode()).decode()
+    acpi = base/'acpi'
+    acpi.mkdir()
+    (acpi/'platform_profile').write_text('balanced')
+    (acpi/'platform_profile_choices').write_text('balanced quiet')
+    adapter = Mock(read_profile=saved.get, backend=Mock(return_value=nullcontext(Mock())))
+
+    def fail_auto_start(argv, **kwargs):
+        if argv[0] == power.FANS:
+            assert kwargs['env']['LOADLET_PROFILE_LOCK_OWNER'] == str(power.os.getpid())
+            action, key, *args = argv[1:]
+            assert key == channel
+            if action == 'save':
+                saved[key] = int(args[0])
+                updates.append(saved[key])
+            else:
+                assert action == 'restore'
+                saved.pop(key)
+        if argv[1:] == ['enable', '--now', 'loadlet-auto-game.service']:
+            assert saved[channel] == 80
+            raise subprocess.CalledProcessError(1, argv)
+
+    with patch.dict(power.os.environ, {'SUDO_UID': '1000'}), patch.object(power, 'install_units'), \
+         patch.object(power, 'STORE', base/'store'), patch.object(power, 'AUTO_STATUS', base/'run/status.json'), \
+         patch.object(power, 'CPU', base/'cpu'), patch.object(power, 'ACPI', acpi), \
+         patch.object(power, 'detector', return_value=Mock(running_games=lambda uid: [])), \
+         patch.object(power, 'fan_adapter', return_value=adapter), \
+         patch.object(power.subprocess, 'run', side_effect=fail_auto_start):
+        try:
+            power.configure_auto(payload)
+        except subprocess.CalledProcessError as error:
+            assert error.cmd[-1] == 'loadlet-auto-game.service'
+        else:
+            raise AssertionError('Failed automatic startup reported success')
+        assert saved == {channel: 62} and updates == [80, 62]
+        assert (acpi/'platform_profile').read_text() == 'balanced'
+        assert not list(power.STORE.glob('*.json')) and not power.AUTO_STATUS.exists()
+
 with tempfile.TemporaryDirectory() as temp:
     base=Path(temp)
     prior=power.validate({'fans':{'pwm2':40},'gpuFans':{'0000:01:00.0':30}})
@@ -127,7 +173,8 @@ with tempfile.TemporaryDirectory() as temp:
             raise AssertionError('Failed recovery accepted')
         cpu_restore.assert_called_once()
         assert gpu_stop.call_count==2
-        assert any(c.args[0]==[power.FANS,'save','pwm2','40'] for c in services.call_args_list)
+        rollback, = (c for c in services.call_args_list if c.args[0] == [power.FANS, 'save', 'pwm2', '40'])
+        assert rollback.kwargs['env']['LOADLET_PROFILE_LOCK_OWNER'] == str(power.os.getpid())
         assert not any('enable' in c.args[0] for c in services.call_args_list),'Failed GPU stop must not start a replacement'
         recovery=json.loads((base/'recovery.json').read_text())
         assert recovery['previous']==prior and recovery['target']==power.validate({})
@@ -171,3 +218,122 @@ with tempfile.TemporaryDirectory() as temp:
         assert power.auto_status()['gaming'] is False
         assert detection.running_games.call_count == 5
 print('PASS power profiles: validation, CPU rollback, boot replay, stale/failed automation, startup rollback, manual override, worker/game grace; no real writes')
+
+with tempfile.TemporaryDirectory() as directory:
+    base = Path(directory)
+    cpu, acpi, store = base/'cpu', base/'acpi', base/'store'
+    acpi.mkdir()
+    platform_file = acpi/'platform_profile'
+    platform_file.write_text('balanced')
+    (acpi/'platform_profile_choices').write_text('quiet balanced performance')
+    rows = [cpu/'cpufreq'/f'policy{n}' for n in range(2)]
+    for row in rows:
+        row.mkdir(parents=True)
+        (row/'boost').write_text('1')
+        (row/'scaling_available_governors').write_text('powersave ondemand conservative')
+        (row/'scaling_governor').write_text('powersave')
+    with patch.object(power, 'CPU', cpu), patch.object(power, 'ACPI', acpi), patch.object(power, 'STORE', store), \
+         patch.object(power.subprocess, 'run'), patch.object(power, 'fan_adapter', return_value=Mock(read_profile=lambda _: None)):
+        original = power.cpu_snapshot()
+        caps = power.capabilities()
+        assert caps['boost'] == '1' and caps['platformProfile'] == 'balanced'
+        assert caps['platformProfileChoices'] == ['quiet', 'balanced', 'performance']
+        real_apply = power.apply_cpu
+
+        def check_intent(cpu):
+            intent = json.loads((store/'recovery.json').read_text())
+            assert intent['cpu'] == original and intent['target']['cpu'] == cpu
+            real_apply(cpu)
+
+        with patch.object(power, 'apply_cpu', side_effect=check_intent):
+            power.apply({'cpu': {'boost': False, 'governor': 'conservative', 'platformProfile': 'quiet'}})
+        assert platform_file.read_text() == 'quiet'
+        assert all((row/'boost').read_text() == '0' and (row/'scaling_governor').read_text() == 'conservative'
+                   for row in rows)
+        assert json.loads((store/'original-cpu.json').read_text())[str(platform_file)] == 'balanced'
+        assert not (store/'recovery.json').exists()
+        power.apply({'fans': {'hw.nct6798.isa0290.pwm16': 60}})
+        assert power.cpu_snapshot() == original, 'Fan-only profile restores prior CPU baseline'
+        try:
+            power.apply({'cpu': {'platformProfile': 'unsupported'}})
+        except ValueError as error:
+            assert 'unavailable' in str(error)
+        else:
+            raise AssertionError('Unavailable ACPI mode accepted')
+        assert not (store/'recovery.json').exists()
+        power.apply_cpu({'boost': False, 'governor': 'ondemand', 'platformProfile': 'performance'})
+        write = Path.write_text
+
+        def fail_first_policy(path, value):
+            if path == rows[0]/'boost':
+                raise OSError('injected policy failure')
+            return write(path, value)
+
+        with patch.object(Path, 'write_text', autospec=True, side_effect=fail_first_policy):
+            try:
+                power.restore_cpu(original)
+            except ValueError as error:
+                assert str(rows[0]/'boost') in str(error)
+            else:
+                raise AssertionError('Failed CPU restore reported success')
+        assert (rows[1]/'boost').read_text() == '1'
+        assert (rows[1]/'scaling_governor').read_text() == 'powersave'
+        assert platform_file.read_text() == 'balanced'
+    with patch.object(power, 'CPU', base/'no-cpufreq'), patch.object(power, 'ACPI', acpi):
+        power.apply_cpu({'platformProfile': 'quiet', 'maxMHz': 0})
+        assert platform_file.read_text() == 'quiet'
+
+    handlers = base/'sys/class/platform-profile'
+    profiles = {}
+    for index, mode in enumerate(('balanced', 'performance')):
+        path = handlers/f'platform-profile-{index}'/'profile'
+        path.parent.mkdir(parents=True)
+        path.write_text(mode)
+        profiles[str(path)] = mode
+    platform_file.write_text('custom')
+    with patch.object(power, 'CPU', base/'no-cpufreq'), patch.object(power, 'ACPI', acpi), \
+         patch.object(power, 'ACPI_HANDLERS', handlers):
+        original = power.cpu_snapshot()
+        assert original == profiles
+        power.apply_cpu({'platformProfile': 'quiet'})
+        for path in profiles:
+            Path(path).write_text('quiet')
+        # A legacy snapshot containing the synthetic aggregate must also be safe.
+        with patch.object(Path, 'write_text', autospec=True, side_effect=Path.write_text) as writes:
+            power.restore_cpu(original | {str(platform_file): 'custom'})
+        assert {(str(call.args[0]), call.args[1]) for call in writes.call_args_list} == set(profiles.items())
+        assert all(Path(path).read_text() == mode for path, mode in profiles.items())
+        assert platform_file.read_text() == 'quiet'
+
+assert len(power.validate({'fans': {f'hw.nct6798.isa0290.pwm{i}': 50 for i in range(1, 17)}})['fans']) == 16
+assert power.validate({'gpuFans': {'nv.0000_01_00_0.fan0': 60, 'amd.0000_03_00_0.pwm1': 70}})['gpuFans'] == {
+    'nv.0000_01_00_0.fan0': 60, 'amd.0000_03_00_0.pwm1': 70}
+for gpus in ({'0000:01:00.0': 40, 'nv.0000_01_00_0.fan0': 42},
+             {'nv.0000_01_00_0': 40, 'nv.0000_01_00_0.fan0': 42}):
+    try:
+        power.validate({'gpuFans': gpus})
+    except ValueError:
+        pass
+    else:
+        raise AssertionError('Overlapping GPU owners accepted')
+with tempfile.TemporaryDirectory() as directory:
+    base = Path(directory)
+    pwm_dir = base/'hwmon'
+    pwm_dir.mkdir()
+    (pwm_dir/'pwm1').touch()
+    (pwm_dir/'pwm1_enable').touch()
+    adapter = Mock(amd_hwmon=Mock(side_effect=lambda bus: [pwm_dir] if bus == '0000:03:00.0' else []))
+    with patch.object(power, 'fan_adapter', return_value=adapter):
+        power.gpu_worker('0000:03:00.0', 75)
+        adapter.worker.assert_called_once_with('amd.0000_03_00_0.pwm1', 75, 0, persistent=True, scope='profile-')
+        power.gpu_reset('0000:01:00.0')
+        adapter.restore.assert_called_once_with('nv.0000_01_00_0', reset=True, scope='profile-')
+with patch.object(power.sys, 'argv', ['power-profile', 'request', 'restore']), \
+     patch.object(power, 'request_run', return_value=subprocess.CompletedProcess([], 1, stderr='  GPU reset incomplete\n')):
+    try:
+        power.main()
+    except ValueError as error:
+        assert str(error) == 'GPU reset incomplete'
+    else:
+        raise AssertionError('Request wrapper suppressed backend failure')
+print('PASS platform and GPU profiles: ACPI choices, per-policy boost, fan-only baseline, recovery intent, both GPU backends')
