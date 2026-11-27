@@ -15,6 +15,7 @@ Item {
   height: 1200
   Plugin.Panel { id: plugin; anchors.fill: parent }
   Component { id: controllerComponent; Plugin.ActivityController {} }
+  Component { id: localeComponent; Plugin.LoadletLocale {} }
   Component {
     id: symmetryIconComponent
     Rectangle {
@@ -69,8 +70,13 @@ Item {
       snapshot.controls = Model.parseSensorSnapshot(rows.join("\n")).controls
       Object.keys(fixture).forEach(function(key) { ctrl[key] = fixture[key] })
     }
+    function setHostLanguage(code) {
+      var target = Host.I18n.languageFile.reader || Host.I18n.languageFile
+      target.fixtureText = code
+      if (Host.I18n.languageFile.reread) Host.I18n.languageFile.reread()
+    }
     function init() {
-      Host.I18n.languageFile.fixtureText=""
+      setHostLanguage("")
       plugin.close(); host.width=1600; host.height=1200
       Style.fontBaseSize=12; Style.spacingScaleWithFont=true
       plugin.settings={locale:"ru",iconIndicator:false}; plugin.sortKey="cpu";plugin.sortAscending=false
@@ -207,19 +213,23 @@ Item {
       plugin.settings={locale:"system",iconIndicator:false};wait(10)
       compare(plugin.effectiveLanguage,"en");compare(ctrl.language,"en")
       ctrl.state="ready";ctrl.due={resources:123};ctrl.captureSession="locale-fixture"
-      Host.I18n.languageFile.fixtureText="de";wait(10)
+      setHostLanguage("de");wait(10)
       compare(plugin.effectiveLanguage,"de");compare(ctrl.language,"de")
       compare(ctrl.state,"ready");compare(ctrl.due.resources,123)
       compare(ctrl.captureSession,"locale-fixture")
       plugin.persistSettings({locale:"ru"})
-      Host.I18n.languageFile.fixtureText="en";wait(10)
+      setHostLanguage("en");wait(10)
       compare(plugin.effectiveLanguage,"ru");compare(ctrl.language,"ru")
       plugin.persistSettings({locale:"system"})
-      Host.I18n.languageFile.fixtureText="uk";wait(10)
+      setHostLanguage("uk");wait(10)
       compare(plugin.effectiveLanguage,"uk","Keep the registry locale while using English text fallback")
-      Host.I18n.languageFile.fixtureText="zh-TW";wait(10)
+      setHostLanguage("zh-TW");wait(10)
       compare(plugin.effectiveLanguage,"zh-TW","Traditional Chinese must not use Simplified")
       plugin.persistSettings({locale:"zh"});compare(plugin.effectiveLanguage,"zh-CN")
+      var localeAdapter = createTemporaryObject(localeComponent, host)
+      verify(localeAdapter !== null)
+      compare(localeAdapter.fileText({text: "{\"en\":{}}"}), "{\"en\":{}}")
+      compare(localeAdapter.fileText({text: function() { return "{\"ru\":{}}" }}), "{\"ru\":{}}")
     }
     function test_fast_diagnostic_controls_and_report() {
       plugin.setSettingsOpen(true);plugin.settingsSection="diagnostics";wait(40)

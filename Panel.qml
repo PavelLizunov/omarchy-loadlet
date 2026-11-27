@@ -121,8 +121,8 @@ Panel {
         captureInterval: activity.captureAppliedInterval,
         heatThreshold: activity.heatThreshold,
         productName: "Loadlet",
-        iconRevision: "2.21.0",
-        implementationRevision: "gpu-hw-fans-20261126",
+        iconRevision: "2.21.1",
+        implementationRevision: "omarchy46-watchedfile-20261127",
         memoryWatchEvents: memoryCleanup.watch.events.length,
         memoryWatchNotifications: memoryCleanup.watch.notificationsEnabled,
         memoryWatching: memoryCleanup.watch.running,
@@ -1354,7 +1354,7 @@ Panel {
           boundsBehavior: Flickable.StopAtBounds
           activeFocusOnTab: true
           keyNavigationEnabled: false
-          model: [{value:"system", label:root.t("lang_system"), description:root.t("language_system_hint")}].concat(strings.languages)
+          model: [{value:"system", label:root.t("lang_system"), description:root.t("language_system_hint")}].concat(strings.languages || [])
             .filter(function(item) {
               var query = languageSearch.text.trim().toLowerCase()
               return !query || (item.label + " " + item.description + " " + item.value).toLowerCase().indexOf(query) >= 0

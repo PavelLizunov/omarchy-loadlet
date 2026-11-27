@@ -39,7 +39,7 @@ with (Path(os.environ['HOME'])/'ipc.jsonl').open('a') as stream:
 assert args[0] == 'shell'
 if args[1] == 'listPlugins':
     subprocess.run([os.environ['ACTIVITY_CATALOG']], check=True)
-elif args[1] == 'rescanPlugins':
+elif args[1] in ('rescanPlugins', 'reloadPlugins'):
     print('ok')
 elif args[1] == 'enablePlugin':
     assert args[2] == 'slovn.activity-lite'
@@ -79,7 +79,7 @@ else:
 const s=m.parseSnapshot(fs.readFileSync(0,'utf8'));
 if(s.schema!==1||s.cpu.total!==1000||s.memory.total!==1024000)process.exit(1);'''
     subprocess.run(['node', '-e', model, str(installed / 'Model.js')], input=sample.stdout,
-                   text=True, check=True, timeout=5, env=env)
+                   text=True, check=True, timeout=5)
     before = sha(installed / 'activity-sampler')
     refused = subprocess.run(command, env=env, text=True, capture_output=True, timeout=60)
     assert refused.returncode != 0 and sha(installed / 'activity-sampler') == before

@@ -42,6 +42,8 @@ Item {
   property bool watchChanges: false
   property bool printErrors: false
   property bool blockLoading: false
+  property bool blockAllReads: false
+  property bool preload: false
   signal loaded()
   signal loadFailed()
   signal fileChanged()
@@ -77,6 +79,8 @@ def prepare(directory):
                'singleton Style 1.0 Style.qml', 'singleton Util 1.0 Util.qml']
     if (commons / 'I18n.qml').is_file():
         exports.append('singleton I18n 1.0 I18n.qml')
+    if (commons / 'WatchedFile.qml').is_file():
+        exports.append('WatchedFile 1.0 WatchedFile.qml')
     exports += ['ShellIpc 1.0 ShellIpc.qml', 'Translations 1.0 Translations.qml']
     (commons / 'qmldir').write_text('module ActivityHost.Commons\n' + '\n'.join(exports) + '\n')
     (commons / 'ShellIpc.qml').write_text('import QtQuick\nItem { property string target: "" }\n')
@@ -211,7 +215,7 @@ def main():
         try:
             result = subprocess.run([runner, '-input', str(Path(directory) / 'tst_panel.qml'),
                                      '-import', str(imports)], env=env, timeout=90,
-                                    capture_output=True, text=True)
+                                    capture_output=True, text=True, errors='replace')
         except subprocess.TimeoutExpired as error:
             for stream, target in ((error.stdout, sys.stdout), (error.stderr, sys.stderr)):
                 if stream:

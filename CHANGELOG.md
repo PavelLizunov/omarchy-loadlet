@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.21.1
+
+- Fix Omarchy 4.6 compatibility in `LoadletLocale.qml` where `I18n.registryFile`
+  switched from `FileView.text()` to `WatchedFile.text`, restoring live
+  localization, number formatting and panel rendering on both Omarchy 4.5 and 4.6.
+- Update the inert UI test harness for Omarchy 4.6 `WatchedFile` and `FileView`
+  properties.
+
 ## 2.21.0
 
 - Control NVIDIA GPU fans directly through NVML and AMD GPU fans through

@@ -7,10 +7,14 @@ QtObject {
   id: root
   property string requestedLanguage: "system"
   readonly property bool followsSystem: !requestedLanguage || requestedLanguage === "system"
-  readonly property var registry: Host.I18n.parseCatalog(Host.I18n.registryFile.text())
+  function fileText(file) {
+    if (!file) return ""
+    return typeof file.text === "function" ? file.text() : String(file.text || "")
+  }
+  readonly property var registry: Host.I18n.parseCatalog(fileText(Host.I18n.registryFile)) || ({})
   readonly property string language: resolveLanguage(followsSystem ? Host.I18n.language : requestedLanguage)
   readonly property string baseLanguage: language.split("-")[0]
-  readonly property var localeSettings: registry[language] || ({})
+  readonly property var localeSettings: (registry && registry[language]) || ({})
   readonly property string formatLocale: localeSettings.formatLocale || language.replace("-", "_")
   readonly property var qtLocale: Qt.locale(formatLocale)
   readonly property bool hasCatalog: Object.keys(language === "en" ? nativeStrings.englishStrings
